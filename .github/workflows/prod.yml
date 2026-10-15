@@ -27,13 +27,16 @@ jobs:
           fetch-depth: 0
       - name: Point prod at the release commit
         run: |
-          git fetch --no-tags origin prod
-          # Runs can finish out of order; an older release must not move prod backwards.
-          if git merge-base --is-ancestor origin/prod HEAD; then
-            git push origin "HEAD:refs/heads/prod"
-          else
-            echo "::warning::prod is not an ancestor of $(git rev-parse --short HEAD); leaving prod unchanged"
+          # The first release creates prod, so there is nothing to compare against yet.
+          if git ls-remote --exit-code --heads origin prod > /dev/null; then
+            git fetch --no-tags origin prod
+            # Runs can finish out of order; an older release must not move prod backwards.
+            if ! git merge-base --is-ancestor origin/prod HEAD; then
+              echo "::warning::prod is not an ancestor of $(git rev-parse --short HEAD); leaving prod unchanged"
+              exit 0
+            fi
           fi
+          git push origin "HEAD:refs/heads/prod"
       # Pushes made with GITHUB_TOKEN don't start workflows, so the build is dispatched explicitly.
       - name: Build the executables on prod
         env:
