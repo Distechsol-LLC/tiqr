@@ -1,6 +1,6 @@
 [project]
 name = "tiqr"
-version = "0.9.2"
+version = "0.9.3"
 description = "QR Ticketing System for Suprema BioStar X"
 readme = "README.md"
 requires-python = ">=3.14"

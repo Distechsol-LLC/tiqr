@@ -140,7 +140,8 @@ Settings are explicit dataclasses or environment variables, optionally loaded fr
 rejects empty and common placeholders at core and CLI startup. There is no fallback
 key, demo mode, simulator selector, or second credentials-loading path. With zero
 BioStar settings use the default in-memory protocols; otherwise require complete
-configuration, including reader and access group. TLS verification defaults on.
+configuration, including reader and access group. TLS verification defaults off; setting
+`TIQR_BIOSTAR_VERIFY_TLS=true` enables it.
 
 ## QR and PDF
 

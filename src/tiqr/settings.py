@@ -192,7 +192,7 @@ class BioStarSettings:
     device_ids: tuple[str, ...]
     # Blank means tiqr manages its own "TiQR AG" access group; see BioStarXProvisioner.
     access_group_id: str = ""
-    verify_tls: bool = True
+    verify_tls: bool = False
     timeout: float = 30.0
     user_id_base: int = 1_000_000
     # Seconds a door stays unlocked, and how long it may stay open before BioStar alarms.
@@ -232,7 +232,7 @@ class BioStarSettings:
             password=required["PASSWORD"],
             device_ids=_device_ids(required["DEVICE_IDS"]),
             access_group_id=_biostar_value(environment, "ACCESS_GROUP_ID"),
-            verify_tls=_biostar_flag(environment, "VERIFY_TLS", default=True),
+            verify_tls=_biostar_flag(environment, "VERIFY_TLS", default=False),
             timeout=float(_biostar_value(environment, "TIMEOUT", "30")),
             user_id_base=int(_biostar_value(environment, "USER_ID_BASE", "1000000")),
             door_open_duration=int(_biostar_value(environment, "DOOR_OPEN_DURATION", "3")),
