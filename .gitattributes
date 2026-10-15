@@ -1,0 +1,3 @@
+# Text files are LF in the repo and in every checkout, so Windows runners
+# (core.autocrlf=true) see the same bytes as Linux; ruff format uses line-ending = "lf".
+* text=auto eol=lf

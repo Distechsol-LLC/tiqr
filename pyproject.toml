@@ -1,0 +1,95 @@
+[project]
+name = "tiqr"
+version = "0.9.2"
+description = "QR Ticketing System for Suprema BioStar X"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "typer>=0.20",
+    "httpx>=0.28",
+    "qrcode>=8.2",
+    "reportlab>=4.4",
+    "argon2-cffi>=25.1",
+    "tzdata>=2025.2",
+    "python-dotenv>=1.2.4",
+]
+
+[project.scripts]
+tiqr = "tiqr.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.19.2",
+    "lefthook>=2.2.2",
+    "pyinstaller>=6.22",
+    "pyright>=1.1.414",
+    "pytest>=8.4",
+    "ruff>=0.14",
+    "types-qrcode>=8.2.0.20260518",
+    "types-reportlab>=5.0.0.20261008",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.format]
+docstring-code-format = true
+line-ending = "lf"
+skip-magic-trailing-comma = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", # conflicts with the formatter
+    "CPY",    # no copyright headers
+    "D",      # docstrings are written where they add something, not everywhere
+    "EM",     # exception messages are plain literals
+    "ISC001", # conflicts with the formatter
+    "TC",     # Python 3.14 defers annotations; Typer still needs them at runtime
+    "TRY003", # messages live at the raise site
+]
+
+[tool.ruff.lint.per-file-ignores]
+"packaging/**" = ["INP001"]  # the PyInstaller entry script is run, never imported
+"tests/**" = [
+    "ANN",     # fixtures and tests are not type-checked
+    "ARG",     # fixtures are requested for their side effects
+    "C901",    # the fake BioStar server is one big dispatcher
+    "FBT",     # boolean literals read fine in assertions
+    "PLR0911", # same dispatcher
+    "PLR2004", # asserted values are the point of a test
+    "PT011",   # broad raises are deliberate where the message is incidental
+    "PT012",   # multi-statement raises blocks keep setup next to the failure
+    "RUF001",  # full-width digits are test input
+    "S",       # asserts, hard-coded passwords and subprocess calls
+    "SLF001",  # tests exercise private helpers
+]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.lint.pylint]
+max-args = 7
+max-positional-args = 7
+
+[tool.pyright]
+include = ["src"]
+typeCheckingMode = "strict"
+pythonVersion = "3.14"
+venvPath = "."
+venv = ".venv"
+reportImportCycles = "error"
+reportPropertyTypeMismatch = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.commitizen]
+name = "cz_conventional_commits"

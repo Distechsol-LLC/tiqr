@@ -1,0 +1,16 @@
+{
+  "UserCollection": {
+    "total": "1",
+    "rows": [
+      {
+        "user_id": "401",
+        "name": "401May"
+      }
+    ]
+  },
+  "Response": {
+    "code": "0",
+    "link": "https://support.supremainc.com/en/support/home",
+    "message": "Success"
+  }
+}
