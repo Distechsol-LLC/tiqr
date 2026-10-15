@@ -49,8 +49,10 @@ def test_pdf_is_one_a4_sheet_with_fields_unicode_font_and_two_logos(ticket, tmp_
     assert b"/ToUnicode" in data
     assert data.count(b"/Subtype /Image") == 2
     assert not list(path.parent.glob("*.tmp"))
-    for name in ("distechsol.png", "suprema.png"):
-        assert files("tiqr").joinpath("assets", name).read_bytes().startswith(b"\x89PNG")
+    assert (
+        files("tiqr").joinpath("assets", "images", "distechsol.webp").read_bytes()[8:12] == b"WEBP"
+    )
+    assert files("tiqr").joinpath("assets", "images", "suprema.webp").read_bytes()[8:12] == b"WEBP"
 
 
 def test_pdf_draws_unicode_name_without_loss(ticket, tmp_path, monkeypatch):
@@ -184,17 +186,17 @@ def test_name_shrinks_before_it_is_cut():
 
 def test_access_window_is_day_month_year_in_the_given_timezone(ticket):
     baku, utc = ZoneInfo("Asia/Baku"), ZoneInfo("UTC")
-    assert pdf._window(ticket, baku) == "01.01.30 · 12:00 - 14:00"
-    assert pdf._window(ticket, utc) == "01.01.30 · 08:00 - 10:00"
+    assert pdf._window(ticket, baku) == "01.01.30 · 12:00 – 14:00"
+    assert pdf._window(ticket, utc) == "01.01.30 · 08:00 – 10:00"
     overnight = replace(ticket, valid_until=ticket.valid_from + timedelta(days=2, hours=3))
-    assert pdf._window(overnight, utc) == "01.01.30 · 08:00 - 03.01.30 · 11:00"
+    assert pdf._window(overnight, utc) == "01.01.30 · 08:00 – 03.01.30 · 11:00"
     # The day rolls over for the zone, not for UTC.
     late = replace(
         ticket,
         valid_from=datetime(2030, 3, 31, 22, tzinfo=UTC),
         valid_until=datetime(2030, 3, 31, 23, tzinfo=UTC),
     )
-    assert pdf._window(late, baku) == "01.04.30 · 02:00 - 03:00"
+    assert pdf._window(late, baku) == "01.04.30 · 02:00 – 03:00"
 
 
 def test_reprint_overwrites_same_path(ticket, tmp_path):

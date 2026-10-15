@@ -19,5 +19,5 @@ pre-commit:
 pre-push:
   parallel: true
   commands:
-    cover:
+    test:
       run: uv run pytest

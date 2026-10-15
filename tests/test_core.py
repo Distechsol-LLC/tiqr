@@ -293,6 +293,25 @@ def test_full_live_configuration_is_explicit(monkeypatch, tmp_path):
     assert not settings.biostar.verify_tls
 
 
+@pytest.mark.parametrize(("value", "verify_tls"), [(None, False), ("", False), ("true", True)])
+def test_tls_verification_is_off_unless_set_true(monkeypatch, value, verify_tls):
+    for key in tuple(__import__("os").environ):
+        if key.startswith("TIQR_BIOSTAR_"):
+            monkeypatch.delenv(key)
+    values = {
+        "BASE_URL": "https://example.com/api",
+        "USERNAME": "admin",
+        "PASSWORD": "password",
+        "DEVICE_IDS": "540598970",
+    }
+    for key, setting in values.items():
+        monkeypatch.setenv(f"TIQR_BIOSTAR_{key}", setting)
+    if value is not None:
+        monkeypatch.setenv("TIQR_BIOSTAR_VERIFY_TLS", value)
+    monkeypatch.setenv("TIQR_SECRET_KEY", "d23bfaf431a349fea87c38ddcb62ff10")
+    assert Settings.from_env().biostar.verify_tls is verify_tls
+
+
 @pytest.mark.parametrize("required", ["true", "TRUE"])
 def test_required_biostar_refuses_local_mode(monkeypatch, required):
     for key in tuple(__import__("os").environ):

@@ -53,7 +53,7 @@ flag in `.env`, because local mode must keep working.
 | `TIQR_BIOSTAR_PASSWORD` | BioStar account password |
 | `TIQR_BIOSTAR_DEVICE_IDS` | Comma-separated existing reader IDs, at least one |
 | `TIQR_BIOSTAR_ACCESS_GROUP_ID` | Optional existing access group ID; blank lets `tiqr setup` manage a group named `TiQR AG` |
-| `TIQR_BIOSTAR_VERIFY_TLS` | `true`; explicitly use `false` only for a trusted self-signed installation |
+| `TIQR_BIOSTAR_VERIFY_TLS` | `false`; set `true` to verify the server's TLS certificate. Verification is off by default, so enable it for any server reached over an untrusted network |
 | `TIQR_BIOSTAR_TIMEOUT` | `30` seconds |
 | `TIQR_BIOSTAR_DOOR_OPEN_DURATION` | `3` seconds a door stays unlocked; applies to doors `tiqr setup` creates |
 | `TIQR_BIOSTAR_DOOR_OPEN_TIMEOUT` | `10` seconds a door may stay open before BioStar flags it; applies to doors `tiqr setup` creates |
@@ -101,10 +101,7 @@ uv run tiqr user add manager --role manager
 uv run tiqr user add operator --role operator
 uv run tiqr user list
 
-uv run tiqr ticket create --name "Adam Tələbə" --type Student --from "2030-06-01T09:00:00" --until "2030-06-01T18:00:00" --usage 
-one_time 
---as 
-operator
+uv run tiqr ticket create --name "Adam Tələbə" --type Student --from "2030-06-01T09:00:00" --until "2030-06-01T18:00:00" --usage one_time --as operator
 uv run tiqr ticket create --name "Guest" --type Guest --from "2030-06-01T09:00:00" --until "2030-06-01T18:00:00" --usage multi_use --tz Asia/Almaty --as manager
 uv run tiqr ticket list --as operator
 uv run tiqr ticket list --state issued --as manager
@@ -248,13 +245,13 @@ folding it reads correctly from behind. Instructions in the scrap half repeat th
 
 The front, from the top edge down, shows:
 
-1. The hole guides, then a navy `TiQR` band with a teal and a crimson stripe.
+1. The hole guides, then a navy `TiQR` band with a turquoise and a crimson stripe.
 2. The Distechsol and Suprema logos.
 3. The visitor type in a crimson chip, and the visitor name in bold, in up to two lines.
 4. A panel with the QR code, drawn as vector graphics with a quiet zone, and the readable
    serial (`TQR-YYMMDD-NNNNN`).
-5. The validity window in the configured timezone, such as `01.06.30 · 09:00 - 18:00`, or
-   `01.06.30 · 09:00 - 02.06.30 · 18:00` across days.
+5. The validity window in the configured timezone, such as `01.06.30 · 09:00 – 18:00`, or
+   `01.06.30 · 09:00 – 02.06.30 · 18:00` across days.
 6. A navy footer, `Suprema BioStar X`, next to the fold.
 
 The back repeats the header and logos, with the type chip and the name in up to three lines
@@ -347,7 +344,7 @@ pre-commit:
         PATH: /path/to/uv/bin:$PATH
 pre-push:
   commands:
-    cover:
+    test:
       env:
         PATH: /path/to/uv/bin:$PATH
 ```
@@ -371,8 +368,10 @@ uv sync --locked
 uv run pyinstaller packaging/tiqr.spec --noconfirm
 ```
 
-The **Executables** workflow builds all three platforms, on a manual run or a `v*` tag,
-and uploads them as artifacts. The executable contains Python, the fonts and logos, and
+The **Executables** workflow (`.github/workflows/executables.yml`) runs the CI tests, then builds
+the executable on Windows, macOS and Linux and smoke-tests each one from an empty folder. Builds
+from `prod` or a `v*` tag upload the executables as 7-day artifacts; a manual run on any other ref
+only builds and tests. The executable contains Python, the fonts and logos, and
 the time zone data. Its config and data live beside it, not in a temporary folder:
 `.env.local`, `tiqr.db` and `out/` appear in the folder that holds the executable. Copy
 your own `.env.local` there to supply BioStar settings. Secrets are never built in.
@@ -390,3 +389,19 @@ database is missing, then runs the CLI. `setup`, `reset` and `--help` never run 
 When a terminal run finds no users, it asks for the first admin's username and password
 before the command runs, so the database always gets an admin on first use. Scripts with
 no terminal are never prompted; they fail as usual if no users exist.
+
+### Releases
+
+The **CI** workflow (`ci.yml`) runs on pull requests and on pushes to `main` and `prod`.
+A release is a commit on `main` whose message contains `[PROD]`, such as
+`feat: init project [PROD]`:
+
+1. **Prod** (`prod.yml`) waits for CI to pass on that push, then points the `prod` branch at
+   the commit. If `prod` already exists and is not an ancestor of the commit, it leaves `prod`
+   unchanged and warns, so an older run that finishes late cannot move it backwards.
+2. Prod then dispatches **Executables** on `prod`. The push uses `GITHUB_TOKEN`, which does not
+   start workflows by itself, so the dispatch is explicit.
+
+To publish a GitHub release, push a `v*` tag whose version matches `version` in
+`pyproject.toml`. The Executables workflow then attaches the executables
+and a `SHA256SUMS` file to that release.

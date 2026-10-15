@@ -40,7 +40,7 @@ from reportlab.pdfgen.canvas import Canvas
 from tiqr.models import Ticket
 
 _FONT = "TiQR-Geist"
-_LOGOS = ("distechsol.png", "suprema.png")
+_LOGOS = ("distechsol.webp", "suprema.webp")
 _PAGE_WIDTH, _PAGE_HEIGHT = A4
 
 # Geometry below is in millimetres, measured from the top of the surface being drawn on.
@@ -56,14 +56,13 @@ _HOLE_OFFSET = 8
 _HOLE_SPACING = 60
 _HOLE_RADIUS = 2.5
 
-# Sampled from the logos: navy and teal from the Distechsol mark, crimson from the Suprema logo.
-_NAVY = colors.HexColor("#082B55")
-_TEAL = colors.HexColor("#029DA2")
-_CRIMSON = colors.HexColor("#A61F48")
-_MUTED = colors.HexColor("#707A8E")
-_PANEL = colors.HexColor("#E8EEF7")
-_HAIRLINE = colors.HexColor("#CED6E2")
-_GUIDE = colors.HexColor("#B0BACA")
+# Sampled from the logos: navy and turquoise from Distechsol, crimson from Suprema.
+_NAVY = colors.HexColor("#092a54")
+_TURQUOISE = colors.HexColor("#099ba0")
+_CRIMSON = colors.HexColor("#a71e48")
+_MUTED = colors.HexColor("#71757b")
+_PANEL = colors.HexColor("#e8e9ea")
+_GUIDE = colors.HexColor("#babcbf")
 
 # Badge labels are English because visitors include foreigners.
 _EVENT_LABEL = "TiQR"
@@ -74,13 +73,13 @@ _NAME_SIZES = (8, 7, 6, 5, 4.2)
 _TYPE_SIZES = (3.0, 2.6, 2.2)
 
 
-def _asset(name: str) -> bytes:
-    return files("tiqr").joinpath("assets", name).read_bytes()
+def _asset(folder: str, name: str) -> bytes:
+    return files("tiqr").joinpath("assets", folder, name).read_bytes()
 
 
 def _font() -> TTFont:
     if _FONT not in pdfmetrics.getRegisteredFontNames():
-        pdfmetrics.registerFont(TTFont(_FONT, BytesIO(_asset("Geist.ttf"))))  # pyright: ignore[reportUnknownMemberType]
+        pdfmetrics.registerFont(TTFont(_FONT, BytesIO(_asset("fonts", "Geist.ttf"))))  # pyright: ignore[reportUnknownMemberType]
     font = pdfmetrics.getFont(_FONT)
     if not isinstance(font, TTFont):
         raise TypeError(f"{_FONT} is registered as a non-TrueType font")
@@ -158,8 +157,8 @@ def _window(ticket: Ticket, zone: ZoneInfo) -> str:
     end = ticket.valid_until.astimezone(zone)
 
     if start.date() == end.date():
-        return f"{start:%d.%m.%y} · {start:%H:%M} - {end:%H:%M}"
-    return f"{start:%d.%m.%y} · {start:%H:%M} - {end:%d.%m.%y} · {end:%H:%M}"
+        return f"{start:%d.%m.%y} · {start:%H:%M} – {end:%H:%M}"
+    return f"{start:%d.%m.%y} · {start:%H:%M} – {end:%d.%m.%y} · {end:%H:%M}"
 
 
 def _image_width(image: ImageReader, height: float) -> float:
@@ -316,10 +315,10 @@ def _draw_header(surface: _Surface, logos: list[ImageReader]) -> float:
     surface.centered(
         width / 2, _EDGE_MARGIN + 2.3, _EVENT_LABEL, 3.6, colors.white, bold=True, tracking=1.1
     )
-    # Two stripes under it: Distechsol teal and Suprema crimson.
+    # Two stripes under it: Distechsol turquoise and Suprema crimson.
     stripe = 1.5
     top = _EDGE_MARGIN + band_height
-    surface.rect(left, top, text_width, stripe, _TEAL)
+    surface.rect(left, top, text_width, stripe, _TURQUOISE)
     surface.rect(left, top + stripe, text_width, stripe, _CRIMSON)
     top += stripe * 2 + 3.5
 
@@ -330,7 +329,6 @@ def _draw_header(surface: _Surface, logos: list[ImageReader]) -> float:
     surface.image(distechsol, left, top, logo_height)
     suprema_width = _image_width(suprema, logo_height)
     surface.image(suprema, right - suprema_width, top, logo_height, radius=1.2)
-    surface.line((width / 2, top + 1), (width / 2, top + logo_height - 1), _HAIRLINE, 0.25)
     return top + logo_height + 4
 
 
@@ -444,7 +442,7 @@ def _draw_sheet(canvas: Canvas, ticket: Ticket, logos: list[ImageReader], zone: 
 
 def render_pdf(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
     zone = ZoneInfo(timezone)
-    logos = [ImageReader(BytesIO(_asset(name))) for name in _LOGOS]
+    logos = [ImageReader(BytesIO(_asset("images", name))) for name in _LOGOS]
     # Check the font and the text before any file is created, so a failure leaves no debris.
     _require_glyphs(ticket.visitor_name + ticket.visitor_type)
     output_dir.mkdir(parents=True, exist_ok=True)

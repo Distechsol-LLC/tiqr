@@ -52,9 +52,9 @@ def built_wheel(tmp_path_factory):
 def test_built_wheel_contains_logos_and_only_library_scope(built_wheel):
     with zipfile.ZipFile(built_wheel) as archive:
         names = archive.namelist()
-        for name in ("distechsol.png", "suprema.png"):
-            assert archive.read(f"tiqr/assets/{name}").startswith(b"\x89PNG")
-        assert archive.read("tiqr/assets/Geist.ttf").startswith(b"\x00\x01\x00\x00")
+        assert archive.read("tiqr/assets/images/distechsol.webp")[8:12] == b"WEBP"
+        assert archive.read("tiqr/assets/images/suprema.webp")[8:12] == b"WEBP"
+        assert archive.read("tiqr/assets/fonts/Geist.ttf").startswith(b"\x00\x01\x00\x00")
         for name in names:
             parts = Path(name).parts
             assert parts[0] == "tiqr" or parts[0].endswith(".dist-info"), name
@@ -116,8 +116,8 @@ assert pathlib.Path(tiqr.__file__).resolve().is_relative_to(root)
 for module in ("tiqr.cli", "tiqr.pdf", "tiqr.service", "tiqr.settings", "tiqr.repository"):
     imported = importlib.import_module(module)
     assert pathlib.Path(imported.__file__).resolve().is_relative_to(root)
-for name in ("distechsol.png", "suprema.png"):
-    assert files("tiqr").joinpath("assets", name).read_bytes().startswith(b"\x89PNG")
+assert files("tiqr").joinpath("assets", "images", "distechsol.webp").read_bytes()[8:12] == b"WEBP"
+assert files("tiqr").joinpath("assets", "images", "suprema.webp").read_bytes()[8:12] == b"WEBP"
 assert CliRunner().invoke(app, ["--help"]).exit_code == 0
 repository = SQLiteRepository(":memory:")
 repository.initialize()
@@ -153,6 +153,7 @@ print(json.dumps({"package": str(pathlib.Path(tiqr.__file__).resolve()),
     assert result.returncode == 0, result.stdout + result.stderr
     installed = json.loads(result.stdout)
     assert Path(installed["package"]).is_relative_to(installation)
-    assert "tiqr/assets/distechsol.png" in installed["files"]
-    assert "tiqr/assets/suprema.png" in installed["files"]
+    assert "tiqr/assets/images/distechsol.webp" in installed["files"]
+    assert "tiqr/assets/images/suprema.webp" in installed["files"]
+    assert "tiqr/assets/fonts/Geist.ttf" in installed["files"]
     assert all(not set(Path(name).parts) & FORBIDDEN for name in installed["files"])
