@@ -2,7 +2,9 @@
 
 A Python 3.14 **core library and CLI** for QR tickets registered with Suprema
 BioStar X and scanned by XPass Q2 readers. SQLite keeps local history; the reader
-enforces each ticket's UTC access window. PDF output is saved as a file; `ticket print` also sends that file to the default printer.
+enforces each ticket's UTC access window. PDF output is saved as a file; `ticket print` also
+sends that file to the default printer. A web API and frontend are planned; see
+[DEPLOYMENT.md](DEPLOYMENT.md) for how the product is packaged and installed on customer servers.
 
 ## Setup
 
@@ -29,7 +31,7 @@ environment, which overrides the file.
 
 Configuration comes from explicit `Settings` objects or environment variables. The CLI
 also reads `.env` and then `.env.local` from the project root (the checkout that contains
-`src/`), not from the directory it is run in: `.env.local` wins over `.env`, and real
+`apps/`), not from the directory it is run in: `.env.local` wins over `.env`, and real
 environment variables win over both. `.env` is committed and lists every key with blank
 placeholders; a blank value counts as unset, so local mode works and CI can fill the
 BioStar block in. `.env.local` is git-ignored and holds private values such as
@@ -166,10 +168,10 @@ runs, but the in-memory hardware fakes do not: an empty fake event source makes
 from datetime import UTC, datetime, timedelta
 from tempfile import TemporaryDirectory
 
-from tiqr.models import RawEvent, Role, UsageType
-from tiqr.repository import SQLiteRepository
-from tiqr.service import TicketService
-from tiqr.settings import Settings
+from tiqr.core.models import RawEvent, Role, UsageType
+from tiqr.core.repository import SQLiteRepository
+from tiqr.core.service import TicketService
+from tiqr.core.settings import Settings
 
 settings = Settings.from_env()
 repo = SQLiteRepository(":memory:")
@@ -207,8 +209,8 @@ finally:
 `uv run tiqr ticket save` only writes a PDF file. `uv run tiqr ticket print` writes the same
 file and then sends it to the default printer through the operating system:
 
-- **Linux and macOS:** CUPS `lp` with `print-scaling=none`, so the page prints at 100%.
-  Linux needs the CUPS client tools installed; macOS includes them.
+- **Linux:** CUPS `lp` with `print-scaling=none`, so the page prints at 100%. Linux needs the
+  CUPS client tools installed.
 - **Windows:** [SumatraPDF](https://www.sumatrapdfreader.org/) when it is installed, found on
   `PATH` or in its default folder under `%LOCALAPPDATA%` or `%ProgramFiles%`. TiQR runs it with
   `-print-to-default -print-settings noscale -silent`, which prints silently at 100%. Without
@@ -267,7 +269,7 @@ the badge. A type too long for its chip is cut the same way.
 
 Print at 100% (actual size) so the layout keeps its size and the folded badge matches the
 printed cut and fold lines. "Fit to page" scaling changes that. `ticket print` requests this on
-Linux, macOS and, with SumatraPDF, Windows. Without SumatraPDF on Windows, set the PDF
+Linux and, with SumatraPDF, Windows. Without SumatraPDF on Windows, set the PDF
 application's print scaling to 100% or "Actual size". Inkjet printers often cannot print the
 bottom 14 mm of a sheet, so the back's header keeps 18 mm clear of that edge.
 
@@ -306,7 +308,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run pyright
 uv run pytest
-uv build --wheel
+uv build --all-packages --wheel
 ```
 
 ### Git hooks
@@ -353,15 +355,31 @@ Run `dirname "$(command -v uv)"` in a terminal to find that directory.
 
 CI runs those checks on Python 3.14 on Windows and Linux. Tests use in-memory
 hardware fakes or recorded BioStar response bodies, never a live server. Packaging
-tests build a wheel and check its assets, imports, and scope in isolation.
+tests build every member's wheel and check its assets, imports, and scope in isolation.
 
-Only `src/tiqr/` ships in the wheel. There is no HTTP server, browser UI, static site,
-print queue, printer driver, or reference helper-script build.
+### Layout
+
+The repository is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/).
+The root `pyproject.toml` holds the product version and shared tool settings; it is never built
+itself. Each member is its own distribution, and all of them share the `tiqr` import namespace:
+
+| Path | Distribution | Import | Contents |
+|---|---|---|---|
+| `apps/core` | `tiqr-core` | `tiqr.core` | Models, service, SQLite, BioStar adapters, QR, PDF, assets |
+| `apps/cli` | `tiqr-cli` | `tiqr.cli` | Typer commands and the executable's launcher |
+| `apps/api` | `tiqr-api` | `tiqr.api` | Backend API; empty until it is implemented |
+| `apps/web` | — | — | SvelteKit web UI; not started, see its README |
+| `packaging/` | — | — | PyInstaller spec and entry script |
+| `tests/` | — | — | `core/`, `cli/` and packaging tests, sharing one `conftest.py` |
+
+Dependencies point one way: `cli` and `api` use `core`, and `core` imports neither; the
+packaging tests enforce this. Every member's version must match the root's. There is no HTTP
+server, browser UI, print queue, printer driver, or reference helper-script build yet.
 
 ### Executables
 
 `packaging/tiqr.spec` builds one file with PyInstaller: `tiqr.exe` on Windows and `tiqr`
-on macOS and Linux. PyInstaller cannot cross-compile, so build on the platform you target:
+on Linux. PyInstaller cannot cross-compile, so build on the platform you target:
 
 ```text
 uv sync --locked
@@ -369,7 +387,7 @@ uv run pyinstaller packaging/tiqr.spec --noconfirm
 ```
 
 The **Executables** workflow (`.github/workflows/executables.yml`) runs the CI tests, then builds
-the executable on Windows, macOS and Linux and smoke-tests each one from an empty folder. Builds
+the executable on Windows and Linux and smoke-tests each one from an empty folder. Builds
 from `prod` or a `v*` tag upload the executables as 7-day artifacts; a manual run on any other ref
 only builds and tests. The executable contains Python, the fonts and logos, and
 the time zone data. Its config and data live beside it, not in a temporary folder:
@@ -380,8 +398,6 @@ your own `.env.local` there to supply BioStar settings. Secrets are never built 
   window in its folder that runs the CLI.
 - **Linux:** double-clicking opens a terminal window when the file manager runs the file
   in a terminal; otherwise run `./tiqr` from a terminal.
-- **macOS:** run `./tiqr` from Terminal. The binary is unsigned, so a downloaded copy may
-  need `xattr -d com.apple.quarantine tiqr` before its first run.
 
 Any run with arguments, or from a terminal, first runs `setup` when the signing key or
 database is missing, then runs the CLI. `setup`, `reset` and `--help` never run it.

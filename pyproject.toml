@@ -1,25 +1,27 @@
+# Workspace root. The product version lives here; every member under apps/ matches it.
 [project]
 name = "tiqr"
 version = "0.9.3"
 description = "QR Ticketing System for Suprema BioStar X"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = [
-    "typer>=0.20",
-    "httpx>=0.28",
-    "qrcode>=8.2",
-    "reportlab>=4.4",
-    "argon2-cffi>=25.1",
-    "tzdata>=2025.2",
-    "python-dotenv>=1.2.4",
-]
+# Every member, so a plain `uv sync` installs the whole product.
+dependencies = ["tiqr-core", "tiqr-cli", "tiqr-api"]
 
-[project.scripts]
-tiqr = "tiqr.cli:app"
+[tool.uv]
+# The root only ties the members together and is never built.
+package = false
+# Supported targets only; the lock resolves no macOS wheels.
+environments = ["sys_platform == 'linux'", "sys_platform == 'win32'"]
 
-[build-system]
-requires = ["uv_build>=0.13,<0.14"]
-build-backend = "uv_build"
+[tool.uv.workspace]
+# Explicit, because apps/web is a Node project with no pyproject.toml of its own.
+members = ["apps/core", "apps/cli", "apps/api"]
+
+[tool.uv.sources]
+tiqr-core = { workspace = true }
+tiqr-cli = { workspace = true }
+tiqr-api = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -72,6 +74,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
+# The members share the tiqr namespace, which no top-level src/ reveals to ruff.
+known-first-party = ["tiqr"]
 split-on-trailing-comma = false
 
 [tool.ruff.lint.pylint]
@@ -79,7 +83,9 @@ max-args = 7
 max-positional-args = 7
 
 [tool.pyright]
-include = ["src"]
+include = ["apps"]
+# Resolve the members as local source, not as untyped installed packages.
+extraPaths = ["apps/core/src", "apps/cli/src", "apps/api/src"]
 typeCheckingMode = "strict"
 pythonVersion = "3.14"
 venvPath = "."

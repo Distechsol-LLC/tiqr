@@ -8,9 +8,10 @@ ROOT = Path(SPECPATH).parent
 
 a = Analysis(
     [str(ROOT / "packaging" / "tiqr_entry.py")],
-    pathex=[str(ROOT / "src")],
+    # Every workspace member's source root; tiqr is a namespace shared across them.
+    pathex=[str(path) for path in sorted((ROOT / "apps").glob("*/src"))],
     # Assets are loaded through importlib.resources, so they must ship as data files.
-    datas=collect_data_files("tiqr") + collect_data_files("tzdata"),
+    datas=collect_data_files("tiqr.core") + collect_data_files("tzdata"),
     excludes=["tkinter"],
 )
 pyz = PYZ(a.pure)

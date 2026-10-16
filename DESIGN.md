@@ -27,18 +27,23 @@ The reference auth module does **not** hash individual passwords: its two shared
 roles and cookie behavior (`app/auth.py:23–97`) are deliberately replaced with
 individual Argon2id users and the required three-role permission matrix.
 
-## Exactly two layers
+## Layers
 
-1. Core: frozen dataclass models, authentication, settings, QR, PDF file generation,
-   repository and integration protocols, SQLite storage, fakes, BioStar adapters,
-   and `TicketService`.
-2. CLI: Typer parsing, local password prompts, formatting, and wiring of those core
-   interfaces. It contains no state/permission decisions or SQL.
+1. Core (`apps/core`, `tiqr.core`): frozen dataclass models, authentication, settings,
+   QR, PDF file generation, repository and integration protocols, SQLite storage, fakes,
+   BioStar adapters, and `TicketService`.
+2. CLI (`apps/cli`, `tiqr.cli`): Typer parsing, local password prompts, formatting, and
+   wiring of those core interfaces. It contains no state/permission decisions or SQL.
+3. API (`apps/api`, `tiqr.api`): planned HTTP API over the same core service,
+   which will also serve the static web app in `apps/web/`. It is an empty package until it is
+   implemented; [DEPLOYMENT.md](DEPLOYMENT.md) describes how it will be packaged and installed.
 
-`src/tiqr/` is the only packaged source tree. No ORM, web framework, HTTP listener,
-UI, daemon, printer agent, or third layer exists. The PyInstaller executable under
-`packaging/` wraps the same two layers and adds no behavior beyond first-run setup.
-The HTTP **client** is exclusively an outbound BioStar adapter.
+Each layer is a uv workspace member with its own dependencies. Only `core` holds domain
+decisions; `cli` and `api` are adapters over it, and `core` imports neither. Today no ORM,
+web framework, HTTP listener, UI, daemon or printer agent exists; the api layer is where the
+listener and web framework will go, and they must stay out of `core` and `cli`. The PyInstaller
+executable under `packaging/` wraps the core and CLI and adds no behavior beyond first-run
+setup. The HTTP **client** is exclusively an outbound BioStar adapter.
 
 ## Models and storage
 
@@ -136,7 +141,7 @@ The library's actor object represents the caller's authenticated principal; this
 local library is not a sandbox against callers with direct database access.
 
 Settings are explicit dataclasses or environment variables, optionally loaded from
-`.env` then `.env.local` in the working directory; real environment variables win. Secret validation
+`.env` then `.env.local` in the project root; real environment variables win. Secret validation
 rejects empty and common placeholders at core and CLI startup. There is no fallback
 key, demo mode, simulator selector, or second credentials-loading path. With zero
 BioStar settings use the default in-memory protocols; otherwise require complete
