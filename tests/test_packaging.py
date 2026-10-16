@@ -112,7 +112,7 @@ def test_core_wheel_contains_assets_and_only_library_scope(built_wheels):
         for name in archive.namelist():
             for part in Path(name).parts[2:]:
                 assert Path(part).stem.lower() not in FORBIDDEN, name
-        assert {"httpx", "qrcode", "reportlab", "tzdata"} <= _dependencies(archive)
+        assert {"httpx2", "qrcode", "reportlab", "tzdata"} <= _dependencies(archive)
 
 
 def test_core_and_cli_have_no_web_framework_dependencies_or_imports(built_wheels):
@@ -135,17 +135,27 @@ def test_cli_wheel_provides_the_tiqr_command(built_wheels):
         entrypoints = next(name for name in names if name.endswith("/entry_points.txt"))
         assert "tiqr = tiqr.cli.commands:app" in archive.read(entrypoints).decode()
         assert "tiqr/cli/__main__.py" in names
-        assert {"tiqr-core", "typer"} <= _dependencies(archive)
+        assert {"tiqr-core", "tiqr-api", "typer"} <= _dependencies(archive)
+
+
+def test_api_wheel_holds_the_web_stack_and_never_imports_the_cli(built_wheels):
+    with zipfile.ZipFile(built_wheels["api"]) as archive:
+        assert {"tiqr-core", "fastapi", "uvicorn"} <= _dependencies(archive)
+        assert "typer" not in _dependencies(archive)
+        imports = _imports(archive, "api")
+        assert "tiqr/api/app.py" in archive.namelist()
+    assert not {m for m in imports if m.startswith("tiqr.cli") or m.split(".")[0] == "typer"}
 
 
 def test_installed_wheels_isolated_smoke(built_wheels, tmp_path):
     installation = tmp_path / "installed"
-    for member in ("core", "cli"):
+    for member in MEMBERS:
         with zipfile.ZipFile(built_wheels[member]) as archive:
             archive.extractall(installation)
     script = r"""
 import importlib
 import json
+import os
 import pathlib
 import sys
 from datetime import UTC, datetime, timedelta
@@ -167,7 +177,7 @@ from tiqr.cli.commands import app
 
 assert pathlib.Path(tiqr.core.__file__).resolve().is_relative_to(root)
 for module in ("tiqr.cli.commands", "tiqr.core.pdf", "tiqr.core.service", "tiqr.core.settings",
-        "tiqr.core.repository"):
+        "tiqr.core.repository", "tiqr.api.app"):
     imported = importlib.import_module(module)
     assert pathlib.Path(imported.__file__).resolve().is_relative_to(root)
 assets = files("tiqr.core").joinpath("assets", "images")
@@ -187,6 +197,17 @@ try:
     assert repository.get_ticket(ticket.id).print_count == 1
 finally:
     repository.close()
+# An installed service keeps its config and data under TIQR_HOME, wherever the code lives.
+from fastapi.testclient import TestClient
+from tiqr.api.app import create_app
+from tiqr.api.config import ServerConfig
+from tiqr.core import settings
+home = pathlib.Path(os.environ["TIQR_HOME"]).resolve()
+assert settings.PROJECT_ROOT == home
+config = ServerConfig(dev=True, sync_interval=0, cleanup_interval=0)
+with TestClient(create_app(config)) as client:
+    assert client.get("/api/health").json()["status"] == "ok"
+assert (home / "tiqr.db").is_file()
 for name, module in tuple(sys.modules.items()):
     if name.startswith("tiqr.") and getattr(module, "__file__", None):
         assert pathlib.Path(module.__file__).resolve().is_relative_to(root), name
@@ -196,6 +217,8 @@ print(json.dumps({"package": str(pathlib.Path(tiqr.core.__file__).resolve()),
 """
     environment = {key: value for key, value in os.environ.items() if not key.startswith("TIQR_")}
     environment.pop("PYTHONPATH", None)
+    environment["TIQR_HOME"] = str(tmp_path / "home")
+    environment["TIQR_SECRET_KEY"] = "installed-wheel-signing-key"
     result = subprocess.run(
         [sys.executable, "-I", "-c", script, str(installation), str(PROJECT)],
         cwd=tmp_path,

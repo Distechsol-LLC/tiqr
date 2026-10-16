@@ -19,6 +19,8 @@ from tiqr.core.models import (
     TicketState,
     UsageType,
     User,
+    WebSession,
+    utc,
 )
 from tiqr.core.ports import Repository
 
@@ -53,8 +55,31 @@ CREATE TABLE IF NOT EXISTS registrations (
     user_removed INTEGER NOT NULL, card_removed INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS cleaned_tickets (ticket_id TEXT PRIMARY KEY REFERENCES tickets(id));
-PRAGMA user_version = 1;
 """
+# Timestamps are fixed-width, so SQL compares them as text in time order.
+_WEB_SESSIONS = """
+CREATE TABLE IF NOT EXISTS web_sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    csrf_token TEXT NOT NULL, created_at TEXT NOT NULL, last_seen_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS web_sessions_user ON web_sessions(user_id);
+"""
+_USER_ACTIVE = """
+ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1));
+"""
+
+
+def _statements(script: str) -> tuple[str, ...]:
+    # No statement here contains a semicolon of its own, so splitting on them is exact.
+    return tuple(statement.strip() for statement in script.split(";") if statement.strip())
+
+
+# Step N upgrades schema version N to N + 1. Steps are append-only, and each runs once, in one
+# transaction with its version bump.
+_MIGRATIONS = tuple(_statements(script) for script in (_SCHEMA, _WEB_SESSIONS, _USER_ACTIVE))
+SCHEMA_VERSION = len(_MIGRATIONS)
 
 _TICKET_COLUMNS = tuple(field.name for field in fields(Ticket))
 _UPSERT_TICKET = (
@@ -82,7 +107,13 @@ def _optional_datetime(value: str | None) -> datetime | None:
 
 
 def _user(row: sqlite3.Row) -> User:
-    return User(UUID(row["id"]), row["username"], row["password_hash"], Role(row["role"]))
+    return User(
+        UUID(row["id"]),
+        row["username"],
+        row["password_hash"],
+        Role(row["role"]),
+        active=bool(row["active"]),
+    )
 
 
 def _ticket(row: sqlite3.Row) -> Ticket:
@@ -117,6 +148,21 @@ def _event(row: sqlite3.Row) -> AccessEvent:
     )
 
 
+def _instant(value: datetime) -> str:
+    return value.isoformat(timespec="microseconds")
+
+
+def _web_session(row: sqlite3.Row) -> WebSession:
+    return WebSession(
+        token_hash=row["token_hash"],
+        user_id=UUID(row["user_id"]),
+        csrf_token=row["csrf_token"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        last_seen_at=datetime.fromisoformat(row["last_seen_at"]),
+        expires_at=datetime.fromisoformat(row["expires_at"]),
+    )
+
+
 def _registration(row: sqlite3.Row) -> Registration:
     return Registration(
         external_id=row["external_id"],
@@ -147,7 +193,12 @@ class SQLiteRepository(Repository):
     ) -> None:
         self.close()
 
-    def initialize(self) -> None:
+    def initialize(self, *, upgrade: bool = False) -> None:
+        """Create a new database, or check an existing one is current.
+
+        An older schema is upgraded only when `upgrade` is set, which `tiqr setup` does, so the
+        database can be backed up first. A newer one is always refused.
+        """
         with self._lock:
             tables = {
                 name
@@ -158,12 +209,27 @@ class SQLiteRepository(Repository):
             if {"guests", "print_jobs"} & tables:
                 raise ValueError("Reference application database detected; use a new TIQR_DB")
             (version,) = self._connection.execute("PRAGMA user_version").fetchone()
-            if version not in (0, 1):
+            if not 0 <= version <= SCHEMA_VERSION:
                 raise ValueError(f"Unsupported database version: {version}")
-            # user_version is set last, so version 1 means a complete schema; skipping the script
-            # spares every command a write and fsync.
-            if version == 0:
-                self._connection.executescript(_SCHEMA)
+            if 0 < version < SCHEMA_VERSION and not upgrade:
+                raise ValueError(
+                    f"Database schema version {version} is out of date; back the database up,"
+                    " then run `tiqr setup` to upgrade it"
+                )
+            # A current database skips every step, sparing each command a write and fsync.
+            for target in range(version + 1, SCHEMA_VERSION + 1):
+                self._migrate(_MIGRATIONS[target - 1], target)
+
+    def _migrate(self, statements: tuple[str, ...], version: int) -> None:
+        # The version is set in the same transaction, so a failed step leaves the old schema.
+        with self.transaction():
+            # Another process may have run this step while this one waited for the write lock.
+            (current,) = self._connection.execute("PRAGMA user_version").fetchone()
+            if current >= version:
+                return
+            for statement in statements:
+                self._connection.execute(statement)
+            self._connection.execute(f"PRAGMA user_version = {version}")
 
     def close(self) -> None:
         self._connection.close()
@@ -202,8 +268,15 @@ class SQLiteRepository(Repository):
 
     def add_user(self, user: User) -> None:
         self._execute(
-            "INSERT INTO users VALUES (?,?,?,?)",
-            (str(user.id), user.username, user.password_hash, user.role.value),
+            "INSERT INTO users (id, username, password_hash, role, active) VALUES (?,?,?,?,?)",
+            (str(user.id), user.username, user.password_hash, user.role.value, int(user.active)),
+        )
+
+    def save_user(self, user: User) -> None:
+        """Store a changed role, password or active state; usernames never change."""
+        self._execute(
+            "UPDATE users SET password_hash=?, role=?, active=? WHERE id=?",
+            (user.password_hash, user.role.value, int(user.active), str(user.id)),
         )
 
     def user_by_name(self, username: str) -> User | None:
@@ -295,3 +368,40 @@ class SQLiteRepository(Repository):
 
     def mark_cleaned(self, ticket_id: UUID) -> None:
         self._execute("INSERT OR IGNORE INTO cleaned_tickets VALUES (?)", (str(ticket_id),))
+
+    def add_web_session(self, session: WebSession) -> None:
+        self._execute(
+            "INSERT INTO web_sessions VALUES (?,?,?,?,?,?)",
+            (
+                session.token_hash,
+                str(session.user_id),
+                session.csrf_token,
+                _instant(session.created_at),
+                _instant(session.last_seen_at),
+                _instant(session.expires_at),
+            ),
+        )
+
+    def get_web_session(self, token_hash: str) -> WebSession | None:
+        return self._fetch_one(
+            _web_session, "SELECT * FROM web_sessions WHERE token_hash=?", (token_hash,)
+        )
+
+    def touch_web_session(self, token_hash: str, seen_at: datetime) -> None:
+        self._execute(
+            "UPDATE web_sessions SET last_seen_at=? WHERE token_hash=?",
+            (_instant(utc(seen_at)), token_hash),
+        )
+
+    def delete_web_session(self, token_hash: str) -> None:
+        self._execute("DELETE FROM web_sessions WHERE token_hash=?", (token_hash,))
+
+    def delete_user_web_sessions(self, user_id: UUID) -> None:
+        self._execute("DELETE FROM web_sessions WHERE user_id=?", (str(user_id),))
+
+    def purge_web_sessions(self, idle_since: datetime, now: datetime) -> None:
+        """Delete sessions last seen at or before `idle_since`, or that ended by `now`."""
+        self._execute(
+            "DELETE FROM web_sessions WHERE last_seen_at<=? OR expires_at<=?",
+            (_instant(utc(idle_since)), _instant(utc(now))),
+        )

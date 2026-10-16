@@ -9,13 +9,22 @@ from typing import TypedDict
 from uuid import UUID, uuid4
 
 from tiqr.core.auth import (
+    DEACTIVATED,
     INVALID_CREDENTIALS,
     SESSION_LIFETIME,
+    SIGNED_OUT,
+    WEB_SESSION_IDLE,
+    WEB_SESSION_LIFETIME,
+    WEB_SESSION_TOUCH,
     AuthenticationError,
     Session,
+    hash_password,
     new_user,
+    new_web_token,
+    reject_unknown_user,
     session_token,
     verify_password,
+    web_token_hash,
 )
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
 from tiqr.core.models import (
@@ -27,12 +36,14 @@ from tiqr.core.models import (
     TicketState,
     UsageType,
     User,
+    WebSession,
     utc,
 )
 from tiqr.core.ports import Clock, EventSource, PdfRenderer, Registrar, Repository
 from tiqr.core.qr import DEFAULT_PREFIX, build_payload, make_serial, validate_prefix
 from tiqr.core.settings import validate_secret
 
+_ADMINS = frozenset({Role.ADMIN})
 _STAFF = frozenset({Role.ADMIN, Role.MANAGER})
 _MANAGERS = frozenset({Role.MANAGER})
 _TRANSITIONS = frozenset(
@@ -103,31 +114,155 @@ class TicketService:
     def list_users(self) -> list[User]:
         return self.repository.list_users()
 
+    def create_user(self, actor: User, username: str, password: str, role: Role) -> User:
+        """`add_user` for an authenticated caller rather than the trusted local OS account."""
+        self._require(self._actor(actor), _ADMINS)
+        return self.add_user(username, password, role)
+
+    def list_accounts(self, actor: User) -> list[User]:
+        """`list_users` for an authenticated caller; managers need it to pick assignees."""
+        self._require(self._actor(actor), _STAFF)
+        return self.list_users()
+
+    def find_user(self, username: str) -> User:
+        user = self.repository.user_by_name(username.strip())
+        if user is None:
+            raise NotFoundError("User not found")
+        return user
+
+    def edit_user(
+        self,
+        user_id: UUID,
+        *,
+        role: Role | None = None,
+        active: bool | None = None,
+        password: str | None = None,
+    ) -> User:
+        """Change a role, (de)activate, or reset a password, as the trusted local OS account.
+
+        Deactivating or resetting a password ends the user's sessions; a new role applies from
+        their next request. The last active admin can be neither demoted nor deactivated, so
+        somebody can always manage accounts.
+        """
+        if role is None and active is None and password is None:
+            raise ValueError("Nothing to change")
+        # Hashed before the transaction, so the write lock isn't held for Argon2.
+        password_hash = None if password is None else hash_password(password)
+        with self.repository.transaction():
+            user = self.repository.user_by_id(user_id)
+            if user is None:
+                raise NotFoundError("User not found")
+            updated = replace(
+                user,
+                role=user.role if role is None else Role(role),
+                active=user.active if active is None else active,
+                password_hash=password_hash or user.password_hash,
+            )
+            if self._is_active_admin(user) and not self._is_active_admin(updated):
+                admins = [
+                    other for other in self.repository.list_users() if self._is_active_admin(other)
+                ]
+                if len(admins) <= 1:
+                    raise StateError("The last active admin cannot be deactivated or demoted")
+            self.repository.save_user(updated)
+            if not updated.active or password_hash is not None:
+                self.repository.delete_user_web_sessions(user.id)
+        return updated
+
+    def manage_user(
+        self,
+        actor: User,
+        user_id: UUID,
+        *,
+        role: Role | None = None,
+        active: bool | None = None,
+        password: str | None = None,
+    ) -> User:
+        """`edit_user` for an authenticated admin. Admins may reset their own password, but
+        not change their own role or deactivate themselves, which also keeps one admin active.
+        """
+        actor = self._actor(actor)
+        self._require(actor, _ADMINS)
+        if actor.id == user_id and (role not in (None, actor.role) or active is False):
+            raise PermissionDeniedError(
+                "Admins cannot change their own role or deactivate themselves"
+            )
+        return self.edit_user(user_id, role=role, active=active, password=password)
+
+    @staticmethod
+    def _is_active_admin(user: User) -> bool:
+        return user.active and user.role == Role.ADMIN
+
     def authenticate(self, username: str, password: str) -> User:
         user = self.repository.user_by_name(username)
         if user is None:
-            raise AuthenticationError(INVALID_CREDENTIALS)
+            reject_unknown_user(password)
         verify_password(user, password)
+        # Checked after the password, so only the account's holder learns it is deactivated.
+        if not user.active:
+            raise AuthenticationError(DEACTIVATED)
         return user
 
     def start_session(self, user: User) -> Session:
         expires_at = self._now() + SESSION_LIFETIME
-        token = session_token(self.secret_key, user.id, expires_at)
+        token = session_token(self.secret_key, user, expires_at)
         return Session(user.username, expires_at, token)
 
     def resume_session(self, session: Session) -> User:
         user = self.repository.user_by_name(session.username)
-        if user is None or self._now() >= session.expires_at:
+        if user is None or not user.active or self._now() >= session.expires_at:
             raise AuthenticationError(INVALID_CREDENTIALS)
-        expected = session_token(self.secret_key, user.id, session.expires_at)
+        expected = session_token(self.secret_key, user, session.expires_at)
         if not hmac.compare_digest(session.token.encode(), expected.encode()):
             raise AuthenticationError(INVALID_CREDENTIALS)
         return user
+
+    def open_web_session(self, user: User) -> tuple[str, WebSession]:
+        """Start a browser session for an authenticated user; return its token and record."""
+        user = self._actor(user)
+        now = self._now()
+        token = new_web_token()
+        session = WebSession(
+            token_hash=web_token_hash(token),
+            user_id=user.id,
+            csrf_token=new_web_token(),
+            created_at=now,
+            last_seen_at=now,
+            expires_at=now + WEB_SESSION_LIFETIME,
+        )
+        with self.repository.transaction():
+            # Logins are rare enough to sweep ended sessions on, so no scheduler is needed.
+            self.repository.purge_web_sessions(now - WEB_SESSION_IDLE, now)
+            self.repository.add_web_session(session)
+        return token, session
+
+    def resume_web_session(self, token: str) -> tuple[User, WebSession]:
+        """The user and session behind a browser token, while it is neither idle nor ended."""
+        # No transaction: each write is one statement, and a logout racing this request at worst
+        # lets that one request finish. Most requests then take no write lock at all.
+        now = self._now()
+        token_hash = web_token_hash(token)
+        session = self.repository.get_web_session(token_hash)
+        user = None if session is None else self.repository.user_by_id(session.user_id)
+        if session is None or user is None or not user.active:
+            raise AuthenticationError(SIGNED_OUT)
+        if now >= session.expires_at or now >= session.last_seen_at + WEB_SESSION_IDLE:
+            self.repository.delete_web_session(token_hash)
+            raise AuthenticationError(SIGNED_OUT)
+        if now - session.last_seen_at >= WEB_SESSION_TOUCH:
+            session = replace(session, last_seen_at=now)
+            self.repository.touch_web_session(token_hash, now)
+        return user, session
+
+    def close_web_session(self, token: str) -> None:
+        self.repository.delete_web_session(web_token_hash(token))
 
     def _actor(self, actor: User) -> User:
         stored = self.repository.user_by_id(actor.id)
         if stored is None:
             raise PermissionDeniedError("Unknown actor")
+        if not stored.active:
+            raise PermissionDeniedError(DEACTIVATED)
         return stored
 
     @staticmethod
@@ -248,6 +383,8 @@ class TicketService:
             assignee = self.repository.user_by_name(assignee_username)
             if assignee is None:
                 raise NotFoundError("Assignee not found")
+            if not assignee.active:
+                raise StateError("Assignee account is deactivated")
             ticket = replace(ticket, assigned_operator=assignee.id)
             self.repository.save_ticket(ticket)
             return ticket
@@ -313,8 +450,11 @@ class TicketService:
         )
 
     def sync(self, actor: User) -> int:
-        actor = self._actor(actor)
-        self._require(actor, _STAFF)
+        self._require(self._actor(actor), _STAFF)
+        return self.scheduled_sync()
+
+    def scheduled_sync(self) -> int:
+        """`sync` for a trusted in-process scheduler, which has no account to act as."""
         self._expire_all()
         events, cursor = self.event_source.fetch_events(self.repository.get_cursor())
         stored = 0
@@ -328,8 +468,11 @@ class TicketService:
         return stored
 
     def cleanup(self, actor: User) -> int:
-        actor = self._actor(actor)
-        self._require(actor, _STAFF)
+        self._require(self._actor(actor), _STAFF)
+        return self.scheduled_cleanup()
+
+    def scheduled_cleanup(self) -> int:
+        """`cleanup` for a trusted in-process scheduler, which has no account to act as."""
         removed = 0
         # States only move forward, so a ticket eligible in this snapshot stays eligible.
         for ticket in self._expire_all():

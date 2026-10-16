@@ -44,6 +44,8 @@ class User:
     username: str
     password_hash: str
     role: Role
+    # A deactivated account keeps its history and tickets but can neither sign in nor act.
+    active: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +110,22 @@ class AccessEvent:
     def __post_init__(self) -> None:
         object.__setattr__(self, "occurred_at", utc(self.occurred_at))
         object.__setattr__(self, "processed_at", utc(self.processed_at))
+
+
+@dataclass(frozen=True, slots=True)
+class WebSession:
+    """A browser login. Only the token's hash is stored; the browser holds the token itself."""
+
+    token_hash: str
+    user_id: UUID
+    csrf_token: str
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+
+    def __post_init__(self) -> None:
+        for name in ("created_at", "last_seen_at", "expires_at"):
+            object.__setattr__(self, name, utc(getattr(self, name)))
 
 
 @dataclass(frozen=True, slots=True)

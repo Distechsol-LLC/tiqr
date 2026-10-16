@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
-import httpx
+import httpx2
 import pytest
 
 from tiqr.core.biostar import (
@@ -16,6 +16,7 @@ from tiqr.core.biostar import (
     BioStarXEventSource,
     BioStarXProvisioner,
     BioStarXRegistrar,
+    _rows,
     to_biostar_datetime,
 )
 from tiqr.core.models import Registration, Role, SyncCursor, Ticket, TicketState, UsageType, User
@@ -31,7 +32,7 @@ def recording(name):
 
 
 def collection(name, rows):
-    return httpx.Response(200, json={name: {"total": str(len(rows)), "rows": rows}, **SUCCESS})
+    return httpx2.Response(200, json={name: {"total": str(len(rows)), "rows": rows}, **SUCCESS})
 
 
 @pytest.fixture
@@ -88,7 +89,7 @@ class Server:
         if path == "/api/login":
             self.logins += 1
             assert SESSION_HEADER not in request.headers
-            return httpx.Response(
+            return httpx2.Response(
                 200, json=SUCCESS, headers={SESSION_HEADER: f"session-{self.logins}"}
             )
         assert request.headers[SESSION_HEADER] == f"session-{self.logins}"
@@ -98,7 +99,7 @@ class Server:
             user = json.loads(request.content)["User"]
             self.users[user["user_id"]] = user
             if user["user_id"] == "401":
-                return httpx.Response(200, json=recording("user_created"))
+                return httpx2.Response(200, json=recording("user_created"))
             return collection("UserCollection", [{"user_id": user["user_id"]}])
         if (method, path) == ("POST", "/api/cards"):
             card = json.loads(request.content)["CardCollection"]["rows"][0]
@@ -107,7 +108,7 @@ class Server:
             return collection("CardCollection", [card])
         if method == "PUT" and path.startswith("/api/users/"):
             self.users[path.rsplit("/", 1)[1]].update(json.loads(request.content)["User"])
-            return httpx.Response(200, json=SUCCESS)
+            return httpx2.Response(200, json=SUCCESS)
         if (method, path) == ("POST", "/api/v2/users/search"):
             assert json.loads(request.content) == {
                 "limit": 0,
@@ -123,7 +124,7 @@ class Server:
         if method == "DELETE" and path in ("/api/users", "/api/cards"):
             records = self.users if path.endswith("users") else self.cards
             records.pop(request.url.params["id"], None)
-            return httpx.Response(200, json=SUCCESS)
+            return httpx2.Response(200, json=SUCCESS)
         if (method, path) == ("GET", "/api/v2/cards/registered"):
             rows = [c for c in self.cards.values() if c["card_id"] == request.url.params["card_id"]]
             return collection("CardCollection", rows)
@@ -131,7 +132,7 @@ class Server:
 
 
 def client(config, handler):
-    return BioStarClient(config, transport=httpx.MockTransport(handler))
+    return BioStarClient(config, transport=httpx2.MockTransport(handler))
 
 
 @pytest.mark.parametrize(
@@ -164,7 +165,7 @@ def test_root_and_api_base_session_and_context_close(config, base, caplog):
 
 def test_login_error_envelope_precedes_missing_header(config):
     with (
-        client(config, lambda r: httpx.Response(400, json=recording("login_failed"))) as api,
+        client(config, lambda r: httpx2.Response(400, json=recording("login_failed"))) as api,
         pytest.raises(BioStarError) as failure,
     ):
         api.login()
@@ -176,7 +177,7 @@ def test_login_error_envelope_precedes_missing_header(config):
 
 def test_login_missing_header(config):
     with (
-        client(config, lambda r: httpx.Response(200, json=SUCCESS)) as api,
+        client(config, lambda r: httpx2.Response(200, json=SUCCESS)) as api,
         pytest.raises(BioStarError, match=SESSION_HEADER),
     ):
         api.login()
@@ -186,7 +187,7 @@ def test_recorded_error_and_user_collection(config):
     server = Server()
     with client(config, server) as api:
         assert [row["user_id"] for row in api.search_users()] == ["2", "3", "61000"]
-        server.overrides["POST", "/api/v2/users/search"] = lambda r: httpx.Response(
+        server.overrides["POST", "/api/v2/users/search"] = lambda r: httpx2.Response(
             400, json=recording("error_parse_json")
         )
         with pytest.raises(BioStarError) as failure:
@@ -204,8 +205,8 @@ def test_401_retries_exactly_once(config, always_expired):
     def expires(request):
         calls.append(request)
         if len(calls) == 1 or always_expired:
-            return httpx.Response(401, text="expired")
-        return httpx.Response(200, json=recording("user_collection"))
+            return httpx2.Response(401, text="expired")
+        return httpx2.Response(200, json=recording("user_collection"))
 
     server.overrides["POST", "/api/v2/users/search"] = expires
     with client(config, server) as api:
@@ -236,7 +237,7 @@ def test_401_retries_exactly_once(config, always_expired):
 )
 def test_malformed_envelope_fails_closed(config, payload):
     with (
-        client(config, lambda r: httpx.Response(200, json=payload)) as api,
+        client(config, lambda r: httpx2.Response(200, json=payload)) as api,
         pytest.raises(BioStarError),
     ):
         api.login()
@@ -247,7 +248,7 @@ def test_http_failure_with_success_envelope_fails_closed(config, status):
     with (
         client(
             config,
-            lambda r: httpx.Response(status, json=SUCCESS, headers={SESSION_HEADER: "session"}),
+            lambda r: httpx2.Response(status, json=SUCCESS, headers={SESSION_HEADER: "session"}),
         ) as api,
         pytest.raises(BioStarError) as failure,
     ):
@@ -256,13 +257,13 @@ def test_http_failure_with_success_envelope_fails_closed(config, status):
 
 
 def test_non_json_and_transport_failure(config):
-    with client(config, lambda r: httpx.Response(502, text="<html>Bad Gateway</html>")) as api:
+    with client(config, lambda r: httpx2.Response(502, text="<html>Bad Gateway</html>")) as api:
         with pytest.raises(BioStarError, match="JSON") as failure:
             api.login()
         assert failure.value.http_status == 502
 
     def timeout(request):
-        raise httpx.ReadTimeout("timeout", request=request)
+        raise httpx2.ReadTimeout("timeout", request=request)
 
     with client(config, timeout) as api, pytest.raises(BioStarError, match="transport"):
         api.login()
@@ -278,9 +279,35 @@ def test_non_json_and_transport_failure(config):
 )
 def test_malformed_collection_is_not_absence(config, payload):
     server = Server()
-    server.overrides["POST", "/api/v2/users/search"] = lambda r: httpx.Response(200, json=payload)
+    server.overrides["POST", "/api/v2/users/search"] = lambda r: httpx2.Response(200, json=payload)
     with client(config, server) as api, pytest.raises(BioStarError, match="collection"):
         api.search_users()
+
+
+def test_malformed_collection_error_names_shape_not_row_values():
+    payload = {"EventCollection": {"total": "2", "rows": [{"user_id": "secret"}, None]}}
+    with pytest.raises(BioStarError) as failure:
+        _rows(payload)
+    assert str(failure.value) == (
+        "Malformed BioStar collection rows: keys=['rows', 'total'] rows=list "
+        "elements=['NoneType', 'dict']"
+    )
+    assert "secret" not in str(failure.value)
+
+
+@pytest.mark.parametrize(
+    ("rows", "expected"),
+    [('[{"id": "secret"}]', "length=18 json=list"), ("not json", "length=8 json=invalid")],
+)
+def test_string_rows_error_reports_length_and_json_type_not_value(rows, expected):
+    with pytest.raises(BioStarError) as failure:
+        _rows({"EventCollection": {"rows": rows}})
+    assert f"rows=str {expected}" in str(failure.value)
+    assert "secret" not in str(failure.value)
+
+
+def test_empty_string_rows_is_an_empty_collection():
+    assert _rows({"EventCollection": {"rows": ""}, "Response": {"code": "0"}}) == []
 
 
 def test_registration_window_group_card_assignment_and_no_operator_permission(
@@ -343,7 +370,7 @@ def test_assignment_failure_rolls_back_user_before_card_and_preserves_primary(
     config, repository, ticket
 ):
     server = Server()
-    server.overrides["PUT", "/api/users/401"] = lambda r: httpx.Response(
+    server.overrides["PUT", "/api/users/401"] = lambda r: httpx2.Response(
         400, json=recording("error_parse_json")
     )
     with client(config, server) as api, pytest.raises(BioStarError) as failure:
@@ -362,7 +389,7 @@ def test_rollback_failure_is_reported_and_can_resume_after_restart(config, repos
     server = Server()
     for path in ("/api/users/401", "/api/cards"):
         method = "PUT" if path.endswith("401") else "DELETE"
-        server.overrides[method, path] = lambda r: httpx.Response(
+        server.overrides[method, path] = lambda r: httpx2.Response(
             400, json=recording("error_parse_json")
         )
     with client(config, server) as api, pytest.raises(BioStarError) as failure:
@@ -401,7 +428,7 @@ def test_cleanup_survives_database_reopen_and_never_reuses_ids(config, tmp_path,
 
 def test_failed_user_creation_consumes_id_without_deleting_other_users(config, repository, ticket):
     server = Server()
-    server.overrides["POST", "/api/users"] = lambda r: httpx.Response(
+    server.overrides["POST", "/api/users"] = lambda r: httpx2.Response(
         400, json=recording("error_parse_json")
     )
     with client(config, server) as api:
@@ -419,7 +446,9 @@ def test_silent_delete_does_not_mark_cleanup_complete(config, repository, ticket
     with client(config, server) as api:
         registrar = BioStarXRegistrar(api, repository)
         registrar.register(ticket)
-        server.overrides["DELETE", f"/api/{resource}"] = lambda r: httpx.Response(200, json=SUCCESS)
+        server.overrides["DELETE", f"/api/{resource}"] = lambda r: httpx2.Response(
+            200, json=SUCCESS
+        )
         with pytest.raises(BioStarError, match="still exists"):
             registrar.remove("401")
         progress = repository.get_registration("401")
@@ -450,7 +479,7 @@ def test_delete_error_is_only_accepted_after_verified_absence(config, repository
 
     def racing_delete(request):
         server.users.pop("401")
-        return httpx.Response(
+        return httpx2.Response(
             400, json={"Response": {"code": "201", "message": "User can not be found with id"}}
         )
 
@@ -467,7 +496,7 @@ def test_card_internal_id_lookup_fallback(config, repository, ticket):
 
     def created_without_id(request):
         server.cards["30"] = {"id": "30", "card_id": ticket.qr_payload}
-        return httpx.Response(200, json=SUCCESS)
+        return httpx2.Response(200, json=SUCCESS)
 
     server.overrides["POST", "/api/cards"] = created_without_id
     with client(config, server) as api:
@@ -478,7 +507,7 @@ def test_card_internal_id_lookup_fallback(config, repository, ticket):
 
 def test_card_creation_failure_rolls_back_user_and_checks_card_absence(config, repository, ticket):
     server = Server()
-    server.overrides["POST", "/api/cards"] = lambda r: httpx.Response(
+    server.overrides["POST", "/api/cards"] = lambda r: httpx2.Response(
         400, json=recording("error_parse_json")
     )
     with client(config, server) as api, pytest.raises(BioStarError) as failure:
@@ -703,10 +732,10 @@ def test_reauthentication_failure_preserves_recorded_login_error(config):
     def handler(request):
         calls.append(request.url.path)
         if len(calls) == 1:
-            return httpx.Response(200, json=SUCCESS, headers={SESSION_HEADER: "session"})
+            return httpx2.Response(200, json=SUCCESS, headers={SESSION_HEADER: "session"})
         if request.url.path == "/api/login":
-            return httpx.Response(400, json=recording("login_failed"))
-        return httpx.Response(401, text="expired")
+            return httpx2.Response(400, json=recording("login_failed"))
+        return httpx2.Response(401, text="expired")
 
     with client(config, handler) as api:
         with pytest.raises(BioStarError) as failure:
@@ -719,7 +748,7 @@ def test_reauthentication_failure_preserves_recorded_login_error(config):
 def test_cleanup_progress_persists_after_database_reopen(config, tmp_path, ticket):
     path = tmp_path / "progress.db"
     server = Server()
-    server.overrides["DELETE", "/api/cards"] = lambda r: httpx.Response(
+    server.overrides["DELETE", "/api/cards"] = lambda r: httpx2.Response(
         400, json=recording("error_parse_json")
     )
     first = SQLiteRepository(path)
@@ -788,7 +817,7 @@ def test_allocation_is_not_wrapped_in_registration_transaction(
 def test_user_rollback_failure_never_deletes_assigned_card(config, repository, ticket):
     server = Server()
     for method, path in (("PUT", "/api/users/401"), ("DELETE", "/api/users")):
-        server.overrides[method, path] = lambda r: httpx.Response(
+        server.overrides[method, path] = lambda r: httpx2.Response(
             400, json=recording("error_parse_json")
         )
     with client(config, server) as api, pytest.raises(BioStarError) as failure:
@@ -820,7 +849,7 @@ def test_event_batch_http_failure_does_not_advance_cursor(config, repository):
         if request.url.path == "/api/events/search":
             searches.append(request)
             if len(searches) == 3:
-                return httpx.Response(500, json=recording("error_parse_json"))
+                return httpx2.Response(500, json=recording("error_parse_json"))
         return server(request)
 
     with client(config, handler) as api:
@@ -861,7 +890,7 @@ class AccessServer(Server):
         if (method, path) == ("POST", "/api/doors"):
             door = {**body["Door"], "id": str(10 + len(self.doors))}
             self.doors[door["id"]] = door
-            return httpx.Response(200, json={"Door": {"id": door["id"]}, **SUCCESS})
+            return httpx2.Response(200, json={"Door": {"id": door["id"]}, **SUCCESS})
         if (method, path) == ("GET", "/api/access_levels"):
             return collection("AccessLevelCollection", list(self.levels.values()))
         if (method, path) == ("POST", "/api/access_levels"):
@@ -870,23 +899,23 @@ class AccessServer(Server):
                 {"id": "70", **item} for item in level["access_level_items"]
             ]
             self.levels["20"] = level
-            return httpx.Response(200, json={"AccessLevel": {"id": "20"}, **SUCCESS})
+            return httpx2.Response(200, json={"AccessLevel": {"id": "20"}, **SUCCESS})
         if method == "PUT" and path.startswith("/api/access_levels/"):
             self.levels[path.rsplit("/", 1)[1]].update(body["AccessLevel"])
-            return httpx.Response(200, json=SUCCESS)
+            return httpx2.Response(200, json=SUCCESS)
         if (method, path) == ("POST", "/api/v2/access_groups/search"):
             return collection("AccessGroupCollection", list(self.groups.values()))
         if (method, path) == ("POST", "/api/access_groups"):
             group = {**body["AccessGroup"], "id": "30"}
             self.groups["30"] = group
-            return httpx.Response(200, json={"AccessGroup": {"id": "30"}, **SUCCESS})
+            return httpx2.Response(200, json={"AccessGroup": {"id": "30"}, **SUCCESS})
         if method == "PUT" and path.startswith("/api/access_groups/"):
             self.groups[path.rsplit("/", 1)[1]].update(body["AccessGroup"])
-            return httpx.Response(200, json=SUCCESS)
+            return httpx2.Response(200, json=SUCCESS)
         if method == "GET" and path.startswith("/api/access_groups/"):
             known = path.rsplit("/", 1)[1] in self.groups
             code = "0" if known else "601"
-            return httpx.Response(200, json={"Response": {"code": code, "message": "x"}})
+            return httpx2.Response(200, json={"Response": {"code": code, "message": "x"}})
         raise AssertionError(f"Unexpected endpoint: {method} {path}")
 
 

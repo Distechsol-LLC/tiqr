@@ -15,7 +15,7 @@ from types import TracebackType
 from typing import Self, TypeIs, cast
 from urllib.parse import quote
 
-import httpx
+import httpx2
 
 from tiqr.core.models import RawEvent, Registration, SyncCursor, Ticket, utc
 from tiqr.core.ports import Clock, EventSource, Registrar, Repository
@@ -108,6 +108,26 @@ def _has_collection(payload: JsonObject) -> bool:
     return any(isinstance(value, dict) and "rows" in value for value in payload.values())
 
 
+def _json_type(text: str) -> str:
+    try:
+        return type(json.loads(text)).__name__
+    except ValueError:
+        return "invalid"
+
+
+def _shape(collection: JsonObject) -> str:
+    """Types and sizes only; row values carry personal data and must never be logged."""
+    rows = collection["rows"]
+    element_types = (
+        sorted({type(row).__name__ for row in cast(list[object], rows)})
+        if isinstance(rows, list)
+        else []
+    )
+    text = f" length={len(rows)} json={_json_type(rows)}" if isinstance(rows, str) else ""
+    rows_type = type(cast(object, rows)).__name__
+    return f"keys={sorted(collection)} rows={rows_type}{text} elements={element_types}"
+
+
 def _rows(payload: JsonObject) -> list[JsonObject]:
     collections = [
         value
@@ -117,19 +137,22 @@ def _rows(payload: JsonObject) -> list[JsonObject]:
     match collections:
         case [{"rows": object() as rows}] if _is_json_object_list(rows):
             return rows
-        case [_]:
-            raise BioStarError("Malformed BioStar collection rows")
+        # BioStar answers an empty result with an empty string, not an empty list.
+        case [{"rows": ""}]:
+            return []
+        case [collection]:
+            raise BioStarError(f"Malformed BioStar collection rows: {_shape(collection)}")
         case _:
             raise BioStarError("Missing or ambiguous BioStar collection")
 
 
 class BioStarClient:
     def __init__(
-        self, settings: BioStarSettings, *, transport: httpx.BaseTransport | None = None
+        self, settings: BioStarSettings, *, transport: httpx2.BaseTransport | None = None
     ) -> None:
         self.settings = settings
         base = settings.base_url.rstrip("/").removesuffix("/api")
-        self._http = httpx.Client(
+        self._http = httpx2.Client(
             base_url=f"{base}/api/",
             verify=settings.verify_tls,
             timeout=settings.timeout,
@@ -159,16 +182,16 @@ class BioStarClient:
 
     def _send(
         self, method: str, path: str, *, json: object = None, params: QueryParams | None = None
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         path = path.strip("/").removeprefix("api/")
         headers = {SESSION_HEADER: self._session_id} if self._session_id else {}
         try:
             return self._http.request(method, path, json=json, params=params, headers=headers)
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             raise BioStarError("BioStar transport request failed") from exc
 
     @staticmethod
-    def _decode(response: httpx.Response) -> JsonObject:
+    def _decode(response: httpx2.Response) -> JsonObject:
         status = response.status_code
         try:
             payload = response.json()

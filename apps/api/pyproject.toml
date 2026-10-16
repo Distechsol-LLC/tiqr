@@ -1,9 +1,9 @@
 [project]
 name = "tiqr-api"
-version = "0.9.3"
-description = "TiQR HTTP API and web host; not implemented yet"
+version = "0.9.4"
+description = "TiQR HTTP API over the core service, hosting the bundled web app"
 requires-python = ">=3.14"
-dependencies = ["tiqr-core"]
+dependencies = ["tiqr-core", "fastapi>=0.143.2", "uvicorn>=0.54.0"]
 
 [build-system]
 requires = ["uv_build>=0.13,<0.14"]

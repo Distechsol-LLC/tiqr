@@ -2,18 +2,19 @@ import json
 import os
 import re
 import sqlite3
-import subprocess
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
 from typer.testing import CliRunner
 
+from tiqr.api import server as api_server
 from tiqr.cli import commands as cli
+from tiqr.core import runtime as core_runtime
 from tiqr.core.biostar import BioStarError
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
 from tiqr.core.models import RawEvent, Role
-from tiqr.core.repository import SQLiteRepository
+from tiqr.core.repository import _MIGRATIONS, SQLiteRepository
 from tiqr.core.service import TicketService
 
 NOW = datetime(2030, 1, 1, 8, tzinfo=UTC)
@@ -38,7 +39,7 @@ def cli_env(tmp_path, monkeypatch):
             repository, secret_key, registrar=registrar, event_source=events, clock=lambda: NOW
         )
 
-    monkeypatch.setattr(cli, "TicketService", service)
+    monkeypatch.setattr(core_runtime, "TicketService", service)
     # Never let tests write the real .env.local.
     monkeypatch.setattr(cli, "provision_secret", lambda: False)
     monkeypatch.setattr(cli, "discard_secret", lambda: False)
@@ -561,10 +562,10 @@ def test_biostar_adapters_selected_and_resources_closed(cli_env, monkeypatch, fa
             raise RuntimeError("adapter startup failure")
         return TicketService(repository, secret_key, **kwargs, clock=lambda: NOW)
 
-    monkeypatch.setattr(cli, "BioStarClient", Client)
-    monkeypatch.setattr(cli, "BioStarXRegistrar", registrar)
-    monkeypatch.setattr(cli, "BioStarXEventSource", event_source)
-    monkeypatch.setattr(cli, "TicketService", service)
+    monkeypatch.setattr(core_runtime, "BioStarClient", Client)
+    monkeypatch.setattr(core_runtime, "BioStarXRegistrar", registrar)
+    monkeypatch.setattr(core_runtime, "BioStarXEventSource", event_source)
+    monkeypatch.setattr(core_runtime, "TicketService", service)
     result = invoke(["user", "list"])
     assert result.exit_code == (1 if fail_construction else 0), result.output
     assert observed["settings"].username == "remote-user"
@@ -578,7 +579,9 @@ def test_no_biostar_client_without_settings(cli_env, monkeypatch):
         pytest.fail("BioStar client must not be constructed without BioStar settings")
 
     monkeypatch.setattr(cli, "BioStarClient", forbidden)
+    monkeypatch.setattr(core_runtime, "BioStarClient", forbidden)
     assert invoke(["setup"]).exit_code == 0
+    assert invoke(["user", "list"]).exit_code == 0
 
 
 def test_setup_provisions_the_tiqr_access_group_when_biostar_is_configured(cli_env, monkeypatch):
@@ -659,7 +662,7 @@ def test_ticket_print_saves_pdf_and_sends_it_to_printer(cli_env, monkeypatch):
     directory, _, _ = cli_env
     ticket_id = issued_ticket_id()
     sent = []
-    monkeypatch.setattr(cli, "_send_to_printer", sent.append)
+    monkeypatch.setattr(cli, "send_to_printer", sent.append)
 
     result = invoke(["ticket", "print", ticket_id, "--as", "admin"])
 
@@ -676,7 +679,7 @@ def test_ticket_print_failure_keeps_print_count(cli_env, monkeypatch):
     def fail(path):
         raise RuntimeError("Printing failed: no default destination")
 
-    monkeypatch.setattr(cli, "_send_to_printer", fail)
+    monkeypatch.setattr(cli, "send_to_printer", fail)
 
     result = invoke(["ticket", "print", ticket_id, "--as", "admin"])
 
@@ -685,94 +688,78 @@ def test_ticket_print_failure_keeps_print_count(cli_env, monkeypatch):
     assert output_json(invoke(["stats", "--as", "admin"]))["prints"] == 0
 
 
-def no_sumatra_installed(monkeypatch, tmp_path):
-    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
-    for variable in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
-        monkeypatch.setenv(variable, str(tmp_path / "empty" / variable))
+def write_v1_database(path):
+    with sqlite3.connect(path) as connection:
+        connection.executescript(";\n".join((*_MIGRATIONS[0], "PRAGMA user_version = 1;")))
 
 
-def test_send_to_printer_uses_print_verb_on_windows_without_sumatra(monkeypatch, tmp_path):
-    path = tmp_path / "ticket.pdf"
-    calls = []
-    no_sumatra_installed(monkeypatch, tmp_path)
-    monkeypatch.setattr(cli.sys, "platform", "win32")
-    monkeypatch.setattr(
-        cli.os, "startfile", lambda target, verb: calls.append((target, verb)), raising=False
+def test_old_schema_needs_setup_which_upgrades_it(cli_env):
+    directory, _, _ = cli_env
+    write_v1_database(directory / "tickets.db")
+    refused = invoke(["user", "list"])
+    assert refused.exit_code == 1
+    assert "out of date" in refused.output
+    assert invoke(["setup"]).exit_code == 0
+    assert invoke(["user", "list"]).exit_code == 0
+
+
+def test_serve_checks_settings_then_runs_the_server(cli_env, monkeypatch):
+    directory, _, _ = cli_env
+    started = []
+    monkeypatch.setattr(api_server, "run", started.append)
+    assert invoke(["serve"]).exit_code == 0
+    assert invoke(["serve", "--dev", "--port", "8123"]).exit_code == 0
+    plain, dev = started
+    # Plain HTTP on 7102 unless a certificate is configured.
+    assert (plain.host, plain.port, plain.dev, plain.secure) == ("127.0.0.1", 7102, False, False)
+    assert (dev.port, dev.dev) == (8123, True)
+    assert (directory / "tickets.db").exists()
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [(["serve"], "out of date"), (["serve", "--dev", "--host", "10.0.0.5"], "loopback")],
+)
+def test_serve_stops_before_listening(cli_env, monkeypatch, args, message):
+    directory, _, _ = cli_env
+    write_v1_database(directory / "tickets.db")
+    monkeypatch.setattr(api_server, "run", lambda config: pytest.fail("the server started"))
+    result = invoke(args)
+    assert result.exit_code == 1
+    assert message in result.output
+
+
+def test_user_role_deactivate_activate_and_password(cli_env):
+    add_user("admin", "admin")
+    add_user("operator", "operator")
+
+    promoted = output_json(invoke(["user", "role", "operator", "manager"]))
+    assert promoted["role"] == "manager"
+    deactivated = output_json(invoke(["user", "deactivate", "operator"]))
+    assert deactivated["active"] is False
+    refused = invoke(["stats", "--as", "operator"])
+    assert refused.exit_code == 1
+    assert "deactivated" in refused.output
+    assert output_json(invoke(["user", "activate", "operator"]))["active"] is True
+
+    reset = runner.invoke(
+        cli.app, ["user", "password", "operator"], input="new-password-1\nnew-password-1\n"
     )
-
-    cli._send_to_printer(path)
-
-    assert calls == [(path, "print")]
-
-
-def test_send_to_printer_prefers_sumatra_silent_100_percent_on_windows(monkeypatch, tmp_path):
-    path = tmp_path / "ticket.pdf"
-    sumatra = tmp_path / "SumatraPDF" / "SumatraPDF.exe"
-    sumatra.parent.mkdir()
-    sumatra.write_bytes(b"")
-    runs = []
-
-    def run(args, **kwargs):
-        runs.append(args)
-        return subprocess.CompletedProcess(args, 0, b"", b"")
-
-    no_sumatra_installed(monkeypatch, tmp_path)
-    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    monkeypatch.setattr(cli.sys, "platform", "win32")
-    monkeypatch.setattr(cli.subprocess, "run", run)
-    monkeypatch.setattr(
-        cli.os, "startfile", lambda *args: pytest.fail("startfile used"), raising=False
-    )
-
-    cli._send_to_printer(path)
-
-    assert runs == [
-        [sumatra, "-print-to-default", "-print-settings", "noscale", "-silent", str(path)]
-    ]
+    assert reset.exit_code == 0, reset.output
+    assert "new-password-1" not in reset.output
+    # The cached CLI login from before the reset no longer stands in for the password.
+    assert invoke(["stats", "--as", "operator"]).exit_code == 1
+    assert invoke(["stats", "--as", "operator"], password="new-password-1").exit_code == 0
+    users = {user["username"]: user for user in output_json(invoke(["user", "list"]))}
+    assert users["operator"] == promoted | {"active": True}
 
 
-def test_sumatra_failure_is_reported_on_windows(monkeypatch, tmp_path):
-    path = tmp_path / "ticket.pdf"
-    no_sumatra_installed(monkeypatch, tmp_path)
-    monkeypatch.setattr(cli.shutil, "which", lambda name: "C:/Tools/SumatraPDF.exe")
-    monkeypatch.setattr(cli.sys, "platform", "win32")
-    monkeypatch.setattr(
-        cli.subprocess, "run", lambda args, **kwargs: subprocess.CompletedProcess(args, 1, b"", b"")
-    )
-
-    with pytest.raises(RuntimeError, match=r"SumatraPDF could not print ticket\.pdf"):
-        cli._send_to_printer(path)
-
-
-def test_send_to_printer_uses_lp_on_linux(monkeypatch, tmp_path):
-    path = tmp_path / "ticket.pdf"
-    runs = []
-
-    def run(args, **kwargs):
-        runs.append(args)
-        return subprocess.CompletedProcess(args, 0, "request id is printer-1", "")
-
-    monkeypatch.setattr(cli.sys, "platform", "linux")
-    monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/lp")
-    monkeypatch.setattr(cli.subprocess, "run", run)
-
-    cli._send_to_printer(path)
-
-    assert runs == [["/usr/bin/lp", "-o", "print-scaling=none", str(path)]]
-
-
-def test_send_to_printer_reports_missing_or_failed_lp(monkeypatch, tmp_path):
-    path = tmp_path / "ticket.pdf"
-    monkeypatch.setattr(cli.sys, "platform", "linux")
-    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
-    with pytest.raises(RuntimeError, match="CUPS"):
-        cli._send_to_printer(path)
-
-    monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/lp")
-    monkeypatch.setattr(
-        cli.subprocess,
-        "run",
-        lambda args, **kwargs: subprocess.CompletedProcess(args, 1, "", "lp: Destination not set"),
-    )
-    with pytest.raises(RuntimeError, match="Destination not set"):
-        cli._send_to_printer(path)
+def test_user_commands_keep_the_last_admin_and_name_unknown_users(cli_env):
+    add_user("admin", "admin")
+    for args in (["user", "deactivate", "admin"], ["user", "role", "admin", "operator"]):
+        result = invoke(args)
+        assert result.exit_code == 1
+        assert "last active admin" in result.output
+    missing = invoke(["user", "deactivate", "nobody"])
+    assert missing.exit_code == 1
+    assert "User not found" in missing.output

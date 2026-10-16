@@ -1,33 +1,24 @@
 import json
 import os
-import re
-import shutil
 import sqlite3
-import subprocess
-import sys
 from collections.abc import Generator
-from contextlib import ExitStack, contextmanager, suppress
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 import typer
 
 from tiqr.core.auth import AuthenticationError, Session
-from tiqr.core.biostar import (
-    ACCESS_GROUP_NAME,
-    BioStarClient,
-    BioStarError,
-    BioStarXEventSource,
-    BioStarXProvisioner,
-    BioStarXRegistrar,
-)
+from tiqr.core.biostar import ACCESS_GROUP_NAME, BioStarClient, BioStarError, BioStarXProvisioner
+from tiqr.core.localtime import parse_input_datetime
 from tiqr.core.models import Role, Ticket, TicketState, UsageType, User
-from tiqr.core.ports import EventSource, Registrar
+from tiqr.core.printer import send_to_printer
 from tiqr.core.repository import SQLiteRepository
+from tiqr.core.runtime import open_service
 from tiqr.core.service import TicketService
 from tiqr.core.settings import (
     LOCAL_ENV_FILE,
@@ -56,7 +47,6 @@ _TICKET_FIELDS = (
     "use_count",
 )
 _DB_SUFFIXES = ("-journal", "-wal", "-shm")
-_ISO_DATETIME = re.compile(r"\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}")
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -64,7 +54,7 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     help="QR ticket administration. Bootstrap commands trust the local OS account.",
 )
-user_app = typer.Typer(no_args_is_help=True, help="Local, trusted-account user bootstrap.")
+user_app = typer.Typer(no_args_is_help=True, help="Local, trusted-account user management.")
 ticket_app = typer.Typer(
     no_args_is_help=True, help="Create, inspect, assign, save and print tickets."
 )
@@ -118,51 +108,10 @@ def _errors() -> Generator[None]:
 @contextmanager
 def _session() -> Generator[_Runtime]:
     """Open settings, database and adapters for one command, then close them."""
-    with _errors(), ExitStack() as stack:
+    with _errors():
         settings = Settings.from_env()
-        repository = stack.enter_context(SQLiteRepository(settings.database_path))
-        repository.initialize()
-        registrar: Registrar | None = None
-        event_source: EventSource | None = None
-        if settings.biostar is not None:
-            client = BioStarClient(settings.biostar)
-            stack.callback(client.close)
-            registrar = BioStarXRegistrar(client, repository)
-            event_source = BioStarXEventSource(client, repository)
-        service = TicketService(
-            repository,
-            settings.secret_key,
-            registrar=registrar,
-            event_source=event_source,
-            prefix=settings.prefix,
-        )
-        yield _Runtime(settings, service)
-
-
-def parse_input_datetime(text: str, timezone: str) -> datetime:
-    try:
-        zone = ZoneInfo(timezone)
-    except (ZoneInfoNotFoundError, ValueError) as exc:
-        raise ValueError(f"Unknown timezone: {timezone}") from exc
-    text = text.strip()
-    if not _ISO_DATETIME.match(text):
-        raise ValueError("Use an ISO datetime including a time, such as 2030-01-01T12:00")
-    try:
-        value = datetime.fromisoformat(text)
-    except ValueError as exc:
-        raise ValueError(f"Invalid ISO datetime: {text}") from exc
-    if value.tzinfo is not None:
-        return value.astimezone(UTC)
-    # A wall-clock time maps to one instant, two (DST fall-back) or none (spring-forward).
-    candidates: set[datetime] = set()
-    for fold in (0, 1):
-        candidate = value.replace(tzinfo=zone, fold=fold).astimezone(UTC)
-        if candidate.astimezone(zone).replace(tzinfo=None) == value:
-            candidates.add(candidate)
-    if len(candidates) != 1:
-        kind = "Ambiguous" if candidates else "Nonexistent"
-        raise ValueError(f"{kind} local datetime in {timezone}; supply an explicit UTC offset")
-    return candidates.pop()
+        with open_service(settings) as service:
+            yield _Runtime(settings, service)
 
 
 def _password(*, confirm: bool = False) -> str:
@@ -200,50 +149,8 @@ def _json(value: object) -> None:
     typer.echo(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, default=str))
 
 
-def _sumatra_pdf() -> Path | None:
-    """Find SumatraPDF, which prints silently at 100%."""
-    found = shutil.which("SumatraPDF")
-    if found is not None:
-        return Path(found)
-    for variable in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
-        base = os.environ.get(variable)
-        if base and (candidate := Path(base, "SumatraPDF", "SumatraPDF.exe")).is_file():
-            return candidate
-    return None
-
-
-def _send_to_printer(path: Path) -> None:
-    """Queue a PDF on the default printer."""
-    if sys.platform == "win32":
-        sumatra = _sumatra_pdf()
-        if sumatra is None:
-            # Returns once the job is queued, so later printer failures go unreported.
-            os.startfile(path, "print")  # noqa: S606 - the path is the PDF just rendered
-            return
-        result = subprocess.run(  # noqa: S603 - the executable and PDF are ours
-            [sumatra, "-print-to-default", "-print-settings", "noscale", "-silent", str(path)],
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"SumatraPDF could not print {path.name} (exit {result.returncode})")
-        return
-    lp = shutil.which("lp")
-    if lp is None:
-        raise RuntimeError(
-            "Printing needs the CUPS lp command; install CUPS or print the saved PDF"
-        )
-    # print-scaling=none keeps the page at 100%, which the QR code size depends on.
-    result = subprocess.run(  # noqa: S603 - lp is resolved above and the PDF is ours
-        [lp, "-o", "print-scaling=none", str(path)], capture_output=True, text=True, check=False
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or f"lp exited with status {result.returncode}"
-        raise RuntimeError(f"Printing failed: {detail}")
-
-
 def _user_data(user: User) -> dict[str, object]:
-    return {"id": user.id, "username": user.username, "role": user.role}
+    return {"id": user.id, "username": user.username, "role": user.role, "active": user.active}
 
 
 def _ticket_data(ticket: Ticket, timezone: str) -> dict[str, object]:
@@ -256,7 +163,7 @@ def _ticket_data(ticket: Ticket, timezone: str) -> dict[str, object]:
 
 @app.command()
 def setup() -> None:
-    """Create the signing key, the database, and the BioStar access group when configured.
+    """Create the signing key and the database, or upgrade the database, and the BioStar group.
 
     Without TIQR_BIOSTAR_ACCESS_GROUP_ID, BioStar gets a TiQR AG group, a TiQR AL level and a door
     per reader in TIQR_BIOSTAR_DEVICE_IDS. Reruns fill gaps.
@@ -268,7 +175,7 @@ def setup() -> None:
             typer.echo(f"TIQR_SECRET_KEY already set in {LOCAL_ENV_FILE}; nothing to do")
         settings = Settings.from_env()
         with SQLiteRepository(settings.database_path) as repository:
-            repository.initialize()
+            repository.initialize(upgrade=True)
         typer.echo(f"Database initialized: {settings.database_path}")
         if settings.biostar is not None:
             with BioStarClient(settings.biostar) as client:
@@ -321,9 +228,44 @@ def user_add(
 
 @user_app.command("list")
 def user_list() -> None:
-    """List local usernames and roles; never print password hashes."""
+    """List local usernames, roles and active states; never print password hashes."""
     with _session() as runtime:
         _json([_user_data(user) for user in runtime.service.list_users()])
+
+
+@user_app.command("role")
+def user_role(
+    username: Annotated[str, typer.Argument()], role: Annotated[Role, typer.Argument()]
+) -> None:
+    """Change a user's role; it applies from their next command or request."""
+    with _session() as runtime:
+        user = runtime.service.find_user(username)
+        _json(_user_data(runtime.service.edit_user(user.id, role=role)))
+
+
+@user_app.command("deactivate")
+def user_deactivate(username: Annotated[str, typer.Argument()]) -> None:
+    """Stop a user signing in and end their sessions; their tickets and history stay."""
+    with _session() as runtime:
+        user = runtime.service.find_user(username)
+        _json(_user_data(runtime.service.edit_user(user.id, active=False)))
+
+
+@user_app.command("activate")
+def user_activate(username: Annotated[str, typer.Argument()]) -> None:
+    """Let a deactivated user sign in again."""
+    with _session() as runtime:
+        user = runtime.service.find_user(username)
+        _json(_user_data(runtime.service.edit_user(user.id, active=True)))
+
+
+@user_app.command("password")
+def user_password(username: Annotated[str, typer.Argument()]) -> None:
+    """Reset a user's password, prompting for a hidden, confirmed one; ends their sessions."""
+    with _session() as runtime:
+        user = runtime.service.find_user(username)
+        password = _password(confirm=True)
+        _json(_user_data(runtime.service.edit_user(user.id, password=password)))
 
 
 @ticket_app.command("create")
@@ -382,7 +324,7 @@ def ticket_print(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> 
 
     def render_and_print(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
         path = render_pdf(ticket, output_dir, timezone)
-        _send_to_printer(path)
+        send_to_printer(path)
         return path
 
     with _session() as runtime:
@@ -429,3 +371,29 @@ def stats(actor: Actor) -> None:
     """Show ticket, access and PDF rendering totals."""
     with _session() as runtime:
         _json(runtime.service.stats(runtime.authenticate(actor)))
+
+
+@app.command()
+def serve(
+    host: Annotated[str | None, typer.Option(help="Bind address; default TIQR_HOST.")] = None,
+    port: Annotated[int | None, typer.Option(help="Port; default TIQR_PORT.")] = None,
+    tls_cert: Annotated[Path | None, typer.Option(help="PEM certificate; TIQR_TLS_CERT.")] = None,
+    tls_key: Annotated[Path | None, typer.Option(help="PEM private key; TIQR_TLS_KEY.")] = None,
+    *,
+    dev: Annotated[
+        bool, typer.Option("--dev", help="Loopback only, with the API docs; never production.")
+    ] = False,
+) -> None:
+    """Run the web API and UI, with scheduled sync and cleanup; HTTPS once TLS is configured."""
+    # FastAPI and Uvicorn are slow to import and only this command needs them.
+    from tiqr.api.config import ServerConfig  # noqa: PLC0415
+    from tiqr.api.server import run  # noqa: PLC0415
+
+    with _errors():
+        config = ServerConfig.from_env(
+            host=host, port=port, tls_cert=tls_cert, tls_key=tls_key, dev=dev
+        )
+        # Fails here, with a short message, rather than in the server's startup log.
+        with _session():
+            pass
+    run(config)

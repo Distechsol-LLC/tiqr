@@ -14,6 +14,11 @@ from tiqr.core.qr import DEFAULT_PREFIX, validate_prefix
 
 
 def _project_root() -> Path:
+    # An installed service sets TIQR_HOME, so config and data stay put while release folders
+    # change. It must be a real environment variable: the .env files are found through it.
+    home = os.environ.get("TIQR_HOME", "").strip()
+    if home:
+        return Path(home).expanduser().resolve()
     # A frozen build unpacks into a temporary directory, so config and data sit beside the
     # executable. Source checkouts keep them at the workspace root, never in the working
     # directory: this file is apps/core/src/tiqr/core/settings.py under that root.
@@ -55,7 +60,8 @@ _BIOSTAR_OPTIONAL = (
 )
 
 
-def _environment() -> dict[str, str]:
+def load_environment() -> dict[str, str]:
+    """The .env files under the project root, overridden by the real environment."""
     values: dict[str, str] = {}
     for name in ENV_FILES:
         values.update(
@@ -149,7 +155,7 @@ def discard_access_group_id(path: Path | None = None) -> bool:
 
 def database_path(environment: Mapping[str, str] | None = None) -> Path:
     """Resolve the database location without needing a valid signing key."""
-    environment = _environment() if environment is None else environment
+    environment = load_environment() if environment is None else environment
     return PROJECT_ROOT / environment.get("TIQR_DB", "tiqr.db")
 
 
@@ -253,7 +259,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> Settings:
-        environment = _environment()
+        environment = load_environment()
         biostar = BioStarSettings.from_env(environment)
         # Production sets this so a missing BioStar block fails loudly.
         if _biostar_flag(environment, "REQUIRED", default=False) and biostar is None:

@@ -4,8 +4,9 @@ How TiQR is built, shipped as a closed-source product, installed on a customer's
 updated. The customer never receives source code. Everything runs on their network, on a Linux
 or Windows server at an address they choose.
 
-Status: the repository is restructured for this design (see [Layout](README.md#layout)). The
-backend, frontend, installer and release pipeline described here are **not implemented yet**;
+Status: the repository is restructured for this design (see [Layout](README.md#layout)), and the
+backend API and `tiqr serve` are implemented (see [Web API](README.md#web-api)). The frontend,
+Nuitka builds, installer and release pipeline described here are **not implemented yet**;
 [Implementation plan](#implementation-plan) lists the order.
 
 ## Recommendation in brief
@@ -126,10 +127,11 @@ supported: it would add a second transport, NTLM/Kerberos handling and different
 4. Write the configuration (see [Configuration](#configuration)) and run `tiqr setup` as the
    service account, which generates the signing key **on the server** and initializes the
    database.
-5. Set up TLS (see [Frontend and backend](#frontend-and-backend)).
+5. Optionally set up TLS (see [Frontend and backend](#frontend-and-backend)).
 6. Register and start the service. On Linux, open the firewall port if `ufw` or `firewalld` is
    active; on Windows, add a `New-NetFirewallRule`.
-7. Create the first admin account interactively, then poll `https://<ip>:<port>/api/health`
+7. Create the first admin account interactively, then poll `http://<ip>:<port>/api/health`
+   (`https://` with TLS)
    until it reports the installed version.
 
 ### Server layout
@@ -143,8 +145,9 @@ supported: it would add a second transport, NTLM/Kerberos handling and different
 | Service | `tiqr.service` unit | [WinSW](https://github.com/winsw/winsw) wrapper, since a plain console executable can't answer the Service Control Manager |
 
 The Linux unit runs `ExecStart=/opt/tiqr/current/tiqr serve` as `User=tiqr` with
-`EnvironmentFile=/etc/tiqr/tiqr.env`. It uses `AmbientCapabilities=CAP_NET_BIND_SERVICE` so it
-can bind port 443 without root, plus `NoNewPrivileges`, `ProtectSystem=strict`,
+`EnvironmentFile=/etc/tiqr/tiqr.env`. The default port 7102 needs no privilege; a site that picks
+one below 1024, such as 443, adds `AmbientCapabilities=CAP_NET_BIND_SERVICE` rather than running
+as root. The unit also sets `NoNewPrivileges`, `ProtectSystem=strict`,
 `ReadWritePaths=/var/lib/tiqr`, `ProtectHome` and `PrivateTmp`.
 
 Admin commands on the server run as the service account against the same configuration, for
@@ -157,17 +160,19 @@ The installer collects, then writes `tiqr.env`:
 
 | Setting | Source |
 |---|---|
-| Bind address and port, for example `10.0.0.5:443` | The target IP the customer gave; port defaults to 443 |
+| Bind address and port (`TIQR_HOST`, `TIQR_PORT`), for example `10.0.0.5:7102` | The target IP the customer gave; port defaults to 7102 |
 | Data folder (`TIQR_HOME`), `TIQR_DB`, `TIQR_OUT` | Fixed by the server layout |
 | `TIQR_BIOSTAR_*` block and `TIQR_BIOSTAR_REQUIRED=true` | Prompted; the password is never written to an answers file or logged |
 | `TIQR_BIOSTAR_VERIFY_TLS` | Prompted, defaulting to `true` for installs. The library's `false` default suits development only |
 | `TIQR_DEFAULT_TZ` | Prompted, defaulting to the server's zone |
-| TLS certificate and key paths | Customer-provided or installer-generated |
+| TLS certificate and key paths (`TIQR_TLS_CERT`, `TIQR_TLS_KEY`) | Optional; customer-provided or installer-generated |
+| `TIQR_SERVER_PRINTING` | Prompted: whether operators may print on the server's printer |
 
 `TIQR_SECRET_KEY` is generated on the server by `tiqr setup` and never leaves it. The installer
-never reads it back. Today the code reads configuration from beside the executable; a frozen
-service needs a `TIQR_HOME` setting so data and config stay put while release folders change.
-That is part of the backend work.
+never reads it back. `TIQR_HOME` must reach the process as a real environment variable, through the unit's
+`Environment=` or `EnvironmentFile=` or the Windows service definition. TiQR finds its `.env`
+files through it, so a `.env` file cannot set it. With it set, data and config stay put while
+release folders change.
 
 Reconfiguring is `tiqr install --reconfigure`. It edits `tiqr.env`, restarts the service and
 runs the health check. A hand edit followed by a service restart works too.
@@ -183,11 +188,14 @@ runs the health check. A hand edit followed by a service restart works too.
 
 Because the browser loads the UI from the same origin as the API, the frontend uses relative URLs
 and needs no build-time address. The customer can change the server's IP or add a DNS name
-without a rebuild; only the certificate's names have to follow. Authentication can use
-`HttpOnly`, `Secure`, `SameSite=Strict` session cookies with no CORS configuration.
+without a rebuild; with TLS, only the certificate's names have to follow. Authentication uses
+`HttpOnly`, `SameSite=Strict` session cookies, `Secure` under TLS, with no CORS configuration.
 
-TLS is terminated in-process by the ASGI server, so the same setup works on both OSes without
-shipping a reverse proxy. Certificates, in order of preference:
+TiQR is fully on-premises, so `tiqr serve` speaks plain HTTP by default. The trade-off is that
+passwords and session cookies cross the customer's LAN unencrypted, readable by anyone who can
+capture its traffic. Sites that want it set `TIQR_TLS_CERT` and `TIQR_TLS_KEY`; TLS is then
+terminated in-process by the ASGI server, so the same setup works on both OSes without shipping
+a reverse proxy. Certificates, in order of preference:
 
 1. **The customer's own certificate** from their internal CA, covering the IP and any DNS name.
 2. **An installer-generated private CA** with a server certificate that has the IP in its
@@ -195,8 +203,6 @@ shipping a reverse proxy. Certificates, in order of preference:
    through GPO, MDM or by hand, and later certificates reissue without new warnings.
 3. **Self-signed**, only as a last resort: browsers warn on every machine, and teaching
    operators to click through warnings undoes the point of TLS.
-
-Plain HTTP is not offered, because passwords and session cookies cross the LAN.
 
 ## Updates
 
@@ -208,7 +214,8 @@ tiqr-install --host 10.0.0.5 --upgrade      # or --local --upgrade on the server
 2. Unpack the new release beside the current one. Nothing running changes yet.
 3. Stop the service and back up the database with SQLite's online backup API to
    `backups/<timestamp>-<old version>.db`.
-4. Run schema migrations with the new binary.
+4. Run schema migrations with the new binary: `tiqr setup` applies them. Every other command,
+   `tiqr serve` included, refuses an outdated schema, so a skipped step fails loudly.
 5. Repoint `current`, start the service, and wait for `/api/health` to report the new version.
 6. If any step after 3 fails: stop, restore the backup, repoint `current` to the old release, and
    start again. Keep the last two releases and a bounded number of backups.
@@ -217,28 +224,26 @@ Downgrades past a schema change are refused. Updates are offline by design, from
 delivered by download or USB, because many sites have no internet access. An optional "update
 available" check can come later. It is never needed to run.
 
-Today the repository refuses any schema other than version 1. Before the first schema change,
-it needs a forward-only migration runner (numbered steps, each in one transaction).
+The repository has a forward-only migration runner: numbered steps, each run once in one
+transaction with its version bump. Version 2 added the web session table, version 3 the users'
+`active` flag.
 
 ## What changes when TiQR becomes a server
 
-These are decisions for the backend phase, listed here because they shape deployment:
+These were decided in the backend phase and shape deployment:
 
 - **Printing.** `ticket print` sends PDFs to *this machine's* default printer, but the server is
-  not at the operator's desk. Options:
-  1. The browser opens the PDF and the operator prints it. Browsers can't force 100% scale, so
-     the operator must pick "Actual size".
-  2. The server prints to a network printer configured on it (CUPS or the Windows spooler),
-     using the CLI's existing print path.
+  not at the operator's desk. Both of the first two options are implemented:
+  1. The browser downloads the PDF and the operator prints it. Browsers can't force 100% scale,
+     so the operator must pick "Actual size". Always available.
+  2. The server prints to a printer configured on it (CUPS or the Windows spooler), using the
+     CLI's print path, when the site sets `TIQR_SERVER_PRINTING=true`.
   3. Later, a small desktop client or agent on operator PCs that prints silently at 100%.
-
-  1 and 2 can coexist as a per-site setting.
-- **Scheduling.** The README says no daemon runs `sync` and `cleanup`. The server becomes that
-  daemon: a background task runs both on an interval. Run **one** server process. Sync already
-  serializes through SQLite, but several workers would just contend.
-- **Authentication.** The CLI's 5-minute file session is per machine. The web needs
-  server-side sessions with cookies, CSRF protection on state-changing requests, and login rate
-  limiting.
+- **Scheduling.** `tiqr serve` runs `sync` and `cleanup` on a background thread, on
+  `TIQR_SYNC_INTERVAL` and `TIQR_CLEANUP_INTERVAL`. Run **one** server process: the schedule,
+  the login limits and the lock that keeps runs apart are per process.
+- **Authentication.** Server-side sessions in SQLite with `HttpOnly` cookies, a CSRF token on
+  every write, `Origin` checks, and login rate limiting; see [Web API](README.md#web-api).
 - **Backups.** The database is now the customer's production record and holds the never-reused
   BioStar ID range. Schedule the same online backup the upgrade uses, and document restoring it.
 
@@ -262,11 +267,13 @@ Risks specific to shipping compiled code to third parties, most important first:
    executables, or SmartScreen will warn and antivirus may quarantine them: onefile Python
    builds are frequent false positives. Keep signing keys in a CI secret store or KMS, never in
    the repository.
-5. **Frozen dependencies.** Python, OpenSSL, httpx and the rest are baked in, and customers can't
+5. **Frozen dependencies.** Python, OpenSSL, httpx2 and the rest are baked in, and customers can't
    patch them. Track advisories (Dependabot, `pip-audit`), rebuild on fixes, and have a release
    cadence customers expect.
-6. **TLS on a LAN.** Public CAs won't issue for private IPs, so certificates are the customer's
-   or yours; see [Frontend and backend](#frontend-and-backend). BioStar TLS verification is off
+6. **TLS on a LAN.** The server speaks plain HTTP unless a site configures a certificate, so
+   on such sites anyone who can capture LAN traffic can read passwords and session cookies.
+   Public CAs won't issue for private IPs, so certificates are the customer's or yours; see
+   [Frontend and backend](#frontend-and-backend). BioStar TLS verification is off
    by default in the library. Installs should turn it on, or pin BioStar's certificate.
 7. **The installer handles admin credentials.** Keep OpenSSH's host-key verification (never
    `StrictHostKeyChecking=no`). Never log, cache or write passwords. Prefer key authentication.
@@ -290,20 +297,18 @@ Done: **0. Restructure.** uv workspace with `core`, `cli` and `api` members unde
 the `tiqr` namespace. Layering is enforced by the packaging tests, `apps/web/` is a placeholder, and
 CI is updated.
 
-1. **API (`apps/api`).**
-   - Add the ASGI framework (FastAPI and Uvicorn) to `tiqr-api` only.
-   - Add `tiqr serve` to the CLI with bind address and TLS options.
-   - Add `TIQR_HOME` so a frozen service keeps config and data outside its release folder.
-   - Build cookie session authentication with CSRF protection and rate limiting.
-   - Add endpoints mirroring the CLI's ticket, user, sync, cleanup and stats commands, all through
-     `TicketService`.
-   - Add a background sync/cleanup task, `/api/health`, and static-file serving with the SPA
-     fallback.
-   - Decide printing.
-   - Tests run in-process with httpx's ASGI transport, never against a live BioStar.
+Done: **1. API (`apps/api`).** FastAPI and Uvicorn in `tiqr-api` only; `tiqr serve` with bind
+address and optional TLS; `TIQR_HOME`; account roles, deactivation and password resets; server-side cookie sessions with CSRF protection and login
+rate limiting; endpoints mirroring the CLI's ticket, user, sync, cleanup and stats commands, all
+through `TicketService`; scheduled sync and cleanup; `/api/health`; the web build's host with the
+SPA fallback; browser and server printing; the schema migration runner. Tests run in-process
+through FastAPI's TestClient, never against a live BioStar. The PyInstaller smoke test starts
+`tiqr serve` and signs in.
+
 2. **Nuitka builds.** Build the standalone server folder and onefile installer per OS, with the
-   Linux build on an old-glibc base. Extend the CI smoke test to start `tiqr serve` and hit
-   `/api/health`. Retire the PyInstaller spec once it passes.
+   Linux build on an old-glibc base. Include `tiqr-api`'s distribution metadata, which its
+   version is read from, and Uvicorn's dynamically imported protocol modules, as the PyInstaller
+   spec does. Port the CI smoke test. Retire the PyInstaller spec once it passes.
 3. **Installer, local mode.**
    - Linux: systemd unit, service user, layout, firewall, TLS generation, `tiqr setup`, first
      admin, health check.
@@ -318,5 +323,4 @@ CI is updated.
    - Bundle assembly, `SHA256SUMS`, Ed25519 signing, Authenticode and `THIRD-PARTY-NOTICES` in
      the Executables workflow.
    - `--upgrade` with backup, migrations and rollback.
-   - The schema migration runner.
    - Optionally, the license file check.

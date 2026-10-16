@@ -1,9 +1,10 @@
 # TiQR
 
-A Python 3.14 **core library and CLI** for QR tickets registered with Suprema
+A Python 3.14 **core library, CLI and web API** for QR tickets registered with Suprema
 BioStar X and scanned by XPass Q2 readers. SQLite keeps local history; the reader
 enforces each ticket's UTC access window. PDF output is saved as a file; `ticket print` also
-sends that file to the default printer. A web API and frontend are planned; see
+sends that file to the default printer. `tiqr serve` runs the same commands as a JSON API for
+the planned SvelteKit frontend; see [Web API](#web-api), and
 [DEPLOYMENT.md](DEPLOYMENT.md) for how the product is packaged and installed on customer servers.
 
 ## Setup
@@ -37,6 +38,9 @@ placeholders; a blank value counts as unset, so local mode works and CI can fill
 BioStar block in. `.env.local` is git-ignored and holds private values such as
 `TIQR_SECRET_KEY` and `TIQR_BIOSTAR_PASSWORD`. A partly filled BioStar block is an error.
 Relative `TIQR_DB` and `TIQR_OUT` paths are also resolved against the project root.
+An installed service sets `TIQR_HOME` in its real environment instead, and the project root
+becomes that folder: config, database, PDFs and the CLI session then stay put while release
+folders change. It cannot be set in `.env`, which is found through it.
 No demo flag or simulator switch exists.
 
 Production sets `TIQR_BIOSTAR_REQUIRED=true` in its real environment. Then a missing
@@ -45,6 +49,7 @@ flag in `.env`, because local mode must keep working.
 
 | Variable | Default / requirement |
 |---|---|
+| `TIQR_HOME` | Unset; when set, the project root for every relative path and `.env` file |
 | `TIQR_SECRET_KEY` | Required, private non-placeholder signing key |
 | `TIQR_DB` | `tiqr.db`, relative to the project root |
 | `TIQR_OUT` | `out`, relative to the project root |
@@ -55,12 +60,18 @@ flag in `.env`, because local mode must keep working.
 | `TIQR_BIOSTAR_PASSWORD` | BioStar account password |
 | `TIQR_BIOSTAR_DEVICE_IDS` | Comma-separated existing reader IDs, at least one |
 | `TIQR_BIOSTAR_ACCESS_GROUP_ID` | Optional existing access group ID; blank lets `tiqr setup` manage a group named `TiQR AG` |
-| `TIQR_BIOSTAR_VERIFY_TLS` | `false`; set `true` to verify the server's TLS certificate. Verification is off by default, so enable it for any server reached over an untrusted network |
+| `TIQR_BIOSTAR_VERIFY_TLS` | `false`; set `true` to verify the server's TLS certificate against the operating system's trust store, where an internal CA can be installed. Verification is off by default, so enable it for any server reached over an untrusted network |
 | `TIQR_BIOSTAR_TIMEOUT` | `30` seconds |
 | `TIQR_BIOSTAR_DOOR_OPEN_DURATION` | `3` seconds a door stays unlocked; applies to doors `tiqr setup` creates |
 | `TIQR_BIOSTAR_DOOR_OPEN_TIMEOUT` | `10` seconds a door may stay open before BioStar flags it; applies to doors `tiqr setup` creates |
 | `TIQR_BIOSTAR_USER_ID_BASE` | `1000000`, a reserved, non-reused user ID range |
 | `TIQR_BIOSTAR_REQUIRED` | `false`; `true` makes a missing BioStar block a startup error |
+| `TIQR_HOST` | `127.0.0.1`; the address `tiqr serve` binds. Use the server's LAN IP, not `0.0.0.0` |
+| `TIQR_PORT` | `7102` |
+| `TIQR_TLS_CERT`, `TIQR_TLS_KEY` | Optional PEM certificate and key, relative to the project root; both set serves HTTPS |
+| `TIQR_SERVER_PRINTING` | `false`; `true` lets the web UI print on the server's default printer |
+| `TIQR_SYNC_INTERVAL` | `60` seconds between scheduled syncs while serving; `0` turns them off |
+| `TIQR_CLEANUP_INTERVAL` | `3600` seconds between scheduled cleanups while serving; `0` turns them off |
 
 With **no** BioStar settings, in-memory registrar and event-source fakes are the
 defaults. Supplying BioStar settings requires the base URL, username, password and at least one
@@ -102,6 +113,10 @@ uv run tiqr user add admin --role admin
 uv run tiqr user add manager --role manager
 uv run tiqr user add operator --role operator
 uv run tiqr user list
+uv run tiqr user role operator manager
+uv run tiqr user deactivate operator
+uv run tiqr user activate operator
+uv run tiqr user password operator
 
 uv run tiqr ticket create --name "Adam Tələbə" --type Student --from "2030-06-01T09:00:00" --until "2030-06-01T18:00:00" --usage one_time --as operator
 uv run tiqr ticket create --name "Guest" --type Guest --from "2030-06-01T09:00:00" --until "2030-06-01T18:00:00" --usage multi_use --tz Asia/Almaty --as manager
@@ -128,10 +143,16 @@ BioStar format without silently rounding. Storage is timezone-aware UTC.
 Ambiguous/nonexistent local times need an explicit offset. Output uses the
 configured timezone. `tzdata` supplies the same IANA database on Windows and Linux.
 
-`setup`, `reset`, `user add`, and `user list` are **trusted local bootstrap commands**:
+`setup`, `reset`, and the `user` commands are **trusted local bootstrap commands**:
 the specification has no `--as` for these. Protect database and shell access with
 OS permissions. This is not a security boundary against somebody who can edit SQLite.
-Reference-application databases are refused; there is no implicit migration.
+The web API's user endpoints are the authenticated counterparts; see
+[Permissions](#permissions). Reference-application databases are refused.
+
+Schema changes are never applied implicitly. A database with an older schema stops every
+command with a message to back it up and run `tiqr setup`, which upgrades it in numbered,
+one-transaction steps. A database newer than the program is always refused, so a downgrade
+past a schema change fails instead of corrupting data.
 
 ### Starting over
 
@@ -153,6 +174,14 @@ output directory are kept.
 | Assign/reassign | No | Yes | No |
 | Statistics, sync, cleanup | Yes | Yes | No |
 | Print/reprint | Visible issued tickets | Visible issued tickets | Assigned issued tickets |
+| Add users, change roles, deactivate, reset passwords (web) | Yes, except their own role or active state | No | No |
+| List users (web) | Yes | Yes, to pick assignees | No |
+
+A deactivated account keeps its tickets and history but cannot sign in, act, or be assigned
+tickets; a manager can reassign its tickets. Deactivating a user or resetting their password ends
+all their sessions, web and CLI. A new role applies from the user's next request. The last active
+admin can be neither demoted nor deactivated, by the web or the CLI, so somebody can always
+manage accounts.
 
 The creator is always the initial assignee, regardless of role. A manager may
 assign to any existing account. Ticket usage types cannot be changed after issuance.
@@ -204,6 +233,59 @@ finally:
     repo.close()
 ```
 
+## Web API
+
+```text
+uv run tiqr serve                                         # HTTP on TIQR_HOST:TIQR_PORT, 127.0.0.1:7102
+uv run tiqr serve --tls-cert cert.pem --tls-key key.pem   # HTTPS; or TIQR_TLS_CERT / TIQR_TLS_KEY
+uv run tiqr serve --dev                                   # adds the API docs, loopback only
+```
+
+`tiqr serve` runs one Uvicorn process. It serves the JSON API under `/api` and, when a web build
+is bundled, the SvelteKit app on every other path, with `index.html` as the fallback. It checks
+the settings and database before it listens, so a bad key or an outdated schema fails at once.
+TiQR runs entirely on the customer's network, so plain HTTP is the default; with a certificate
+and key it terminates TLS in-process instead. Over HTTP, passwords and session cookies cross that
+network unencrypted. `--dev` only binds a loopback address and is the only mode that serves the
+interactive docs at `/api/docs`.
+Run one server process per database: scheduling, login limits and the sync lock live in it.
+
+| Method and path | CLI equivalent | Who |
+|---|---|---|
+| `GET /api/health` | — | Anyone; returns the version |
+| `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/session` | `--as` | — |
+| `GET /api/config` | — | Signed in; default timezone and server printing |
+| `GET /api/users`, `POST /api/users` | `user list`, `user add` | See [Permissions](#permissions) |
+| `PATCH /api/users/{id}` with any of `role`, `active`, `password` | `user role`, `user deactivate`, `user activate`, `user password` | Admins |
+| `GET /api/tickets?state=`, `POST /api/tickets`, `GET /api/tickets/{id}` | `ticket list`, `ticket create` | As the CLI |
+| `POST /api/tickets/{id}/assign` | `ticket assign` | Managers |
+| `POST /api/tickets/{id}/pdf` | `ticket save` | Returns the PDF and keeps it in `TIQR_OUT` |
+| `POST /api/tickets/{id}/print` | `ticket print` | Server printer; `409` unless `TIQR_SERVER_PRINTING` |
+| `POST /api/sync`, `POST /api/cleanup`, `GET /api/stats` | `sync`, `cleanup`, `stats` | Admins and managers |
+
+Rendering a PDF is a `POST` because every render counts as a print. Ticket bodies take the CLI's
+datetime rules: an ISO datetime with an offset, or without one in `timezone` (default
+`TIQR_DEFAULT_TZ`). Responses show datetimes in that zone, with their offset, and never include
+password hashes, QR payloads or BioStar IDs. Refusals are `{"detail": ..., "code": ...}`: `401`
+signed out, `403` forbidden, `404` not found, `409` wrong state, `422` invalid, `429` too many
+logins, `502` BioStar or server printer failure. Schema errors use FastAPI's `422` list format, and
+unexpected errors answer `500` without details, which go to the server log.
+
+Signing in creates a server-side session in SQLite; only a SHA-256 hash of its random token is
+stored. The browser holds the token in an `HttpOnly`, `SameSite=Strict` cookie named
+`tiqr-session`, with no expiry of its own; under TLS it is also `Secure`, named
+`__Host-tiqr-session`, and responses add HSTS. A
+session ends after 30 minutes without a request, after 12 hours regardless, or at logout, which
+deletes it on the server. Login responses and `GET /api/auth/session` return a CSRF token that
+every `POST` and `PATCH` must send as `X-CSRF-Token`; writes whose `Origin` is another site are refused, and
+JSON bodies need a JSON `Content-Type`. Five failed logins for one username from one address, or
+twenty from one address, wait 15 minutes; a username alone is never locked, so nobody can lock an
+account out from elsewhere. An unknown username costs the same password hash as a wrong password,
+so timing does not reveal which accounts exist.
+
+`apps/web/openapi.json` is the API's OpenAPI schema for generating the web client. After changing
+the API, regenerate it with `uv run poe openapi`; a test fails while it is stale.
+
 ## Printing
 
 `uv run tiqr ticket save` only writes a PDF file. `uv run tiqr ticket print` writes the same
@@ -221,6 +303,9 @@ file and then sends it to the default printer through the operating system:
 
 TiQR has no print queue or printer driver of its own. The print count rises only after the
 system accepts the job, so a failed print leaves it unchanged. The saved PDF is kept either way.
+The web API offers both paths: the browser downloads the PDF for the operator's own printer,
+and, with `TIQR_SERVER_PRINTING=true`, the same OS print path runs on the server's default
+printer.
 
 Each PDF is one A4 sheet holding a single foldable badge (not to scale):
 
@@ -279,10 +364,13 @@ when a ticket may be printed, and what `print_count` records, are described unde
 
 ## Operations
 
-Schedule `sync` and `cleanup` regularly through your own trusted invocation of the
-library or CLI. There is no background daemon in this package. CLI actor commands
-prompt interactively; an embedded application can authenticate once and call the
-core methods directly. Do not skip cleanup: BioStar user creation gets slower as
+`tiqr serve` runs `sync` every `TIQR_SYNC_INTERVAL` seconds and `cleanup` every
+`TIQR_CLEANUP_INTERVAL`, both once at startup, through the service's `scheduled_sync` and
+`scheduled_cleanup` entry points. Those take no actor: like the bootstrap commands, they trust
+their in-process caller. Failures are logged and retried on the next run. Without a running
+server, schedule the CLI's `sync` and `cleanup` yourself; CLI actor commands prompt
+interactively, and an embedded application can authenticate once and call the core methods
+directly. Do not skip cleanup: BioStar user creation gets slower as
 users accumulate. Cleanup deletes remote users and cards for expired tickets and
 passed one-time tickets, but retains local tickets and events permanently.
 
@@ -309,6 +397,7 @@ uv run ruff format --check .
 uv run pyright
 uv run pytest
 uv build --all-packages --wheel
+uv run poe openapi   # after API changes
 ```
 
 ### Git hooks
@@ -365,16 +454,18 @@ itself. Each member is its own distribution, and all of them share the `tiqr` im
 
 | Path | Distribution | Import | Contents |
 |---|---|---|---|
-| `apps/core` | `tiqr-core` | `tiqr.core` | Models, service, SQLite, BioStar adapters, QR, PDF, assets |
-| `apps/cli` | `tiqr-cli` | `tiqr.cli` | Typer commands and the executable's launcher |
-| `apps/api` | `tiqr-api` | `tiqr.api` | Backend API; empty until it is implemented |
-| `apps/web` | — | — | SvelteKit web UI; not started, see its README |
+| `apps/core` | `tiqr-core` | `tiqr.core` | Models, service, SQLite, BioStar adapters, QR, PDF, OS printing, assets |
+| `apps/cli` | `tiqr-cli` | `tiqr.cli` | Typer commands, `tiqr serve`, and the executable's launcher |
+| `apps/api` | `tiqr-api` | `tiqr.api` | FastAPI app, sessions, scheduler, and the bundled web build's host |
+| `apps/web` | — | — | SvelteKit web UI; not started, see its README. Holds `openapi.json` |
 | `packaging/` | — | — | PyInstaller spec and entry script |
-| `tests/` | — | — | `core/`, `cli/` and packaging tests, sharing one `conftest.py` |
+| `tests/` | — | — | `core/`, `cli/`, `api/` and packaging tests, sharing one `conftest.py` |
 
-Dependencies point one way: `cli` and `api` use `core`, and `core` imports neither; the
-packaging tests enforce this. Every member's version must match the root's. There is no HTTP
-server, browser UI, print queue, printer driver, or reference helper-script build yet.
+Dependencies point one way: `api` uses `core`; `cli` uses `core`, and `api` only inside
+`tiqr serve`, which imports it when it runs; `core` imports neither. The packaging tests enforce
+this and keep web frameworks out of `core` and `cli`. Every member's version must match the
+root's. There is no browser UI, print queue, printer driver, or reference helper-script build
+yet.
 
 ### Executables
 
@@ -400,7 +491,8 @@ your own `.env.local` there to supply BioStar settings. Secrets are never built 
   in a terminal; otherwise run `./tiqr` from a terminal.
 
 Any run with arguments, or from a terminal, first runs `setup` when the signing key or
-database is missing, then runs the CLI. `setup`, `reset` and `--help` never run it.
+database is missing, then runs the CLI. `setup`, `reset` and `--help` never run it. `tiqr serve`
+works the same way and serves from that folder; the executable carries no web build yet.
 
 When a terminal run finds no users, it asks for the first admin's username and password
 before the command runs, so the database always gets an admin on first use. Scripts with
