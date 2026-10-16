@@ -1,0 +1,24 @@
+{
+  "UserCollection": {
+    "total": "3",
+    "rows": [
+      {
+        "user_id": "2",
+        "name": "RB"
+      },
+      {
+        "user_id": "3",
+        "name": "AM"
+      },
+      {
+        "user_id": "61000",
+        "name": "JJ"
+      }
+    ]
+  },
+  "Response": {
+    "code": "0",
+    "link": "https://support.supremainc.com/en/support/home",
+    "message": "Success"
+  }
+}

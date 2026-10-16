@@ -1,0 +1,7 @@
+{
+  "Response": {
+    "code": "101",
+    "link": "https://support.supremainc.com/en/support/home",
+    "message": "Failed to login for invalid username or password"
+  }
+}
