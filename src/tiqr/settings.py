@@ -14,14 +14,13 @@ from tiqr.qr import DEFAULT_PREFIX, validate_prefix
 
 
 def _project_root() -> Path:
-    # A frozen build unpacks into a temporary directory, so its config and data sit beside the
-    # executable instead. Source checkouts keep them beside src/, never in the working directory.
+    # A frozen build unpacks into a temporary directory, so config and data sit beside the
+    # executable. Source checkouts keep them beside src/, never in the working directory.
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[2]
 
 
-# Config files sit beside the source tree, never in whatever directory the CLI runs from.
 PROJECT_ROOT = _project_root()
 # Later files override earlier ones; real environment variables override both.
 LOCAL_ENV_FILE = ".env.local"
@@ -67,7 +66,7 @@ def _environment() -> dict[str, str]:
 
 
 def _biostar_value(environment: Mapping[str, str], name: str, default: str = "") -> str:
-    # A blank placeholder means "not set", so committed templates can list every key.
+    # Blank means "not set", so committed templates can list every key.
     value = environment.get(f"TIQR_BIOSTAR_{name}", "")
     return value if value.strip() else default
 
@@ -80,12 +79,11 @@ def _biostar_flag(environment: Mapping[str, str], name: str, *, default: bool) -
 
 
 def _prefix(environment: Mapping[str, str]) -> str:
-    # A blank TIQR_PREFIX keeps the TQR default, so the template can leave it empty.
     return environment.get("TIQR_PREFIX", "").strip() or DEFAULT_PREFIX
 
 
 def _device_ids(value: str) -> tuple[str, ...]:
-    """Split a comma-separated device list, dropping blanks and repeats but keeping order."""
+    """Split a comma-separated list, dropping blanks and repeats but keeping order."""
     return tuple(dict.fromkeys(part.strip() for part in value.split(",") if part.strip()))
 
 
@@ -104,7 +102,7 @@ def validate_secret(secret: str) -> None:
 
 
 def _edit_local_file(path: Path, edit: Callable[[list[str]], list[str]]) -> bool:
-    """Rewrite the local env file's lines through edit; report whether anything changed."""
+    """Rewrite the file's lines through `edit`; report whether anything changed."""
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
     updated = edit(lines)
     if updated == lines:
@@ -140,7 +138,7 @@ def discard_secret(path: Path | None = None) -> bool:
 
 
 def discard_access_group_id(path: Path | None = None) -> bool:
-    """Blank a pinned BioStar access group so setup manages it again; report whether one was set."""
+    """Blank the pinned BioStar access group so setup manages it again."""
     path = path or PROJECT_ROOT / LOCAL_ENV_FILE
     key = "TIQR_BIOSTAR_ACCESS_GROUP_ID="
     return _edit_local_file(
@@ -155,7 +153,7 @@ def database_path(environment: Mapping[str, str] | None = None) -> Path:
 
 
 def session_path() -> Path:
-    """Where the CLI keeps its recent login; git-ignored, beside the database."""
+    """Where the CLI keeps its recent login."""
     return PROJECT_ROOT / SESSION_FILE
 
 
@@ -165,12 +163,11 @@ def _detected_timezone(
     """Return this machine's IANA zone from TZ, /etc/localtime, or /etc/timezone, else None."""
     names = [os.environ.get("TZ", "").lstrip(":")]
     with suppress(OSError):
-        # A link such as /usr/share/zoneinfo/Asia/Baku names the zone after "zoneinfo/".
+        # /usr/share/zoneinfo/Asia/Baku names the zone after "zoneinfo/".
         names.append(localtime.resolve(strict=True).as_posix().partition("zoneinfo/")[2])
     with suppress(OSError):
         names.append(timezone_file.read_text(encoding="utf-8").strip())
     for name in names:
-        # Only a name ZoneInfo can load is a usable zone; anything else tries the next source.
         # Windows reports names with characters like "<" as OSError rather than not-found.
         with suppress(OSError, ValueError, ZoneInfoNotFoundError):
             ZoneInfo(name)
@@ -179,7 +176,6 @@ def _detected_timezone(
 
 
 def _default_timezone(environment: Mapping[str, str]) -> str:
-    # A blank TIQR_DEFAULT_TZ means "use this machine's zone", so the template can leave it empty.
     configured = environment.get("TIQR_DEFAULT_TZ", "").strip()
     return configured or _detected_timezone() or "UTC"
 
@@ -190,12 +186,12 @@ class BioStarSettings:
     username: str
     password: str
     device_ids: tuple[str, ...]
-    # Blank means TiQR manages its own "TiQR AG" access group; see BioStarXProvisioner.
+    # Blank means TiQR manages its own access group.
     access_group_id: str = ""
     verify_tls: bool = False
     timeout: float = 30.0
     user_id_base: int = 1_000_000
-    # Seconds a door stays unlocked, and how long it may stay open before BioStar alarms.
+    # Seconds a door stays unlocked, and may stay open before BioStar alarms.
     door_open_duration: int = 3
     door_open_timeout: int = 10
 
@@ -216,7 +212,7 @@ class BioStarSettings:
 
     @classmethod
     def from_env(cls, environment: Mapping[str, str]) -> BioStarSettings | None:
-        """Read the TIQR_BIOSTAR_* block, or return None when none of it is set."""
+        """Read the TIQR_BIOSTAR_* block, or None when none of it is set."""
         required = {name: _biostar_value(environment, name) for name in _BIOSTAR_REQUIRED}
         optional = (_biostar_value(environment, name) for name in _BIOSTAR_OPTIONAL)
         if not any(required.values()) and not any(optional):
@@ -258,7 +254,7 @@ class Settings:
     def from_env(cls) -> Settings:
         environment = _environment()
         biostar = BioStarSettings.from_env(environment)
-        # Production sets TIQR_BIOSTAR_REQUIRED=true so a missing BioStar block fails loudly.
+        # Production sets this so a missing BioStar block fails loudly.
         if _biostar_flag(environment, "REQUIRED", default=False) and biostar is None:
             raise ValueError("TIQR_BIOSTAR_REQUIRED is true but BioStar is not configured")
         return cls(

@@ -1,22 +1,17 @@
 """Render a visitor badge as a foldable A4 sheet.
 
-The badge is the left half of the sheet (105 x 148.5 mm). It is cut off along the vertical line and
-folded in half horizontally, which gives a two-layer A6 badge with the fold at the bottom. The two
-free ends meet at the top, where two holes are punched for the chain.
+The badge is the left half of the sheet, cut off along the vertical line and folded in half
+horizontally into a two-layer A6 badge. Two holes are punched through both layers at the top.
 
-       105 mm      105 mm
     ┌──────────┬──────────┐  <- sheet edge: punch holes here
-    │   FRONT  │          │
-    │          │  scrap   │
+    │   FRONT  │  scrap   │
     ├┄┄┄┄┄┄┄┄┄┄┤          │  <- fold, at the bottom of the badge
     │   BACK   │          │
     │  (180°)  │          │
     └──────────┴──────────┘  <- other end, same holes
                 ↑ cut
 
-Both sides run from the outer sheet edge toward the fold: header and holes at the edge, footer at
-the fold. The lower half is drawn rotated by 180°, because folding it back flips the text. Half of
-the sheet is scrap: guests arrive one at a time, so there is never a second badge to fill it.
+The back is drawn rotated by 180°, because folding it flips the text.
 """
 
 import os
@@ -43,20 +38,18 @@ _FONT = "TiQR-Geist"
 _LOGOS = ("distechsol.webp", "suprema.webp")
 _PAGE_WIDTH, _PAGE_HEIGHT = A4
 
-# Geometry below is in millimetres, measured from the top of the surface being drawn on.
+# Geometry is in millimetres, measured from the top of the surface being drawn on.
 _PAGE_MM = (_PAGE_WIDTH / mm, _PAGE_HEIGHT / mm)
 _BADGE_MM = (_PAGE_MM[0] / 2, _PAGE_MM[1] / 2)
 _MARGIN = 7
-# Space at the sheet edge for the holes and chain clips. The inkjet cannot print the bottom 14 mm
-# of the sheet, and the back's header sits there, so the header starts below that.
+# The inkjet cannot print the bottom 14 mm of the sheet, where the back's header sits.
 _EDGE_MARGIN = 18
-# Space at the fold, so the footer never crosses it.
 _FOLD_MARGIN = 10
 _HOLE_OFFSET = 8
 _HOLE_SPACING = 60
 _HOLE_RADIUS = 2.5
 
-# Sampled from the logos: navy and turquoise from Distechsol, crimson from Suprema.
+# Sampled from the logos.
 _NAVY = colors.HexColor("#092a54")
 _TURQUOISE = colors.HexColor("#099ba0")
 _CRIMSON = colors.HexColor("#a71e48")
@@ -64,10 +57,10 @@ _MUTED = colors.HexColor("#71757b")
 _PANEL = colors.HexColor("#e8e9ea")
 _GUIDE = colors.HexColor("#babcbf")
 
-# Badge labels are English because visitors include foreigners.
+# Labels are English because visitors include foreigners.
 _EVENT_LABEL = "TiQR"
 _TECH_LINE = "Suprema BioStar X"
-# Geist ships one weight; bold text is the regular weight with a stroke of this many ems added.
+# Geist ships one weight; bold adds a stroke of this many ems.
 _BOLD_STROKE = 0.035
 _NAME_SIZES = (8, 7, 6, 5, 4.2)
 _TYPE_SIZES = (3.0, 2.6, 2.2)
@@ -106,7 +99,7 @@ def _wrap(text: str, size: float, width: float) -> list[str]:
         if _width(line, size) <= width:
             wrapped.append(line)
             continue
-        # A single word wider than the line is broken between characters.
+        # A word wider than the line is broken between characters.
         part = ""
         for char in line:
             if part and _width(part + char, size) > width:
@@ -127,11 +120,7 @@ def _ellipsize(line: str, size: float, width: float, tracking: float = 0) -> str
 def _fit(
     text: str, sizes: tuple[float, ...], width: float, max_lines: int
 ) -> tuple[float, list[str]]:
-    """Pick the largest size whose wrapped text fits in max_lines, cutting only as a last resort.
-
-    Names vary in length and the badge is only 105 mm wide, so the size adapts instead of the
-    text overflowing.
-    """
+    """Pick the largest size whose wrapped text fits in max_lines, cutting only as a last resort."""
     for size in sizes:
         lines = _wrap(text, size, width)
         if len(lines) <= max_lines:
@@ -145,7 +134,7 @@ def _fit(
 def _fit_line(
     text: str, sizes: tuple[float, ...], width: float, tracking: float
 ) -> tuple[float, str]:
-    """Like _fit for one line that carries letter spacing."""
+    """Like _fit for a single line with letter spacing."""
     for size in sizes:
         if _width(text, size, tracking) <= width:
             return size, text
@@ -157,8 +146,8 @@ def _window(ticket: Ticket, zone: ZoneInfo) -> str:
     end = ticket.valid_until.astimezone(zone)
 
     if start.date() == end.date():
-        return f"{start:%d.%m.%y} · {start:%H:%M} – {end:%H:%M}"
-    return f"{start:%d.%m.%y} · {start:%H:%M} – {end:%d.%m.%y} · {end:%H:%M}"
+        return f"{start:%d.%m.%y} · {start:%H:%M} — {end:%H:%M}"
+    return f"{start:%d.%m.%y} · {start:%H:%M} — {end:%d.%m.%y} · {end:%H:%M}"
 
 
 def _image_width(image: ImageReader, height: float) -> float:
@@ -167,10 +156,7 @@ def _image_width(image: ImageReader, height: float) -> float:
 
 
 class _Surface:
-    """Draws in millimetres, measured from the top-left corner like the layout is described.
-
-    PDF coordinates grow upward from the bottom-left, so every call flips the vertical axis.
-    """
+    """Draws in millimetres from the top-left corner; PDF's origin is bottom-left."""
 
     def __init__(self, canvas: Canvas, height: float) -> None:
         self.canvas = canvas
@@ -240,7 +226,7 @@ class _Surface:
         bold: bool = False,
         tracking: float = 0,
     ) -> None:
-        """Draw text whose line box starts at `top` and `x`; the size is the font size in mm."""
+        """Draw text whose line box starts at `top`; the size is in mm."""
         baseline = top + size * _font().face.ascent / 1000
         self.canvas.saveState()
         self.canvas.setFont(_FONT, size * mm)
@@ -309,21 +295,17 @@ def _draw_header(surface: _Surface, logos: list[ImageReader]) -> float:
     left, right = _MARGIN, width - _MARGIN
     text_width = right - left
 
-    # Event header. It is inset from the sheet edge, which the printer cannot reach.
     band_height = 10
     surface.rect(left, _EDGE_MARGIN, text_width, band_height, _NAVY)
     surface.centered(
         width / 2, _EDGE_MARGIN + 2.3, _EVENT_LABEL, 3.6, colors.white, bold=True, tracking=1.1
     )
-    # Two stripes under it: Distechsol turquoise and Suprema crimson.
     stripe = 1.5
     top = _EDGE_MARGIN + band_height
     surface.rect(left, top, text_width, stripe, _TURQUOISE)
     surface.rect(left, top + stripe, text_width, stripe, _CRIMSON)
     top += stripe * 2 + 3.5
 
-    # Distechsol on the left, Suprema on the right. The Suprema mark is white on crimson, which its
-    # own background already provides.
     logo_height = 8
     distechsol, suprema = logos
     surface.image(distechsol, left, top, logo_height)
@@ -337,42 +319,38 @@ def _draw_face(
 ) -> None:
     """Draw one side of the badge: holes at the top, fold at the bottom.
 
-    The back carries name and type but no QR code: a badge turns around on a person's neck, so the
-    name has to be readable from behind too.
+    The back has name and type but no QR code, so the name is readable when the badge turns around.
     """
     width, height = _BADGE_MM
     left, right = _MARGIN, width - _MARGIN
     text_width = right - left
 
-    # Holes go through both layers at once, so only the front gets guide circles; a second pair on
-    # the back would look like four holes.
+    # Holes go through both layers, so only the front gets guide circles.
     if not back:
         for x in (width / 2 - _HOLE_SPACING / 2, width / 2 + _HOLE_SPACING / 2):
             surface.circle(x, _HOLE_OFFSET, _HOLE_RADIUS, _GUIDE, 0.25)
 
     header_bottom = _draw_header(surface, logos)
 
-    # Footer panel, filled so the bottom of the badge does not look empty.
     bar_height = 7
     bar_top = height - _FOLD_MARGIN - bar_height
     surface.rect(left, bar_top, text_width, bar_height, _NAVY, radius=1.2)
     surface.centered(width / 2, bar_top + 1.3, _TECH_LINE, 3.2, colors.white)
     rule = bar_top - 2.5
 
-    # Identity block: visitor type in a chip, then the name.
     tracking = 0.6
     chip_height = 6.2
     type_size, visitor_type = _fit_line(ticket.visitor_type, _TYPE_SIZES, text_width - 6, tracking)
     chip_width = _width(visitor_type, type_size, tracking) + 6
     label_step = chip_height + 3.5
-    # The front gives room to the QR code, so its name is limited to two lines.
+    # The front leaves room for the QR code, so its name gets two lines.
     name_size, name_lines = _fit(ticket.visitor_name, _NAME_SIZES, text_width, 3 if back else 2)
     name_step = name_size * 1.2
     block_height = label_step + name_step * len(name_lines)
 
     top = header_bottom
     if back:
-        # With no QR code below, hanging the block under the header would leave a gap beneath it.
+        # No QR code below, so center the block instead of leaving a gap under it.
         top += max(0, (rule - header_bottom - block_height) / 2)
     surface.rect(left, top, chip_width, chip_height, _CRIMSON, radius=1.2)
     surface.text(
@@ -385,12 +363,10 @@ def _draw_face(
     if back:
         return
 
-    # Validity above the footer; the visitor type is already in the chip.
     window_top = rule - 2.5 - 4.4
     surface.text(left, window_top, window, 3.2, _MUTED)
 
-    # QR code and serial on a light panel filling the space between name and validity. The QR code
-    # stays black on white: the reader and phone cameras both need the contrast.
+    # The QR code stays black on white: the reader needs the contrast.
     panel_top = top + 3
     room = window_top - 3 - panel_top
     pad, serial_height = 3, 7
@@ -409,8 +385,6 @@ def _draw_sheet(canvas: Canvas, ticket: Ticket, logos: list[ImageReader], zone: 
     window = _window(ticket, zone)
     face = _Surface(canvas, badge_height)
 
-    # The front is the upper half. Folding the lower half up and back flips the text around the
-    # horizontal axis, so the back is drawn upside down to read correctly from behind.
     canvas.saveState()
     canvas.translate(0, badge_height * mm)
     _draw_face(face, ticket, logos, window, back=False)
@@ -425,7 +399,7 @@ def _draw_sheet(canvas: Canvas, ticket: Ticket, logos: list[ImageReader], zone: 
     page.line((badge_width, 0), (badge_width, _PAGE_MM[1]), _GUIDE, 0.3, dash=(4, 2.5))
     page.line((0, badge_height), (badge_width, badge_height), _NAVY, 0.3, dash=(8, 3))
 
-    # Instructions go in the scrap half, so nothing extra lands on the badge.
+    # Instructions go in the scrap half.
     hint_x = badge_width + 6
     left_indent = "    "
     hints = (
@@ -443,7 +417,7 @@ def _draw_sheet(canvas: Canvas, ticket: Ticket, logos: list[ImageReader], zone: 
 def render_pdf(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
     zone = ZoneInfo(timezone)
     logos = [ImageReader(BytesIO(_asset("images", name))) for name in _LOGOS]
-    # Check the font and the text before any file is created, so a failure leaves no debris.
+    # Validate before creating any file, so a failure leaves no debris.
     _require_glyphs(ticket.visitor_name + ticket.visitor_type)
     output_dir.mkdir(parents=True, exist_ok=True)
     destination = output_dir / f"{ticket.id}.pdf"

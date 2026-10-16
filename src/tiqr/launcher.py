@@ -1,7 +1,6 @@
 """Entry point for the packaged executable: set up on first use, then run the CLI.
 
-A double-clicked executable has no terminal to print into, so it opens a new terminal window in
-its own folder and runs the CLI there. Run from a terminal, it works like the `tiqr` command.
+Double-clicked, it opens a terminal window in its own folder and runs the CLI there.
 """
 
 import ctypes
@@ -20,7 +19,7 @@ from tiqr.settings import Settings, database_path
 
 # Commands that must not create the signing key or database as a side effect.
 _SETUP_SKIPPED = frozenset({"setup", "reset", "-h", "--help"})
-# Linux terminal emulators in preference order, each with the arguments before the command.
+# Linux terminals in preference order, with the arguments before the command.
 _LINUX_TERMINALS = (
     ("x-terminal-emulator", ("-e",)),
     ("gnome-terminal", ("--",)),
@@ -30,7 +29,6 @@ _LINUX_TERMINALS = (
     ("kitty", ()),
     ("xterm", ("-e",)),
 )
-# Shell the new window keeps open after the CLI prints, so the user can keep typing commands.
 _KEEP_SHELL_OPEN = 'exec "${SHELL:-/bin/sh}"'
 
 
@@ -40,7 +38,7 @@ def _interactive() -> bool:
 
 def _launched_from_file_manager() -> bool:
     if sys.platform == "win32":
-        # A console that a double-click created has no other process attached to it.
+        # A console created by a double-click has no other process attached.
         attached = (ctypes.c_uint * 2)()
         return ctypes.windll.kernel32.GetConsoleProcessList(attached, 2) == 1
     return not _interactive()
@@ -56,14 +54,13 @@ def _needs_setup(arguments: Sequence[str]) -> bool:
     try:
         Settings.from_env()
     except ValueError, LookupError:
-        # Missing or placeholder key, a partial BioStar block, or an unknown timezone (a
-        # LookupError); setup reports which.
+        # Bad key, partial BioStar block or unknown timezone; setup reports which.
         return True
     return not database_path().exists()
 
 
 def _needs_admin(arguments: Sequence[str]) -> bool:
-    # Only a person at a terminal can answer the prompt; scripts keep their own accounts.
+    # Only a person at a terminal can answer the prompt.
     if _skips_setup(arguments) or not _interactive():
         return False
     with SQLiteRepository(Settings.from_env().database_path) as repository:
@@ -75,16 +72,15 @@ def _create_first_admin() -> None:
     typer.echo("No users yet. Create the first admin account.")
     while True:
         username = typer.prompt("Admin username")
-        # A rejected attempt, such as an empty password, has printed its error; ask again.
+        # A rejected attempt has printed its error; ask again.
         if not app(args=["user", "add", username, "--role", "admin"], standalone_mode=False):
             return
 
 
 def _open_terminal(executable: Path) -> bool:
-    """Open a terminal window in the executable's folder that runs the CLI and stays open."""
+    """Open a terminal in the executable's folder that runs the CLI and stays open."""
     folder = executable.parent
     if sys.platform == "win32":
-        # cmd.exe finds the executable in its current folder, so the bare name needs no quoting.
         subprocess.Popen(  # noqa: S603 - fixed shell; the only argument is this executable's name
             ["cmd.exe", "/k", executable.name],  # noqa: S607 - cmd.exe is always on Windows
             cwd=folder,
@@ -95,10 +91,9 @@ def _open_terminal(executable: Path) -> bool:
         f"cd {shlex.quote(str(folder))} && ./{shlex.quote(executable.name)}; {_KEEP_SHELL_OPEN}"
     )
     if sys.platform == "darwin":
-        # AppleScript strings escape backslashes and double quotes the same way as C strings.
         script = command.replace("\\", "\\\\").replace('"', '\\"')
         try:
-            subprocess.run(  # noqa: S603 - fixed AppleScript runner; the script is built here
+            subprocess.run(  # noqa: S603 - fixed AppleScript runner; the script is built above
                 [
                     "/usr/bin/osascript",
                     "-e",
@@ -135,7 +130,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             raise SystemExit(1)
         return
     if _needs_setup(arguments):
-        # Standalone mode is off so a failed setup returns its exit code instead of exiting here.
+        # Non-standalone, so a failed setup returns its exit code instead of exiting.
         code = app(args=["setup"], standalone_mode=False)
         if code:
             raise SystemExit(code)

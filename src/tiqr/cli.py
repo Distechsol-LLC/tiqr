@@ -55,7 +55,6 @@ _TICKET_FIELDS = (
     "print_count",
     "use_count",
 )
-# SQLite sidecar files that can sit beside the database.
 _DB_SUFFIXES = ("-journal", "-wal", "-shm")
 _ISO_DATETIME = re.compile(r"\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}")
 
@@ -86,7 +85,7 @@ class _Runtime:
             with suppress(AuthenticationError):
                 return self.service.resume_session(cached)
         user = self.service.authenticate(username, _password())
-        # Caching is a convenience: if the file cannot be written, the next command just asks again.
+        # Caching is optional; if the file can't be written, the next command asks again.
         with suppress(OSError):
             _write_session(self.service.start_session(user))
         return user
@@ -96,7 +95,7 @@ class _Runtime:
 
 
 def _describe(exc: Exception) -> str:
-    """The message, plus the BioStar code and HTTP status so a server refusal can be looked up."""
+    """The message, plus the BioStar code and HTTP status when present."""
     if not isinstance(exc, BioStarError):
         return str(exc)
     details: list[str] = []
@@ -118,7 +117,7 @@ def _errors() -> Generator[None]:
 
 @contextmanager
 def _session() -> Generator[_Runtime]:
-    """Load settings and open the database and adapters for one command, then close them."""
+    """Open settings, database and adapters for one command, then close them."""
     with _errors(), ExitStack() as stack:
         settings = Settings.from_env()
         repository = stack.enter_context(SQLiteRepository(settings.database_path))
@@ -154,7 +153,7 @@ def parse_input_datetime(text: str, timezone: str) -> datetime:
         raise ValueError(f"Invalid ISO datetime: {text}") from exc
     if value.tzinfo is not None:
         return value.astimezone(UTC)
-    # A wall-clock time maps to one instant, or to two (DST fall-back) or none (spring-forward).
+    # A wall-clock time maps to one instant, two (DST fall-back) or none (spring-forward).
     candidates: set[datetime] = set()
     for fold in (0, 1):
         candidate = value.replace(tzinfo=zone, fold=fold).astimezone(UTC)
@@ -181,7 +180,6 @@ def _read_session() -> Session | None:
         expires_at = datetime.fromtimestamp(int(data["expires_at"]), UTC)
         return Session(str(data["username"]), expires_at, str(data["token"]))
     except OSError, ValueError, KeyError, TypeError, OverflowError:
-        # Missing, unreadable or malformed: treat it as no session and ask for the password.
         return None
 
 
@@ -191,19 +189,19 @@ def _write_session(session: Session) -> None:
         "expires_at": int(session.expires_at.timestamp()),
         "token": session.token,
     }
-    # Created owner-only from the start, so the token is never briefly readable by others.
+    # Owner-only from creation, so the token is never briefly readable by others.
     descriptor = os.open(session_path(), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as file:
         json.dump(payload, file)
 
 
 def _json(value: object) -> None:
-    """Print as JSON; UUIDs are the only non-JSON values left, enums are already strings."""
+    """Print as JSON; `default=str` covers UUIDs."""
     typer.echo(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, default=str))
 
 
 def _sumatra_pdf() -> Path | None:
-    """Find SumatraPDF, the only Windows PDF app that prints silently at 100%."""
+    """Find SumatraPDF, which prints silently at 100%."""
     found = shutil.which("SumatraPDF")
     if found is not None:
         return Path(found)
@@ -215,16 +213,14 @@ def _sumatra_pdf() -> Path | None:
 
 
 def _send_to_printer(path: Path) -> None:
-    """Queue a PDF on the default printer through the operating system's own print path."""
+    """Queue a PDF on the default printer."""
     if sys.platform == "win32":
         sumatra = _sumatra_pdf()
         if sumatra is None:
-            # The print verb uses whatever PDF application is associated with the file. It returns
-            # once the job is queued, so a job that fails later at the printer is not reported here.
-            os.startfile(path, "print")  # noqa: S606 - the path is the PDF this command just rendered
+            # Returns once the job is queued, so later printer failures go unreported.
+            os.startfile(path, "print")  # noqa: S606 - the path is the PDF just rendered
             return
-        # Sumatra exits as soon as the job is queued; 1 means it could not print.
-        result = subprocess.run(  # noqa: S603 - the executable is found above; the PDF is ours
+        result = subprocess.run(  # noqa: S603 - the executable and PDF are ours
             [sumatra, "-print-to-default", "-print-settings", "noscale", "-silent", str(path)],
             capture_output=True,
             check=False,
@@ -238,7 +234,7 @@ def _send_to_printer(path: Path) -> None:
             "Printing needs the CUPS lp command; install CUPS or print the saved PDF"
         )
     # print-scaling=none keeps the page at 100%, which the QR code size depends on.
-    result = subprocess.run(  # noqa: S603 - lp is resolved above; the argument is our PDF
+    result = subprocess.run(  # noqa: S603 - lp is resolved above and the PDF is ours
         [lp, "-o", "print-scaling=none", str(path)], capture_output=True, text=True, check=False
     )
     if result.returncode != 0:
@@ -260,11 +256,10 @@ def _ticket_data(ticket: Ticket, timezone: str) -> dict[str, object]:
 
 @app.command()
 def setup() -> None:
-    """Create the signing key and database, and the BioStar access group when configured.
+    """Create the signing key, the database, and the BioStar access group when configured.
 
-    The key is never printed. Without TIQR_BIOSTAR_ACCESS_GROUP_ID, BioStar gets one TiQR AG
-    access group and TiQR AL level, plus a door per TIQR_BIOSTAR_DEVICE_IDS reader; reruns
-    fill gaps.
+    Without TIQR_BIOSTAR_ACCESS_GROUP_ID, BioStar gets a TiQR AG group, a TiQR AL level and a door
+    per reader in TIQR_BIOSTAR_DEVICE_IDS. Reruns fill gaps.
     """
     with _errors():
         if provision_secret():
@@ -289,8 +284,7 @@ def reset(
 ) -> None:
     """Delete the signing key, the pinned BioStar access group ID, and the database.
 
-    Every user and ticket is lost, and QR codes already printed stop verifying. Nothing is
-    changed in BioStar and PDFs in the output directory are kept.
+    Users and tickets are lost and printed QR codes stop verifying. BioStar and PDFs are untouched.
     """
     with _errors():
         database = database_path()
@@ -383,10 +377,7 @@ def ticket_save(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> N
 
 @ticket_app.command("print")
 def ticket_print(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> None:
-    """Save the PDF to the output directory, then send it to the default printer.
-
-    The print count rises only when the printer accepts the job, so a failed print leaves it alone.
-    """
+    """Save the PDF, then send it to the default printer; a failed print leaves the count alone."""
     from tiqr.pdf import render_pdf  # noqa: PLC0415 - ReportLab is slow to import
 
     def render_and_print(ticket: Ticket, output_dir: Path, timezone: str) -> Path:

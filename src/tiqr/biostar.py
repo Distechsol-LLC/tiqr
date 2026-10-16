@@ -1,9 +1,7 @@
-"""Reference-backed BioStar X HTTP, registration, and polling adapters.
+"""BioStar X HTTP, registration, and polling adapters.
 
-Polling overlaps the persisted upper bound by 15 minutes to catch delayed scans.
-Older delays require a cursor reset/backfill. Saturated ranges are subdivided;
-a saturated one-second range fails closed because event offsets are undocumented.
-Registration mappings and cleanup flags belong to the repository, not ticket state.
+Polling overlaps the persisted upper bound by 15 minutes to catch delayed scans. Saturated ranges
+are split; a saturated one-second range fails closed because event offsets are undocumented.
 """
 
 import json
@@ -29,7 +27,7 @@ type QueryParams = Mapping[str, str | int]
 
 SESSION_HEADER = "bs-session-id"
 CARD_PAGE_SIZE = 500
-# Names for the objects TiQR owns in BioStar. Doors take the plain prefix, then the device ID.
+# Names of the objects TiQR owns in BioStar; doors are the plain name plus the device ID.
 ACCESS_NAME = "TiQR"
 ACCESS_GROUP_NAME = "TiQR AG"
 ACCESS_LEVEL_NAME = "TiQR AL"
@@ -320,7 +318,7 @@ class BioStarClient:
                 }
             },
         )
-        # BioStar versions disagree on where the new ID lives; try each, then look it up.
+        # BioStar versions disagree on where the new ID lives.
         internal_id = _identifier(payload.get("id"))
         if internal_id is None and _is_json_object(card := payload.get("Card")):
             internal_id = _identifier(card.get("id"))
@@ -376,10 +374,10 @@ class BioStarClient:
 
 
 class BioStarXProvisioner:
-    """Create the TiQR access group, its single access level, and one door per reader.
+    """Create the TiQR access group, its access level, and one door per reader.
 
-    Every step looks the object up by name first, so rerunning only fills in what is missing.
-    A configured TIQR_BIOSTAR_ACCESS_GROUP_ID is only verified, never modified.
+    Each object is looked up by name first, so reruns only fill gaps. A configured
+    TIQR_BIOSTAR_ACCESS_GROUP_ID is verified, never modified.
     """
 
     def __init__(self, client: BioStarClient) -> None:
@@ -399,7 +397,7 @@ class BioStarXProvisioner:
     ) -> str:
         created = payload.get(key)
         created_id = _identifier(created.get("id")) if _is_json_object(created) else None
-        # Some BioStar versions leave the new ID out of the create response; look it up then.
+        # Some BioStar versions omit the new ID from the create response.
         if created_id is None and (found := find()):
             created_id = _identifier(found.get("id"))
         return _required_identifier(created_id, error)
@@ -426,8 +424,7 @@ class BioStarXProvisioner:
                     "name": name,
                     "description": "Managed by TiQR",
                     "door_group_id": {"id": _ROOT_DOOR_GROUP_ID},
-                    # A hand-built door always carries an unlock time; omitting it leaves a
-                    # half-configured door the reader may not accept.
+                    # Omitting the unlock time leaves a door the reader may not accept.
                     "open_duration": self.client.settings.door_open_duration,
                     "open_timeout": self.client.settings.door_open_timeout,
                     "entry_device_id": device,
@@ -551,7 +548,7 @@ class BioStarXRegistrar(Registrar):
         except Exception as primary:
             try:
                 self._cleanup(registration, qr_payload=ticket.qr_payload)
-            except Exception as cleanup:  # noqa: BLE001 - the original error is re-raised below
+            except Exception as cleanup:  # noqa: BLE001 - the original error is re-raised
                 primary.add_note(f"BioStar registration rollback failed: {cleanup}")
             raise
         return external_id
@@ -609,7 +606,7 @@ class BioStarXRegistrar(Registrar):
             raise BioStarError("BioStar deletion acknowledged but record still exists")
 
     def _find_card_id(self, external_id: str, qr_payload: str | None) -> str | None:
-        """Find a card created before its internal ID could be persisted."""
+        """Find a card whose internal ID was never persisted."""
         if qr_payload is None:
             ticket = self.repository.ticket_by_external_id(external_id)
             qr_payload = ticket.qr_payload if ticket else None
@@ -703,7 +700,7 @@ class BioStarXEventSource(EventSource):
                 raise BioStarError("BioStar cursor is ahead of the polling clock")
             since = previous - self.OVERLAP
         else:
-            # A first sync reaches back to the oldest ticket so no scan is ever skipped.
+            # A first sync reaches back to the oldest ticket.
             tickets = self.repository.list_tickets() if self.repository else []
             since = min((ticket.created_at for ticket in tickets), default=upper - self.OVERLAP)
         return min(since.replace(microsecond=0), upper)
@@ -718,8 +715,8 @@ class BioStarXEventSource(EventSource):
         events: dict[str, RawEvent] = {}
         while pending:
             start, end = pending.pop()
-            # One query per reader: the verified filter has no multi-value form, and the
-            # saturation check must apply to each reader's own result, not their sum.
+            # One query per reader: the filter has no multi-value form, and saturation is
+            # checked per reader.
             batches = [
                 self.client.search_events(start, end, limit=self.BATCH_LIMIT, device_id=device_id)
                 for device_id in self.client.settings.device_ids

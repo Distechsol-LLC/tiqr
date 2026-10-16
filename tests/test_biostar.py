@@ -1,4 +1,4 @@
-"""Targeted adapter tests; recorded Postman responses plus reference-shaped mock rows."""
+"""Adapter tests against recorded Postman responses and mock rows."""
 
 import json
 from dataclasses import replace

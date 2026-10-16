@@ -8,13 +8,13 @@ PAYLOAD_LENGTH = 32
 DAILY_CAPACITY = 99_999
 PREFIX_LENGTH = 3
 DEFAULT_PREFIX = "TQR"
-# Every payload is PAYLOAD_LENGTH characters: prefix, ":", YYMMDD-NNNNN, ":", signature.
+# Payload layout: prefix, ":", YYMMDD-NNNNN, ":", signature.
 SIGNATURE_LENGTH = PAYLOAD_LENGTH - PREFIX_LENGTH - len(":YYMMDD-NNNNN:")
 _PREFIX = re.compile(rf"[!-~]{{{PREFIX_LENGTH}}}")
 
 
 def validate_prefix(prefix: str) -> None:
-    # Printable ASCII keeps the payload scannable; ":" and "-" frame the serial, so they stay out.
+    # ":" and "-" delimit the payload, so they stay out.
     if not _PREFIX.fullmatch(prefix) or any(mark in prefix for mark in ":-"):
         raise ValueError(
             f"Ticket prefix must be {PREFIX_LENGTH} printable ASCII characters without ':' or '-'"

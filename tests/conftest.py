@@ -15,7 +15,7 @@ SECRET = "development-only-64e2d7e02b9f49828c52d840565de390"
 
 @pytest.fixture(autouse=True)
 def project_root(tmp_path, monkeypatch):
-    # Every test reads and writes config under its own directory, never the real checkout's.
+    # Config lives under each test's own directory, never the real checkout's.
     monkeypatch.setattr(settings, "PROJECT_ROOT", tmp_path)
     return tmp_path
 

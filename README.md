@@ -250,8 +250,8 @@ The front, from the top edge down, shows:
 3. The visitor type in a crimson chip, and the visitor name in bold, in up to two lines.
 4. A panel with the QR code, drawn as vector graphics with a quiet zone, and the readable
    serial (`TQR-YYMMDD-NNNNN`).
-5. The validity window in the configured timezone, such as `01.06.30 · 09:00 – 18:00`, or
-   `01.06.30 · 09:00 – 02.06.30 · 18:00` across days.
+5. The validity window in the configured timezone, such as `01.06.30 · 09:00 — 18:00`, or
+   `01.06.30 · 09:00 — 02.06.30 · 18:00` across days.
 6. A navy footer, `Suprema BioStar X`, next to the fold.
 
 The back repeats the header and logos, with the type chip and the name in up to three lines
@@ -318,7 +318,7 @@ uv run lefthook install
 ```
 
 - **commit-msg:** `cz check` requires a conventional commit message (`feat: ...`, `ci: ...`).
-- **pre-commit:** `ruff check --fix`, `ruff format`, and `pyright` on staged Python files. Fixes are re-staged.
+- **pre-commit:** ruff lint, `ruff format --check`, and `pyright`, without changing files. Run `uv run poe fix` to apply ruff's fixes and formatting, then run `pyright`.
 - **pre-push:** `pytest`.
 
 Git clients that start without `~/.local/bin` on `PATH`, such as PyCharm's, can't find

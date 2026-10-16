@@ -56,7 +56,6 @@ CREATE TABLE IF NOT EXISTS cleaned_tickets (ticket_id TEXT PRIMARY KEY REFERENCE
 PRAGMA user_version = 1;
 """
 
-# Ticket columns mirror the dataclass fields, so the upsert is derived once at import.
 _TICKET_COLUMNS = tuple(field.name for field in fields(Ticket))
 _UPSERT_TICKET = (
     f"INSERT INTO tickets ({','.join(_TICKET_COLUMNS)}) "  # noqa: S608 - column names come from the dataclass, not input
@@ -161,8 +160,8 @@ class SQLiteRepository(Repository):
             (version,) = self._connection.execute("PRAGMA user_version").fetchone()
             if version not in (0, 1):
                 raise ValueError(f"Unsupported database version: {version}")
-            # The script sets user_version last, so version 1 means the schema is complete;
-            # skipping it spares every command a write and fsync.
+            # user_version is set last, so version 1 means a complete schema; skipping the script
+            # spares every command a write and fsync.
             if version == 0:
                 self._connection.executescript(_SCHEMA)
 
@@ -263,7 +262,7 @@ class SQLiteRepository(Repository):
 
     def allocate(self, name: str, start: int = 1) -> int:
         with self.transaction():
-            # Fully fetched so the write's statement is finished before the commit.
+            # Fully fetched so the statement finishes before the commit.
             [(value,)] = self._connection.execute(
                 "INSERT INTO sequences VALUES (?,?) "
                 "ON CONFLICT(name) DO UPDATE SET value=max(excluded.value, value + 1) "

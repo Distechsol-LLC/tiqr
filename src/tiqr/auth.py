@@ -10,9 +10,9 @@ from argon2.exceptions import VerificationError
 from tiqr.models import Role, User
 
 _HASHER = PasswordHasher()
-# One message for every login failure, so callers cannot tell an unknown user from a bad password.
+# One message for every login failure, so an unknown user looks like a bad password.
 INVALID_CREDENTIALS = "Invalid username or password"
-# How long a verified login can stand in for the password before the next command asks again.
+# How long a verified login stands in for the password.
 SESSION_LIFETIME = timedelta(minutes=5)
 
 
@@ -22,7 +22,7 @@ class AuthenticationError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class Session:
-    """A recent successful login. The token is an HMAC, so the password itself is never stored."""
+    """A recent successful login; the token is an HMAC, never the password."""
 
     username: str
     expires_at: datetime

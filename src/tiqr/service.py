@@ -218,7 +218,7 @@ class TicketService:
         except Exception as exc:
             try:
                 self.registrar.remove(external_id)
-            except Exception as rollback_error:  # noqa: BLE001 - the original error is re-raised below
+            except Exception as rollback_error:  # noqa: BLE001 - the original error is re-raised
                 exc.add_note(f"Registration rollback also failed: {rollback_error}")
             raise
         return ticket
@@ -241,7 +241,7 @@ class TicketService:
     def assign_ticket(self, actor: User, ticket_id: UUID, assignee_username: str) -> Ticket:
         actor = self._actor(actor)
         self._require(actor, _MANAGERS)
-        # Read once on its own so a discovered expiry is committed even if assignment fails.
+        # Read first on its own so a discovered expiry commits even if assignment fails.
         self._read_ticket(ticket_id)
         with self.repository.transaction():
             ticket = self._read_ticket(ticket_id)
@@ -261,7 +261,7 @@ class TicketService:
         renderer: PdfRenderer | None = None,
     ) -> Path:
         actor = self._actor(actor)
-        # Checked on its own first so a refusal still commits any expiry the read discovered.
+        # Checked first on its own so a refusal still commits a discovered expiry.
         self._require_printable(actor, self._read_ticket(ticket_id))
         if renderer is None:
             from tiqr.pdf import render_pdf  # noqa: PLC0415 - ReportLab is slow to import
@@ -289,7 +289,6 @@ class TicketService:
 
     def _record_use(self, ticket: Ticket, occurred_at: datetime) -> Ticket:
         if ticket.state == TicketState.ISSUED:
-            # Tickets reach here by external ID lookup, so the ID is always present.
             if ticket.usage_type == UsageType.ONE_TIME and ticket.external_id is not None:
                 self.registrar.deactivate(ticket.external_id)
             ticket = replace(self._transition(ticket, TicketState.PASSED), passed_at=occurred_at)

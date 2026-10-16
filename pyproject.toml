@@ -25,6 +25,7 @@ build-backend = "uv_build"
 dev = [
     "commitizen>=4.19.2",
     "lefthook>=2.2.2",
+    "poethepoet>=0.49.0",
     "pyinstaller>=6.22",
     "pyright>=1.1.414",
     "pytest>=8.4",
@@ -93,3 +94,11 @@ addopts = "-q"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
+
+[tool.poe.tasks.fix]
+help = "Apply ruff fixes and formatting, then run pyright"
+sequence = [
+    { cmd = "ruff check --fix ." },
+    { cmd = "ruff format ." },
+    { cmd = "pyright" },
+]
