@@ -29,7 +29,7 @@ type QueryParams = Mapping[str, str | int]
 
 SESSION_HEADER = "bs-session-id"
 CARD_PAGE_SIZE = 500
-# Names for the objects tiqr owns in BioStar. Doors take the plain prefix, then the device ID.
+# Names for the objects TiQR owns in BioStar. Doors take the plain prefix, then the device ID.
 ACCESS_NAME = "TiQR"
 ACCESS_GROUP_NAME = "TiQR AG"
 ACCESS_LEVEL_NAME = "TiQR AL"
@@ -221,7 +221,7 @@ class BioStarClient:
             return self._decode(response)
 
     def access_group_id(self) -> str:
-        """The configured access group, else the tiqr-managed one found by name."""
+        """The configured access group, else the TiQR-managed one found by name."""
         with self._lock:
             if self._access_group_id is None:
                 group = self.find_named(self.search_access_groups(), ACCESS_GROUP_NAME)

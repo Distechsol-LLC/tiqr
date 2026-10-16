@@ -1,4 +1,4 @@
-# tiqr
+# TiQR
 
 A Python 3.14 **core library and CLI** for QR tickets registered with Suprema
 BioStar X and scanned by XPass Q2 readers. SQLite keeps local history; the reader
@@ -69,8 +69,8 @@ the range and keep database backups. The CLI never deletes doors, access levels 
 
 ### BioStar access group
 
-The BioStar account in `TIQR_BIOSTAR_USERNAME` is the single admin tiqr signs in with;
-tiqr's own admin, manager and operator accounts live in SQLite (`tiqr user add`) and are
+The BioStar account in `TIQR_BIOSTAR_USERNAME` is the single admin TiQR signs in with;
+TiQR's own admin, manager and operator accounts live in SQLite (`tiqr user add`) and are
 unrelated to it. A BioStar reader reaches users through this chain: access group, access
 level, door, reader. Every ticket user joins one access group.
 
@@ -210,14 +210,14 @@ file and then sends it to the default printer through the operating system:
 - **Linux and macOS:** CUPS `lp` with `print-scaling=none`, so the page prints at 100%.
   Linux needs the CUPS client tools installed; macOS includes them.
 - **Windows:** [SumatraPDF](https://www.sumatrapdfreader.org/) when it is installed, found on
-  `PATH` or in its default folder under `%LOCALAPPDATA%` or `%ProgramFiles%`. tiqr runs it with
+  `PATH` or in its default folder under `%LOCALAPPDATA%` or `%ProgramFiles%`. TiQR runs it with
   `-print-to-default -print-settings noscale -silent`, which prints silently at 100%. Without
-  SumatraPDF, tiqr uses the shell's print verb, which hands the job to whatever application is
+  SumatraPDF, TiQR uses the shell's print verb, which hands the job to whatever application is
   associated with `.pdf`. That application decides whether the job prints silently, and the
   command returns once the job is queued, so a job that fails later at the printer is not
   reported.
 
-tiqr has no print queue or printer driver of its own. The print count rises only after the
+TiQR has no print queue or printer driver of its own. The print count rises only after the
 system accepts the job, so a failed print leaves it unchanged. The saved PDF is kept either way.
 
 Each PDF is one A4 sheet holding a single foldable badge (not to scale):

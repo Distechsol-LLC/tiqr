@@ -190,7 +190,7 @@ class BioStarSettings:
     username: str
     password: str
     device_ids: tuple[str, ...]
-    # Blank means tiqr manages its own "TiQR AG" access group; see BioStarXProvisioner.
+    # Blank means TiQR manages its own "TiQR AG" access group; see BioStarXProvisioner.
     access_group_id: str = ""
     verify_tls: bool = False
     timeout: float = 30.0

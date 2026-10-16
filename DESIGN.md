@@ -1,4 +1,4 @@
-# tiqr design
+# TiQR design
 
 ## Authority and approved changes
 
@@ -258,7 +258,7 @@ cross-system crash reconciler is claimed.
 
 Retained reference material is limited to two badge logos and the four recorded
 BioStar response fixtures with their provenance. Behavior was reimplemented in
-tiqr's core structure; whole application files were not copied.
+TiQR's core structure; whole application files were not copied.
 
 ## Verification
 
