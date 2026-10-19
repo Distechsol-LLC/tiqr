@@ -73,10 +73,22 @@ def _ticket(server: AppState, ticket: Ticket) -> TicketOut:
     return TicketOut.of(ticket, server.timezone)
 
 
-@router.get("/health", tags=["meta"])
-def health() -> HealthOut:
-    """Readiness and version, without signing in; installs and upgrades poll it."""
-    return HealthOut(status="ok", version=__version__)
+@router.get(
+    "/health",
+    tags=["meta"],
+    responses={
+        HTTPStatus.SERVICE_UNAVAILABLE: {
+            "model": HealthOut,
+            "description": "The database does not answer, or the scheduler has stopped",
+        }
+    },
+)
+def health(server: Server, response: Response) -> HealthOut:
+    """Readiness and version, without signing in; installs, upgrades and probes poll it."""
+    ready = server.service.ping() and server.maintenance.running
+    if not ready:
+        response.status_code = HTTPStatus.SERVICE_UNAVAILABLE
+    return HealthOut(status="ok" if ready else "unavailable", version=__version__)
 
 
 @router.get("/config", tags=["meta"], responses=_refusals(401))

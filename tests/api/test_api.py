@@ -51,6 +51,22 @@ def test_health_is_public_and_reports_the_version(client):
     assert response.json() == {"status": "ok", "version": __version__}
 
 
+def test_health_is_unavailable_when_the_database_does_not_answer(client, service, monkeypatch):
+    monkeypatch.setattr(service, "ping", lambda: False)
+    response = client.get("/api/health")
+    assert response.status_code == 503
+    assert response.json() == {"status": "unavailable", "version": __version__}
+
+
+def test_health_is_unavailable_once_the_scheduler_has_stopped(make_client):
+    with make_client(sync_interval=3600) as client:
+        assert client.get("/api/health").status_code == 200
+        client.app.state.tiqr.maintenance.stop()
+        response = client.get("/api/health")
+    assert response.status_code == 503
+    assert response.json()["status"] == "unavailable"
+
+
 def test_login_sets_a_hardened_session_cookie(client, accounts):
     response = login(client)
     body = response.json()

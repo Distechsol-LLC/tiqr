@@ -103,6 +103,10 @@ class TicketService:
     def _now(self) -> datetime:
         return utc(self._clock())
 
+    def ping(self) -> bool:
+        """Whether the store answers; the health check asks without an account."""
+        return self.repository.ping()
+
     def add_user(self, username: str, password: str, role: Role) -> User:
         user = new_user(username, password, role)
         with self.repository.transaction():

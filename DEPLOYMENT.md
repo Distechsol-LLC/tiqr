@@ -142,13 +142,26 @@ supported: it would add a second transport, NTLM/Kerberos handling and different
 | Config | `/etc/tiqr/tiqr.env`, `root:tiqr 0640` | `C:\ProgramData\TiQR\tiqr.env`, ACL: SYSTEM, Administrators, service account |
 | Data (DB, key, PDFs, backups) | `/var/lib/tiqr/`, `tiqr:tiqr 0700` | `C:\ProgramData\TiQR\data\`, same ACL |
 | Logs | journald | Rotated files under `C:\ProgramData\TiQR\logs\` |
-| Service | `tiqr.service` unit | [WinSW](https://github.com/winsw/winsw) wrapper, since a plain console executable can't answer the Service Control Manager |
+| Service | `tiqr.service` unit, enabled at boot, restarted on failure (`packaging/systemd/tiqr.service`) | [WinSW](https://github.com/winsw/winsw) wrapper, automatic start, restarted on failure with delays of 5 seconds, 30 seconds, then 1 minute (`packaging/winsw/tiqr-service.xml`) |
 
 The Linux unit runs `ExecStart=/opt/tiqr/current/tiqr serve` as `User=tiqr` with
 `EnvironmentFile=/etc/tiqr/tiqr.env`. The default port 7102 needs no privilege; a site that picks
 one below 1024, such as 443, adds `AmbientCapabilities=CAP_NET_BIND_SERVICE` rather than running
 as root. The unit also sets `NoNewPrivileges`, `ProtectSystem=strict`,
-`ReadWritePaths=/var/lib/tiqr`, `ProtectHome` and `PrivateTmp`.
+`ReadWritePaths=/var/lib/tiqr`, `ProtectHome` and `PrivateTmp`. It starts at boot
+(`WantedBy=multi-user.target`) and restarts after a crash or non-zero exit; a clean stop stays stopped.
+
+On Linux, `packaging/systemd/tiqr-health.timer` runs `packaging/tiqr-health.sh` every minute.
+The script polls `/api/health` and exits non-zero on each failure, so `systemctl --failed` shows
+an outage. After three failures in a row it logs a critical journal entry (`tiqr-health`) for the
+customer's monitoring to pick up, and a notice once the server answers again. The installer copies
+the script to `/opt/tiqr/current/` and enables the timer.
+
+On Windows, `packaging/tiqr-health.ps1 -Install` registers a scheduled task, `TiQR Health Probe`,
+that runs the same probe every minute as the TiQR service account. It reads
+`C:\ProgramData\TiQR\tiqr.env`, keeps its failure count in `C:\ProgramData\TiQR\data\`, and logs
+to the Application event log under source `TiQR-Health` (event 1 after three failures in a row,
+event 2 on recovery). The install step registers that source, since only an administrator can.
 
 Admin commands on the server run as the service account against the same configuration, for
 example `sudo -u tiqr /opt/tiqr/current/tiqr user add ...`. The installer drops a small
@@ -182,7 +195,8 @@ runs the health check. A hand edit followed by a service restart works too.
 `tiqr serve` serves:
 
 - `/api/...`: the JSON API over `TicketService`.
-- `/api/health`: version and readiness, without authentication. The installer and upgrades use
+- `/api/health`: version and readiness, without authentication. It answers 503 when the database
+  does not respond or the scheduler has stopped. The installer, upgrades and the health probe use
   it.
 - `/`: the frontend's static files, with `index.html` for any other path (SPA fallback).
 

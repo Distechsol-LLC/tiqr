@@ -252,7 +252,7 @@ Run one server process per database: scheduling, login limits and the sync lock 
 
 | Method and path | CLI equivalent | Who |
 |---|---|---|
-| `GET /api/health` | — | Anyone; returns the version |
+| `GET /api/health` | — | Anyone; returns the version, or 503 if the database or scheduler is down |
 | `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/session` | `--as` | — |
 | `GET /api/config` | — | Signed in; default timezone and server printing |
 | `GET /api/users`, `POST /api/users` | `user list`, `user add` | See [Permissions](#permissions) |

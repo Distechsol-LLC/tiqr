@@ -166,6 +166,16 @@ def test_maintenance_with_no_jobs_starts_no_thread():
     maintenance.stop()
 
 
+def test_maintenance_is_running_only_while_its_thread_lives():
+    assert Maintenance(Service(), 0, 0).running is True
+    maintenance = Maintenance(Service(), 3600, 0)
+    assert maintenance.running is False
+    maintenance.start()
+    assert maintenance.running is True
+    maintenance.stop()
+    assert maintenance.running is False
+
+
 def test_maintenance_thread_stops_after_the_run_in_progress():
     started, release = threading.Event(), threading.Event()
 

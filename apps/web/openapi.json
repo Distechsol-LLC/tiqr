@@ -11,7 +11,7 @@
           "meta"
         ],
         "summary": "Health",
-        "description": "Readiness and version, without signing in; installs and upgrades poll it.",
+        "description": "Readiness and version, without signing in; installs, upgrades and probes poll it.",
         "operationId": "health",
         "responses": {
           "200": {
@@ -30,6 +30,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database does not answer, or the scheduler has stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
                 }
               }
             }

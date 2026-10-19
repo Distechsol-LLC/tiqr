@@ -250,6 +250,15 @@ class SQLiteRepository(Repository):
             else:
                 self._connection.commit()
 
+    def ping(self) -> bool:
+        """Whether the database answers a read; a read needs no write lock, so it never waits."""
+        try:
+            with self._lock:
+                self._connection.execute("SELECT 1").fetchone()
+        except sqlite3.Error:
+            return False
+        return True
+
     def _execute(self, sql: str, parameters: Sequence[_Value] | dict[str, _Value] = ()) -> None:
         with self.transaction():
             self._connection.execute(sql, parameters)

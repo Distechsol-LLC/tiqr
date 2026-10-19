@@ -68,6 +68,11 @@ class Maintenance:
         while (delay := self.run_due()) is not None and not self._stop.wait(delay):
             pass
 
+    @property
+    def running(self) -> bool:
+        """Whether the thread runs; with no jobs configured, there is nothing to run."""
+        return not self._jobs or (self._thread is not None and self._thread.is_alive())
+
     def start(self) -> None:
         if self._jobs:
             self._thread = threading.Thread(target=self._loop, name="tiqr-maintenance", daemon=True)

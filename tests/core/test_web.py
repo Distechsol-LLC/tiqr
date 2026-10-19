@@ -62,6 +62,14 @@ def test_failed_migration_step_keeps_the_old_version(tmp_path, monkeypatch):
     assert version(path) == 1
 
 
+def test_ping_answers_while_open_and_fails_once_closed(tmp_path):
+    repository = SQLiteRepository(tmp_path / "ping.db")
+    repository.initialize()
+    assert repository.ping() is True
+    repository.close()
+    assert repository.ping() is False
+
+
 def test_web_session_round_trip_and_logout(service, accounts):
     token, session = service.open_web_session(accounts["manager"])
     assert session.user_id == accounts["manager"].id
