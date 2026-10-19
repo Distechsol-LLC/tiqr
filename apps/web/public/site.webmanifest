@@ -6,8 +6,8 @@
   "categories": ["utilities"],
   "display": "minimal-ui",
   "orientation": "natural",
-  "theme_color": "#1d242d",
-  "background_color": "#f59e0b",
+  "theme_color": "#201b17",
+  "background_color": "#ea861d",
   "description": "QR Ticketing System for Suprema BioStar X",
   "icons": [
     {
