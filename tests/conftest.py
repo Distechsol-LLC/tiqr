@@ -4,11 +4,11 @@ from uuid import NAMESPACE_DNS, uuid5
 
 import pytest
 
-from tiqr import settings
-from tiqr.auth import new_user
-from tiqr.models import Role
-from tiqr.repository import SQLiteRepository
-from tiqr.service import TicketService
+from tiqr.core import settings
+from tiqr.core.auth import new_user
+from tiqr.core.models import Role
+from tiqr.core.repository import SQLiteRepository
+from tiqr.core.service import TicketService
 
 SECRET = "development-only-64e2d7e02b9f49828c52d840565de390"
 

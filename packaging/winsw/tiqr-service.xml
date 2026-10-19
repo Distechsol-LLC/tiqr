@@ -1,0 +1,27 @@
+<!--
+  The TiQR server as a Windows service, run through WinSW. WinSW needs its wrapper and this file
+  to share a base name, so the installer copies WinSW next to it as tiqr-service.exe. Starts at
+  boot, and restarts the server after any failure, with the last delay repeating.
+  Paths match DEPLOYMENT.md. The NT SERVICE account is not yet verified on a Windows host.
+-->
+<service>
+  <id>TiQR</id>
+  <name>TiQR</name>
+  <description>TiQR ticket server</description>
+  <executable>C:\Program Files\TiQR\current\tiqr.exe</executable>
+  <arguments>serve</arguments>
+  <!-- Config and data stay in this directory while release folders change under Program Files. -->
+  <env name="TIQR_HOME" value="C:\ProgramData\TiQR"/>
+  <startmode>Automatic</startmode>
+  <onfailure action="restart" delay="5 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="1 min"/>
+  <!-- A run of this long means the failures are over, so the delays start again. -->
+  <resetfailure>1 hour</resetfailure>
+  <logpath>C:\ProgramData\TiQR\logs</logpath>
+  <log mode="roll"/>
+  <serviceaccount>
+    <username>NT SERVICE\TiQR</username>
+    <allowservicelogon>true</allowservicelogon>
+  </serviceaccount>
+</service>

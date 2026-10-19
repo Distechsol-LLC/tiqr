@@ -1,0 +1,21 @@
+[project]
+name = "tiqr-cli"
+version = "0.9.4"
+description = "TiQR command-line interface and packaged executable entry point"
+requires-python = ">=3.14"
+# tiqr-api backs `tiqr serve` only, imported when that command runs.
+dependencies = ["tiqr-core", "tiqr-api", "typer>=0.20"]
+
+[project.scripts]
+tiqr = "tiqr.cli.commands:app"
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "tiqr.cli"
+
+[tool.uv.sources]
+tiqr-core = { workspace = true }
+tiqr-api = { workspace = true }

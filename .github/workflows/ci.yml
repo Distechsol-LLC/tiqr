@@ -42,5 +42,6 @@ jobs:
         run: uv run pyright
       - name: Test
         run: uv run pytest
-      - name: Build the wheel
-        run: uv build --wheel
+      # The root is a virtual workspace and has no wheel; each member under apps/ does.
+      - name: Build the wheels
+        run: uv build --all-packages --wheel

@@ -27,18 +27,28 @@ The reference auth module does **not** hash individual passwords: its two shared
 roles and cookie behavior (`app/auth.py:23–97`) are deliberately replaced with
 individual Argon2id users and the required three-role permission matrix.
 
-## Exactly two layers
+## Layers
 
-1. Core: frozen dataclass models, authentication, settings, QR, PDF file generation,
-   repository and integration protocols, SQLite storage, fakes, BioStar adapters,
-   and `TicketService`.
-2. CLI: Typer parsing, local password prompts, formatting, and wiring of those core
-   interfaces. It contains no state/permission decisions or SQL.
+1. Core (`apps/core`, `tiqr.core`): frozen dataclass models, authentication, settings,
+   QR, PDF file generation, the OS print hand-off, local datetime input, repository and
+   integration protocols, SQLite storage, fakes, BioStar adapters, `TicketService`, and
+   `open_service`, which wires settings into a ready service for both adapters.
+2. CLI (`apps/cli`, `tiqr.cli`): Typer parsing, local password prompts, formatting, and
+   `tiqr serve`. It contains no state/permission decisions or SQL.
+3. API (`apps/api`, `tiqr.api`): a FastAPI app over the same service. It turns a session
+   cookie into the service's actor, maps core exceptions to HTTP statuses, protects browsers
+   (CSRF, origin checks, headers, login limits), runs scheduled sync and cleanup, and serves
+   the static web build. [DEPLOYMENT.md](DEPLOYMENT.md) describes how it is packaged and
+   installed.
 
-`src/tiqr/` is the only packaged source tree. No ORM, web framework, HTTP listener,
-UI, daemon, printer agent, or third layer exists. The PyInstaller executable under
-`packaging/` wraps the same two layers and adds no behavior beyond first-run setup.
-The HTTP **client** is exclusively an outbound BioStar adapter.
+Each layer is a uv workspace member with its own dependencies. Only `core` holds domain
+decisions; `cli` and `api` are adapters over it, and `core` imports neither. `cli` reaches `api`
+only inside `tiqr serve`, so FastAPI's import cost stays off every other command. The web
+framework and listener live in `api` alone; no ORM, UI, print queue or printer agent exists.
+Endpoints are synchronous functions on FastAPI's thread pool: the core is synchronous, and the
+repository and BioStar client each serialize their own access with a lock. The PyInstaller
+executable under `packaging/` wraps all three and adds no behavior beyond first-run setup. The
+HTTP **client** is exclusively an outbound BioStar adapter.
 
 ## Models and storage
 
@@ -54,8 +64,13 @@ The HTTP **client** is exclusively an outbound BioStar adapter.
   rejected by the core. Local input/output conversion is confined to boundaries.
 - Foreign keys, unique usernames/serials/payloads/external IDs/event IDs, enum
   checks, and nonnegative counter checks enforce persistence invariants.
-- Schema version 1 is initialized idempotently. The old application schema is
-  refused rather than silently migrated. No existing user data is deleted.
+- The schema is versioned through `PRAGMA user_version` and built by numbered migrations,
+  each applied once in its own `BEGIN IMMEDIATE` transaction together with its version bump;
+  the version is re-read inside that transaction, so two processes upgrading at once run each
+  step once. A new database runs them all. An older one is refused until `tiqr setup`
+  upgrades it, so it can be backed up first; a newer one is always refused. Version 2 adds
+  `web_sessions`; version 3 adds `users.active`. The old application schema is refused rather than migrated. No existing
+  user data is deleted.
 - `BEGIN IMMEDIATE` serializes sync writers; event inserts, ticket effects, and
   cursor updates share one transaction. A reentrant lock supports threads using
   the same repository; SQLite serializes independent processes.
@@ -124,24 +139,53 @@ and unlimited reprint require visibility and `issued`; success increments only
 `print_count`, never usage/state. Renderer failures do not increment print counts.
 Ticket usage type cannot be changed, and users cannot cause a pass.
 
-The library exposes username/password verification using Argon2id. The CLI verifies
+The library exposes username/password verification using Argon2id. An unknown username
+still costs one Argon2 verification against a decoy hash, so response time does not reveal
+which accounts exist. The CLI verifies
 a hidden password for an `--as` command, then keeps a short-lived session for 5 minutes:
 an HMAC over the user ID and expiry, keyed by `TIQR_SECRET_KEY`, in the git-ignored
 `.tiqr-session.json` (mode `600`). The password is never stored, and the session is
 accepted only for the same username, before expiry, and while that account exists.
-There are no cookies and no server-side session state.
+The CLI uses no cookies and no server-side session state; the web API's sessions follow.
 User add prompts with confirmation and rejects empty/whitespace passwords. Bootstrap
-and account listing have no actor argument by specification and trust OS access.
+and account listing have no actor argument by specification and trust OS access. Their
+authenticated counterparts, `create_user` (admins) and `list_accounts` (admins and managers,
+who need it to pick assignees), back the web API.
+
+Accounts are never deleted, since tickets and audit history reference them. `edit_user` (trusted
+local) and `manage_user` (admins) change a role, the `active` flag, or the password hash, in one
+transaction. A deactivated account fails `authenticate` after its password is checked, so only
+its holder learns why; `_actor` refuses it, so a stale `User` object cannot act; and it cannot be
+assigned tickets. Deactivation and password resets delete the user's web sessions, and the CLI
+token signs the password hash, so a reset ends that too. Roles are re-read on every request.
+The last active admin can be neither demoted nor deactivated; through the API, admins also
+cannot change their own role or active state.
+
+Browser sessions are server-side, unlike the CLI's. `open_web_session` stores a row keyed by
+the SHA-256 of a 256-bit random token, with a separate random CSRF token; the token itself
+exists only in the browser's `HttpOnly`, `SameSite=Strict` cookie, which is also `Secure` and
+`__Host-` prefixed when the server has TLS. Plain HTTP is the default, as TiQR runs on the
+customer's own network.
+`resume_web_session` ends a session 30 minutes after its last request or 12 hours after login,
+deleting the row; requests under a minute apart skip the seen-time write. Logout deletes the
+row, and each login sweeps ended ones. The API layer checks the CSRF token on every write and
+refuses cross-origin writes by `Origin`; these are transport checks, not domain decisions.
+
+`scheduled_sync` and `scheduled_cleanup` are the actor-free entry points for the server's
+scheduler, which runs in the trusted server process like the bootstrap commands. `sync` and
+`cleanup` check the actor's role, then call them. The API serializes scheduled and on-demand
+runs with one lock, so a slower run cannot store an older event cursor over a newer one.
 The library's actor object represents the caller's authenticated principal; this
 local library is not a sandbox against callers with direct database access.
 
 Settings are explicit dataclasses or environment variables, optionally loaded from
-`.env` then `.env.local` in the working directory; real environment variables win. Secret validation
+`.env` then `.env.local` in the project root; real environment variables win. Secret validation
 rejects empty and common placeholders at core and CLI startup. There is no fallback
 key, demo mode, simulator selector, or second credentials-loading path. With zero
 BioStar settings use the default in-memory protocols; otherwise require complete
 configuration, including reader and access group. TLS verification defaults off; setting
-`TIQR_BIOSTAR_VERIFY_TLS=true` enables it.
+`TIQR_BIOSTAR_VERIFY_TLS=true` enables it, against the operating system's trust store
+(`httpx2` uses `truststore`), so a site's internal CA works once the OS trusts it.
 
 ## QR and PDF
 
@@ -159,8 +203,11 @@ Tests pin five fixed vectors and assert every payload is exactly 32 characters.
 The prefix is part of the signing input, so it must never change without re-issuing tickets.
 The exact format has not been physically rescanned in this task.
 
-PDF generation is core file output, not a queue. `ticket print` hands the rendered file to
-the operating system's print path from the CLI layer; the core never touches a printer. ReportLab draws vector QR modules
+PDF generation is core file output, not a queue. `tiqr.core.printer` hands a rendered file to
+the operating system's print path; only the adapters call it, from a renderer passed to
+`print_ticket`, so a print counts only once the system accepts the job. The service itself
+never touches a printer. The web API offers browser download and, per site, the server's own
+printer. ReportLab draws vector QR modules
 with a quiet zone and renders name/type/validity/readable serial. Badge logos are
 package resources copied from the reference assets; wheel tests require their
 presence. A temporary closed file is atomically replaced into the final UUID path
@@ -247,7 +294,8 @@ cross-system crash reconciler is claimed.
 
 ## Deliberately excluded reference components
 
-- app/main.py, server.py and all FastAPI routes, HTTP authentication, cookies and sessions.
+- app/main.py, server.py and all reference FastAPI routes, HTTP authentication, cookies and
+  sessions. TiQR's own API in `apps/api` was written afresh over `TicketService`.
 - app/static and browser pass/workstation/printing pages.
 - app/printing.py queue and printer_agent USB/Windows printer operations.
 - deploy, release ZIPs, and helper scripts.
@@ -266,6 +314,8 @@ Pytest covers state and illegal transitions, inclusive boundaries, scan outcomes
 expiry on reads/sweeps/failures, one-time/multi-use, dedupe and concurrency, every
 role/action matrix cell, reassignment, printing/counters, cleanup, QR vectors,
 timezone conversion including Asia/Almaty, password/secret refusal, SQLite restart,
-BioStar recordings, CLI commands, PDFs, built-wheel resources and isolated imports.
+BioStar recordings, CLI commands, PDFs, built-wheel resources and isolated imports, schema
+migrations, web sessions, and every API endpoint, refusal and security header in-process
+through FastAPI's TestClient.
 CI uses Python 3.14 on Windows and Linux, with Ruff check and format checks plus
 pytest and wheel builds. No tests require a live reader/server or physical printer.

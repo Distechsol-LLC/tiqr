@@ -1,0 +1,1804 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TiQR",
+    "version": "0.9.4"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Health",
+        "description": "Readiness and version, without signing in; installs, upgrades and probes poll it.",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database does not answer, or the scheduler has stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Config",
+        "operationId": "config",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "description": "Sign in with a TiQR account; sets the session cookie and returns the CSRF token.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Login"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many failed logins; wait the Retry-After seconds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/session": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Session",
+        "description": "The signed-in user and CSRF token; the web app calls it on load.",
+        "operationId": "session",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "List Users",
+        "operationId": "list_users",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Users"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Create User",
+        "operationId": "create_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Create User"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{user_id}": {
+      "patch": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Update User",
+        "description": "Change a role, deactivate or reactivate, or reset a password. Admins only.\n\nAdmins cannot change their own role or deactivate themselves, and the last active admin\ncannot be demoted. Deactivating or resetting a password ends that user's sessions.",
+        "operationId": "update_user",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or user not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The ticket or account is not in a state that allows this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Update User"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets": {
+      "get": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "List Tickets",
+        "operationId": "list_tickets",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TicketState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TicketOut"
+                  },
+                  "title": "Response List Tickets"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 List Tickets"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Create Ticket",
+        "operationId": "create_ticket",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Ticket"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "BioStar or the server's printer failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets/{ticket_id}": {
+      "get": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Get Ticket",
+        "operationId": "get_ticket",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or user not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Get Ticket"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets/{ticket_id}/assign": {
+      "post": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Assign Ticket",
+        "operationId": "assign_ticket",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or user not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The ticket or account is not in a state that allows this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Assign Ticket"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets/{ticket_id}/pdf": {
+      "post": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Ticket Pdf",
+        "description": "Render the badge and return it; a POST, since every render counts as a print.\n\nThe PDF is also kept in TIQR_OUT, as `tiqr ticket save` does.",
+        "operationId": "ticket_pdf",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The badge, one A4 page",
+            "content": {
+              "application/pdf": {}
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or user not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The ticket or account is not in a state that allows this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Ticket Pdf"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets/{ticket_id}/print": {
+      "post": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Ticket Print",
+        "description": "Print on the server's default printer, when TIQR_SERVER_PRINTING is on.\n\nAs with `tiqr ticket print`, a print the system refuses leaves the print count alone.",
+        "operationId": "ticket_print",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or user not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The ticket or account is not in a state that allows this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Ticket Print"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "BioStar or the server's printer failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sync": {
+      "post": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Sync",
+        "description": "Fetch and apply new access events now, besides the scheduled runs.",
+        "operationId": "sync",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "BioStar or the server's printer failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cleanup": {
+      "post": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Cleanup",
+        "description": "Remove finished tickets from BioStar now, besides the scheduled runs.",
+        "operationId": "cleanup",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "BioStar or the server's printer failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Stats",
+        "operationId": "stats",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AssignIn": {
+        "properties": {
+          "assignee": {
+            "type": "string",
+            "maxLength": 150,
+            "title": "Assignee",
+            "description": "Username of any existing account"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "assignee"
+        ],
+        "title": "AssignIn"
+      },
+      "ConfigOut": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "TIQR_DEFAULT_TZ, for input and display"
+          },
+          "server_printing": {
+            "type": "boolean",
+            "title": "Server Printing",
+            "description": "Whether /print reaches a printer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "server_printing"
+        ],
+        "title": "ConfigOut"
+      },
+      "CountOut": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "CountOut"
+      },
+      "ErrorOut": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "unauthenticated",
+              "forbidden",
+              "csrf",
+              "cross_origin",
+              "not_found",
+              "conflict",
+              "server_printing_off",
+              "invalid",
+              "rate_limited",
+              "printer",
+              "biostar",
+              "internal"
+            ],
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail",
+          "code"
+        ],
+        "title": "ErrorOut",
+        "description": "A refusal: a message to show, and a stable code to branch on."
+      },
+      "FieldError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Loc"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Msg"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ctx"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "FieldError"
+      },
+      "FieldErrorsOut": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "FieldErrorsOut",
+        "description": "A malformed request, as FastAPI reports it: one entry per bad field."
+      },
+      "HealthOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "title": "HealthOut"
+      },
+      "LoginIn": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 150,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginIn"
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "admin",
+          "manager",
+          "operator"
+        ],
+        "title": "Role"
+      },
+      "SessionOut": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserOut"
+          },
+          "csrf_token": {
+            "type": "string",
+            "title": "Csrf Token",
+            "description": "Send as X-CSRF-Token on every write request"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "description": "When the session ends, however active"
+          },
+          "idle_timeout": {
+            "type": "integer",
+            "title": "Idle Timeout",
+            "description": "Seconds without a request that end it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "csrf_token",
+          "expires_at",
+          "idle_timeout"
+        ],
+        "title": "SessionOut"
+      },
+      "StatsOut": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "issued": {
+            "type": "integer",
+            "title": "Issued"
+          },
+          "passed": {
+            "type": "integer",
+            "title": "Passed"
+          },
+          "expired": {
+            "type": "integer",
+            "title": "Expired"
+          },
+          "uses": {
+            "type": "integer",
+            "title": "Uses"
+          },
+          "prints": {
+            "type": "integer",
+            "title": "Prints"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "issued",
+          "passed",
+          "expired",
+          "uses",
+          "prints"
+        ],
+        "title": "StatsOut"
+      },
+      "TicketIn": {
+        "properties": {
+          "visitor_name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Visitor Name"
+          },
+          "visitor_type": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Visitor Type"
+          },
+          "valid_from": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Valid From",
+            "description": "ISO datetime with a time; without an offset it is read in `timezone`",
+            "examples": [
+              "2030-06-01T09:00",
+              "2030-06-01T09:00:00+04:00"
+            ]
+          },
+          "valid_until": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Valid Until",
+            "description": "ISO datetime with a time; without an offset it is read in `timezone`",
+            "examples": [
+              "2030-06-01T09:00",
+              "2030-06-01T09:00:00+04:00"
+            ]
+          },
+          "usage_type": {
+            "$ref": "#/components/schemas/UsageType"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone",
+            "description": "IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "visitor_name",
+          "visitor_type",
+          "valid_from",
+          "valid_until",
+          "usage_type"
+        ],
+        "title": "TicketIn"
+      },
+      "TicketOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "readable_serial": {
+            "type": "string",
+            "title": "Readable Serial"
+          },
+          "visitor_name": {
+            "type": "string",
+            "title": "Visitor Name"
+          },
+          "visitor_type": {
+            "type": "string",
+            "title": "Visitor Type"
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Valid From"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Valid Until"
+          },
+          "usage_type": {
+            "$ref": "#/components/schemas/UsageType"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TicketState"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "assigned_operator": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Assigned Operator"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "passed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed At"
+          },
+          "print_count": {
+            "type": "integer",
+            "title": "Print Count"
+          },
+          "use_count": {
+            "type": "integer",
+            "title": "Use Count"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "The zone every datetime here is shown in"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "readable_serial",
+          "visitor_name",
+          "visitor_type",
+          "valid_from",
+          "valid_until",
+          "usage_type",
+          "state",
+          "created_by",
+          "assigned_operator",
+          "created_at",
+          "passed_at",
+          "print_count",
+          "use_count",
+          "timezone"
+        ],
+        "title": "TicketOut"
+      },
+      "TicketState": {
+        "type": "string",
+        "enum": [
+          "issued",
+          "passed",
+          "expired"
+        ],
+        "title": "TicketState"
+      },
+      "UsageType": {
+        "type": "string",
+        "enum": [
+          "one_time",
+          "multi_use"
+        ],
+        "title": "UsageType"
+      },
+      "UserIn": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 150,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "title": "Password"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "username",
+          "password",
+          "role"
+        ],
+        "title": "UserIn"
+      },
+      "UserOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "role",
+          "active"
+        ],
+        "title": "UserOut"
+      },
+      "UserPatch": {
+        "properties": {
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active",
+            "description": "false deactivates; true reactivates"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password",
+            "description": "Resets the password; ends the user's sessions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "UserPatch",
+        "description": "Any of: a new role, an active state, a new password. Omitted fields stay as they are."
+      }
+    }
+  }
+}

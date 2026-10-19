@@ -17,11 +17,15 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .svelte-check
+.svelte-kit/
 
 # Build
 /out/
 /dist/
 /build/
+/apps/web/build/
+# The web build copied into the api package at release time
+/apps/api/src/tiqr/api/web/
 dist
 dist-ssr
 coverage

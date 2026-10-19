@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,6 +49,17 @@ jobs:
             printf 'smoke-password\n' | ./"$exe" ticket save "$id" --as root
             test -s out/*.pdf
             head -c 4 out/*.pdf | grep -q '%PDF'
+            # The server, as installs run it: up, healthy, and signing in the admin above.
+            ./"$exe" serve --dev --port 8765 > serve.log 2>&1 &
+            server=$!
+            for _ in $(seq 1 60); do
+              curl -sf http://127.0.0.1:8765/api/health > /dev/null && break
+              sleep 0.5
+            done
+            curl -sf http://127.0.0.1:8765/api/health | grep -q '"status":"ok"' || { cat serve.log; exit 1; }
+            curl -sf -H 'Content-Type: application/json' -d '{"username":"root","password":"smoke-password"}' \
+              http://127.0.0.1:8765/api/auth/login | grep -q csrf_token || { cat serve.log; exit 1; }
+            kill "$server"
           fi
       - name: Name the executable after its platform
         shell: bash
