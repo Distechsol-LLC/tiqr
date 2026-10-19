@@ -330,7 +330,7 @@ through FastAPI's TestClient, never against a live BioStar. The PyInstaller smok
    - Test on throwaway VMs: Ubuntu 22.04 and 24.04, Windows Server 2022 and 2025.
 4. **Installer, remote mode.** OS detection, `scp` and `ssh -t` into local mode, and the
    interactive wizard plus the `--answers` file.
-5. **Web (`apps/web`).** Scaffold SvelteKit with the static adapter following
+5. **Web (`apps/web`).** Scaffold Svelte with Vite, building to static files, following
    [apps/web/README.md](apps/web/README.md). Add a locked CI job that builds it and copies
    `build/` into the api package before compiling.
 6. **Releases and upgrades.**

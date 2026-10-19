@@ -1,6 +1,6 @@
 """Write the OpenAPI schema the web app's client is generated from.
 
-    uv run python -m tiqr.api.openapi apps/web/openapi.json
+    uv run python -m tiqr.api.openapi apps/api/openapi.json
 
 The tests compare the committed copy with this output, so an API change must regenerate it.
 """

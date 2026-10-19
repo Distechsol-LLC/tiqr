@@ -219,10 +219,10 @@ def test_the_server_schedules_sync_from_startup(make_client, service, accounts, 
 @pytest.fixture
 def web_root(tmp_path):
     root = tmp_path / "web"
-    (root / "_app" / "immutable").mkdir(parents=True)
+    (root / "assets").mkdir(parents=True)
     (root / "index.html").write_text("<!doctype html><title>TiQR</title>", encoding="utf-8")
     (root / "robots.txt").write_text("User-agent: *\nDisallow: /\n", encoding="utf-8")
-    (root / "_app" / "immutable" / "start.abc123.js").write_text("export {}", encoding="utf-8")
+    (root / "assets" / "index.abc123.js").write_text("export {}", encoding="utf-8")
     (tmp_path / "secret.txt").write_text("outside the build", encoding="utf-8")
     return root
 
@@ -238,7 +238,7 @@ def test_web_build_is_served_with_an_spa_fallback(make_client, web_root):
         robots = client.get("/robots.txt")
         assert robots.text.startswith("User-agent")
         assert robots.headers["cache-control"] == "no-cache"
-        asset = client.get("/_app/immutable/start.abc123.js")
+        asset = client.get("/assets/index.abc123.js")
         assert asset.headers["cache-control"] == "public, max-age=31536000, immutable"
         # API paths never fall back to the page, and still get the API's headers.
         missing = client.get("/api/unknown")
@@ -249,7 +249,7 @@ def test_web_build_is_served_with_an_spa_fallback(make_client, web_root):
 
 
 @pytest.mark.parametrize(
-    "path", ["/..%2fsecret.txt", "/%2e%2e/secret.txt", "/_app/..%2f..%2fsecret.txt"]
+    "path", ["/..%2fsecret.txt", "/%2e%2e/secret.txt", "/assets/..%2f..%2fsecret.txt"]
 )
 def test_web_paths_cannot_leave_the_build(make_client, web_root, path):
     with make_client(web_root=web_root) as client:
@@ -264,7 +264,7 @@ def test_without_a_web_build_only_the_api_is_served(client):
 
 def test_committed_openapi_schema_is_current():
     # The version changes every release; everything else must match exactly.
-    committed = json.loads((PROJECT / "apps" / "web" / "openapi.json").read_text(encoding="utf-8"))
+    committed = json.loads((PROJECT / "apps" / "api" / "openapi.json").read_text(encoding="utf-8"))
     current = json.loads(openapi.render())
     committed["info"].pop("version")
     current["info"].pop("version")

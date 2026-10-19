@@ -17,7 +17,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .svelte-check
-.svelte-kit/
 
 # Build
 /out/

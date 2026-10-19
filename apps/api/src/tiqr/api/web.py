@@ -1,4 +1,4 @@
-"""The bundled SvelteKit build: its files, and index.html for every other non-API path."""
+"""The bundled web build: its files, and index.html for every other non-API path."""
 
 from pathlib import Path
 
@@ -18,8 +18,8 @@ def install_web(app: FastAPI, root: Path = WEB_ROOT) -> None:
     if not index.is_file():
         return
     root = root.resolve()
-    # SvelteKit puts content-hashed files here, so they never change under the same name.
-    immutable = root / "_app" / "immutable"
+    # Vite puts content-hashed files here, so they never change under the same name.
+    immutable = root / "assets"
 
     @app.get("/{path:path}", include_in_schema=False)
     def web(path: str) -> FileResponse:

@@ -4,7 +4,7 @@ A Python 3.14 **core library, CLI and web API** for QR tickets registered with S
 BioStar X and scanned by XPass Q2 readers. SQLite keeps local history; the reader
 enforces each ticket's UTC access window. PDF output is saved as a file; `ticket print` also
 sends that file to the default printer. `tiqr serve` runs the same commands as a JSON API for
-the planned SvelteKit frontend; see [Web API](#web-api), and
+the planned Svelte frontend; see [Web API](#web-api), and
 [DEPLOYMENT.md](DEPLOYMENT.md) for how the product is packaged and installed on customer servers.
 
 ## Setup
@@ -242,7 +242,7 @@ uv run tiqr serve --dev                                   # adds the API docs, l
 ```
 
 `tiqr serve` runs one Uvicorn process. It serves the JSON API under `/api` and, when a web build
-is bundled, the SvelteKit app on every other path, with `index.html` as the fallback. It checks
+is bundled, the Svelte app on every other path, with `index.html` as the fallback. It checks
 the settings and database before it listens, so a bad key or an outdated schema fails at once.
 TiQR runs entirely on the customer's network, so plain HTTP is the default; with a certificate
 and key it terminates TLS in-process instead. Over HTTP, passwords and session cookies cross that
@@ -283,7 +283,7 @@ twenty from one address, wait 15 minutes; a username alone is never locked, so n
 account out from elsewhere. An unknown username costs the same password hash as a wrong password,
 so timing does not reveal which accounts exist.
 
-`apps/web/openapi.json` is the API's OpenAPI schema for generating the web client. After changing
+`apps/api/openapi.json` is the API's OpenAPI schema for generating the web client. After changing
 the API, regenerate it with `uv run poe openapi`; a test fails while it is stale.
 
 ## Printing
@@ -456,8 +456,8 @@ itself. Each member is its own distribution, and all of them share the `tiqr` im
 |---|---|---|---|
 | `apps/core` | `tiqr-core` | `tiqr.core` | Models, service, SQLite, BioStar adapters, QR, PDF, OS printing, assets |
 | `apps/cli` | `tiqr-cli` | `tiqr.cli` | Typer commands, `tiqr serve`, and the executable's launcher |
-| `apps/api` | `tiqr-api` | `tiqr.api` | FastAPI app, sessions, scheduler, and the bundled web build's host |
-| `apps/web` | — | — | SvelteKit web UI; not started, see its README. Holds `openapi.json` |
+| `apps/api` | `tiqr-api` | `tiqr.api` | FastAPI app, sessions, scheduler, the bundled web build's host, and `openapi.json` |
+| `apps/web` | — | — | Svelte + Vite web UI; see its README |
 | `packaging/` | — | — | PyInstaller spec and entry script |
 | `tests/` | — | — | `core/`, `cli/`, `api/` and packaging tests, sharing one `conftest.py` |
 

@@ -103,7 +103,7 @@ name = "cz_conventional_commits"
 
 [tool.poe.tasks.openapi]
 help = "Regenerate the API schema the web app's client is built from"
-cmd = "python -m tiqr.api.openapi apps/web/openapi.json"
+cmd = "python -m tiqr.api.openapi apps/api/openapi.json"
 
 [tool.poe.tasks.fix]
 help = "Apply ruff fixes and formatting, then run pyright"
