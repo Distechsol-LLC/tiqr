@@ -932,7 +932,7 @@ wheels = [
 
 [[package]]
 name = "tiqr"
-version = "0.9.5"
+version = "1.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "tiqr-api" },
