@@ -307,6 +307,6 @@
     "clientKind": "git",
     "defaultBranch": "main",
     "enabled": true,
-    "useIgnoreFile": true
+    "useIgnoreFile": false // Root .gitignore
   }
 }

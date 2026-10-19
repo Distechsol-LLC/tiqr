@@ -28,6 +28,19 @@ jobs:
           python-version: "3.14"
           enable-cache: true
       - run: uv sync --locked
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.3"
+      - name: Build the web app into the api package
+        shell: bash
+        working-directory: apps/web
+        run: |
+          bun install --frozen-lockfile
+          bun bundle
+          # The api serves this folder as package data, so PyInstaller bundles it.
+          rm -rf ../api/src/tiqr/api/web
+          cp -r build ../api/src/tiqr/api/web
       - run: uv run pyinstaller packaging/tiqr.spec --noconfirm
       - name: Smoke test the executable from a fresh folder
         shell: bash

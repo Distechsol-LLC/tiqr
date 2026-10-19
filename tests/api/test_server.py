@@ -227,19 +227,23 @@ def web_root(tmp_path):
     return root
 
 
-def test_web_build_is_served_with_an_spa_fallback(make_client, web_root):
+def test_web_build_is_served_under_tiqr_with_an_spa_fallback(make_client, web_root):
     with make_client(web_root=web_root) as client:
-        for path in ("/", "/tickets/123", "/users"):
+        for path in ("/tiqr", "/tiqr/", "/tiqr/tickets/123", "/tiqr/users"):
             response = client.get(path)
             assert response.status_code == 200
             assert "<title>TiQR</title>" in response.text
             assert response.headers["cache-control"] == "no-cache"
             assert response.headers["x-frame-options"] == "DENY"
-        robots = client.get("/robots.txt")
+        robots = client.get("/tiqr/robots.txt")
         assert robots.text.startswith("User-agent")
         assert robots.headers["cache-control"] == "no-cache"
-        asset = client.get("/assets/index.abc123.js")
+        asset = client.get("/tiqr/assets/index.abc123.js")
         assert asset.headers["cache-control"] == "public, max-age=31536000, immutable"
+        # The root has no page of its own; it sends visitors to the app.
+        root = client.get("/", follow_redirects=False)
+        assert root.status_code == 307
+        assert root.headers["location"] == "/tiqr/"
         # API paths never fall back to the page, and still get the API's headers.
         missing = client.get("/api/unknown")
         assert missing.status_code == 404
@@ -249,7 +253,8 @@ def test_web_build_is_served_with_an_spa_fallback(make_client, web_root):
 
 
 @pytest.mark.parametrize(
-    "path", ["/..%2fsecret.txt", "/%2e%2e/secret.txt", "/assets/..%2f..%2fsecret.txt"]
+    "path",
+    ["/tiqr/..%2fsecret.txt", "/tiqr/%2e%2e/secret.txt", "/tiqr/assets/..%2f..%2fsecret.txt"],
 )
 def test_web_paths_cannot_leave_the_build(make_client, web_root, path):
     with make_client(web_root=web_root) as client:

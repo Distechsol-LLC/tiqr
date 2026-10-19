@@ -242,7 +242,8 @@ uv run tiqr serve --dev                                   # adds the API docs, l
 ```
 
 `tiqr serve` runs one Uvicorn process. It serves the JSON API under `/api` and, when a web build
-is bundled, the Svelte app on every other path, with `index.html` as the fallback. It checks
+is bundled, the Svelte app under `/tiqr`, with `index.html` as the fallback there; `/` redirects
+to `/tiqr/`. It checks
 the settings and database before it listens, so a bad key or an outdated schema fails at once.
 TiQR runs entirely on the customer's network, so plain HTTP is the default; with a certificate
 and key it terminates TLS in-process instead. Over HTTP, passwords and session cookies cross that
@@ -492,7 +493,8 @@ your own `.env.local` there to supply BioStar settings. Secrets are never built 
 
 Any run with arguments, or from a terminal, first runs `setup` when the signing key or
 database is missing, then runs the CLI. `setup`, `reset` and `--help` never run it. `tiqr serve`
-works the same way and serves from that folder; the executable carries no web build yet.
+works the same way and serves from that folder. The executable bundles the web build, which the
+Executables workflow compiles in before PyInstaller runs.
 
 When a terminal run finds no users, it asks for the first admin's username and password
 before the command runs, so the database always gets an admin on first use. Scripts with
