@@ -1,0 +1,17 @@
+commit-msg:
+  piped: true
+  commands:
+    commitlint:
+      run: bun commitlint -e -s
+pre-commit:
+  piped: true
+  commands:
+    fix:
+      run: bun fix:s && git update-index -g
+pre-push:
+  parallel: true
+  commands:
+    orphans:
+      run: bun orphans
+    cover:
+      run: bun cover

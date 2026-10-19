@@ -1,7 +1,7 @@
-# Workspace root. The product version lives here; every member under apps/ matches it.
+# Workspace root. The product version lives here; members under apps/ are versioned separately.
 [project]
 name = "tiqr"
-version = "0.9.4"
+version = "0.9.5"
 description = "QR Ticketing System for Suprema BioStar X"
 readme = "README.md"
 requires-python = ">=3.14"
