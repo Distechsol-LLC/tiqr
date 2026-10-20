@@ -3,7 +3,9 @@
 > TiQR Web is made with
 > - **[TypeScript](https://typescriptlang.org)**
 > - **[Svelte](https://svelte.dev)**
+> - **[Zod](https://zod.dev)**
 > - **[Skeleton](https://skeleton.dev)**
+> - **[Lucide](https://lucide.dev)**
 > - **[Vite](https://vite.dev)**
 >
 > & is a static build the API serves, so it ships inside the `tiqr` executable.
