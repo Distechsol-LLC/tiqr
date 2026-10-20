@@ -13,7 +13,7 @@
     "dev": "vite --open",
     "bundle": "tsc -b && vite build",
     "serve": "bun bundle && vite preview",
-    "check": "bun test __tests__/**/*.{test,spec}.{ts,tsx} --randomize --pass-with-no-tests",
+    "check": "bun test --randomize --pass-with-no-tests",
     "check:w": "bun check --watch",
     "cover": "bun check --coverage",
     "fix": "biome check --fix --unsafe --no-errors-on-unmatched --reporter=concise",
@@ -30,6 +30,8 @@
       "tailwind.config.css"
     ],
     "ignoreDependencies": [
+      "@commitlint/cli",
+      "@skeletonlabs/skeleton",
       "@typescript/native-preview",
       "tailwindcss"
     ]
@@ -38,7 +40,7 @@
     "@fontsource-variable/geist": "^5.3.0",
     "@lucide/svelte": "^1.60.0",
     "@tailwindcss/vite": "^4.3.3",
-    "pixelarticons": "^2.4.2",
+    "sv-router": "^0.19.0",
     "tailwindcss": "^4.3.3",
     "zod": "^4.6.7"
   },

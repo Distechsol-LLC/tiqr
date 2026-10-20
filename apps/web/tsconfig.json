@@ -28,5 +28,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": false
   },
-  "include": ["src", "*.config.mts", "__tests__"]
+  "include": ["src", "*.config.mts", "__tests__", "__mocks__"]
 }

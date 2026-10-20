@@ -4,8 +4,42 @@
 @import '@skeletonlabs/skeleton-svelte';
 @import '@skeletonlabs/skeleton/themes/vintage';
 
+/* Dark mode follows <html data-mode>, set from the OS or the user's pick (see useTheme.svelte.ts) */
+@custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
+
 @theme inline {
   --font-geist: 'Geist Variable';
+}
+
+/* Vintage ships its own fonts; use Geist everywhere. Vintage also tints light-mode headings green
+   (secondary-950); make them black, mirroring the white in dark mode */
+[data-theme='vintage'] {
+  --typo-base--font-family: var(--font-geist), sans-serif;
+  --typo-heading--font-family: var(--font-geist), sans-serif;
+  --typo-heading--color-light: oklch(0 0 0);
+}
+
+/* Focus: the browser's ring follows the OS accent, so use the theme's instead */
+@layer base {
+  :root {
+    accent-color: var(--color-primary-500);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+  }
+
+  /* Tailwind v4 leaves buttons with the default cursor */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* Skeleton's .input already turns its ring primary on focus */
+  .input:focus-visible {
+    outline: none;
+  }
 }
 
 /* Tooltip */

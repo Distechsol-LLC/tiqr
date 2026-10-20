@@ -2,20 +2,38 @@ import type { Component } from 'svelte';
 
 type ModalChild = Component<{ onClose: () => void }>;
 
-type ModalOptions = {
+// Modal settings the caller picks; open state and close belong to the controller
+type ModalSettings = {
+  ariaLabel?: string;
+  isClosable?: boolean;
+  onSubmit?: (event: SubmitEvent) => void | Promise<void>;
+};
+
+type ModalOptions = ModalSettings & {
   child: ModalChild;
 };
 
 type ModalController = {
   readonly isOpen: boolean;
   readonly child: ModalChild;
+  readonly settings: ModalSettings;
   open: () => void;
   close: () => void;
 };
 
-const modalHost = $state<{ current: ModalController | null }>({ current: null });
+// $state.raw keeps the controller itself, so the identity checks below hold
+let active = $state.raw<ModalController | null>(null);
 
-const useModal = ({ child }: ModalOptions): ModalController => {
+const modalHost = {
+  get current(): ModalController | null {
+    return active;
+  },
+  set current(next: ModalController | null) {
+    active = next;
+  },
+};
+
+const useModal = ({ child, ...settings }: ModalOptions): ModalController => {
   let isOpen = $state(false);
 
   const controller: ModalController = {
@@ -29,12 +47,16 @@ const useModal = ({ child }: ModalOptions): ModalController => {
       return isOpen;
     },
     open: (): void => {
+      // One modal shows at a time, so the one being replaced closes first
+      modalHost.current?.close();
       isOpen = true;
       modalHost.current = controller;
     },
+    settings,
   };
 
   return controller;
 };
 
+export type { ModalOptions };
 export { modalHost, useModal };

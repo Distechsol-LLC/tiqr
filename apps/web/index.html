@@ -13,6 +13,17 @@
     <link href='/site.webmanifest' rel='manifest' type='application/manifest+json'>
     <link href='/favicon.png' rel='icon' sizes='512x512' type='image/png'>
     <title>TiQR</title>
+
+    <!-- Applies the saved or OS color mode before first paint; the key matches useTheme.svelte.ts -->
+    <script>
+      try {
+        const stored = localStorage.getItem('tiqr-mode');
+        document.documentElement.dataset.mode =
+          stored === 'light' || stored === 'dark'
+            ? stored
+            : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      } catch {}
+    </script>
   </head>
 
   <body>
