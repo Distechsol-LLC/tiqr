@@ -3,6 +3,8 @@
 .tiqr-session.json
 credentials.*
 *.local
+# JetBrains HTTP Client secrets, such as the password for apps/api/http
+http-client.private.env.json
 
 # Per-machine git hook overrides
 lefthook-local.yml

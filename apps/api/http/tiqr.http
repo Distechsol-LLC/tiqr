@@ -1,0 +1,328 @@
+# TiQR API. Start the server (`uv run tiqr serve`), set the username in
+# http-client.env.json and the password in http-client.private.env.json, then run
+# Login first and the rest top to bottom. [WRITE] requests change data: use a test server.
+# Login is rate-limited: 5 failed sign-ins per user and address in 15 minutes.
+
+
+### Health
+# No sign-in needed. 200 when ready.
+GET {{baseUrl}}/api/health
+
+> {%
+  client.test("Healthy", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+### Config
+# Default timezone and whether server printing is on. 200.
+GET {{baseUrl}}/api/config
+
+> {%
+  client.test("Config read", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+
+### Login
+# Sets the session cookie and saves csrfToken. 200; 401 for wrong credentials; 429 when throttled.
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+> {%
+  client.test("Signed in", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+  client.global.set("csrfToken", response.body.csrf_token);
+  client.global.set("meId", response.body.user.id);
+%}
+
+### Session
+# The current user. 200; 401 if the session ended.
+GET {{baseUrl}}/api/auth/session
+
+> {%
+  client.test("Session is live", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+
+### List users
+# Admins and managers. 200; 403 for operators.
+GET {{baseUrl}}/api/users
+X-CSRF-Token: {{csrfToken}}
+
+> {%
+  client.test("Users listed", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+### [WRITE] Create user
+# Roles: admin, manager, operator. Saves newUserId. 201; 409 if the username is taken.
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "username": "clerk",
+  "password": "change-me-please",
+  "role": "operator"
+}
+
+> {%
+  client.test("User created", function() {
+    client.assert(response.status === 201, "Expected 201, got " + response.status);
+  });
+  client.global.set("newUserId", response.body.id);
+%}
+
+### [WRITE] Change role
+# Admins only. 200.
+PATCH {{baseUrl}}/api/users/{{newUserId}}
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "role": "manager"
+}
+
+### [WRITE] Deactivate user
+# Blocks sign-in and ends their sessions. 200.
+PATCH {{baseUrl}}/api/users/{{newUserId}}
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "active": false
+}
+
+### [WRITE] Reactivate user
+# 200.
+PATCH {{baseUrl}}/api/users/{{newUserId}}
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "active": true
+}
+
+### [WRITE] Reset password
+# Ends their sessions. 200.
+PATCH {{baseUrl}}/api/users/{{newUserId}}
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "password": "another-password"
+}
+
+
+### List tickets
+# Operators see only tickets assigned to them. 200.
+GET {{baseUrl}}/api/tickets
+X-CSRF-Token: {{csrfToken}}
+
+> {%
+  client.test("Tickets listed", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+### List issued tickets
+# Filter by state: issued, passed, or expired. 200.
+GET {{baseUrl}}/api/tickets?state=issued
+X-CSRF-Token: {{csrfToken}}
+
+### [WRITE] Issue ticket
+# Saves ticketId. Times without an offset use "timezone". 201; 422 for bad input.
+POST {{baseUrl}}/api/tickets
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "visitor_name": "Jane Doe",
+  "visitor_type": "Contractor",
+  "valid_from": "2030-06-01T09:00",
+  "valid_until": "2030-06-01T17:00",
+  "usage_type": "one_time",
+  "timezone": "Asia/Dubai"
+}
+
+> {%
+  client.test("Ticket issued", function() {
+    client.assert(response.status === 201, "Expected 201, got " + response.status);
+  });
+  client.global.set("ticketId", response.body.id);
+%}
+
+### Get ticket
+# 200; 403 for an operator if it isn't assigned to them.
+GET {{baseUrl}}/api/tickets/{{ticketId}}
+X-CSRF-Token: {{csrfToken}}
+
+> {%
+  client.test("Ticket read", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+### [WRITE] Assign ticket
+# Managers only. assignee is any username. 200; 404 if it doesn't exist.
+POST {{baseUrl}}/api/tickets/{{ticketId}}/assign
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "assignee": "clerk"
+}
+
+### [WRITE] Render badge PDF
+# Returns a PDF and counts as a print. Issued tickets only. 200; 409 otherwise.
+POST {{baseUrl}}/api/tickets/{{ticketId}}/pdf
+X-CSRF-Token: {{csrfToken}}
+
+> {%
+  client.test("Badge rendered", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+    client.assert(response.contentType.mimeType === "application/pdf", "Expected a PDF");
+  });
+%}
+
+### [WRITE] Print on server printer
+# Needs TIQR_SERVER_PRINTING=true. 200; 409 when off; 502 if the printer fails.
+POST {{baseUrl}}/api/tickets/{{ticketId}}/print
+X-CSRF-Token: {{csrfToken}}
+
+
+### [WRITE] Sync access events
+# Runs a BioStar sync now. 200 with count; 502 if BioStar fails.
+POST {{baseUrl}}/api/sync
+X-CSRF-Token: {{csrfToken}}
+
+> {%
+  client.test("Synced", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+### [WRITE] Clean up finished tickets
+# Removes finished tickets from BioStar now. 200 with count; 502 if BioStar fails.
+POST {{baseUrl}}/api/cleanup
+X-CSRF-Token: {{csrfToken}}
+
+### Stats
+# Totals: tickets, issued, passed, expired, uses, prints. 200.
+GET {{baseUrl}}/api/stats
+X-CSRF-Token: {{csrfToken}}
+
+> {%
+  client.test("Stats read", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+
+### Wrong password
+# Run these last: this one counts toward the login limit. 401.
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "definitely-wrong"
+}
+
+> {%
+  client.test("Wrong password refused", function() {
+    client.assert(response.status === 401, "Expected 401, got " + response.status);
+  });
+%}
+
+### Write without CSRF token
+# 403.
+POST {{baseUrl}}/api/tickets
+Content-Type: application/json
+
+{
+  "visitor_name": "No Token",
+  "visitor_type": "Contractor",
+  "valid_from": "2030-06-01T09:00",
+  "valid_until": "2030-06-01T17:00",
+  "usage_type": "one_time"
+}
+
+> {%
+  client.test("CSRF refused", function() {
+    client.assert(response.status === 403, "Expected 403, got " + response.status);
+  });
+%}
+
+### Write from another origin
+# Foreign Origin header. 403.
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+Origin: https://evil.example
+
+{
+  "username": "intruder",
+  "password": "change-me-please",
+  "role": "admin"
+}
+
+> {%
+  client.test("Cross-origin refused", function() {
+    client.assert(response.status === 403, "Expected 403, got " + response.status);
+  });
+%}
+
+### Malformed ticket
+# Bad valid_from. 422.
+POST {{baseUrl}}/api/tickets
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "visitor_name": "Jane Doe",
+  "visitor_type": "Contractor",
+  "valid_from": "next tuesday",
+  "valid_until": "2030-06-01T17:00",
+  "usage_type": "one_time"
+}
+
+> {%
+  client.test("Bad input refused", function() {
+    client.assert(response.status === 422, "Expected 422, got " + response.status);
+  });
+%}
+
+### Unknown ticket
+# 404.
+GET {{baseUrl}}/api/tickets/00000000-0000-0000-0000-000000000000
+X-CSRF-Token: {{csrfToken}}
+
+> {%
+  client.test("Unknown ticket is 404", function() {
+    client.assert(response.status === 404, "Expected 404, got " + response.status);
+  });
+%}
+
+
+### Logout
+# Run last. 204.
+POST {{baseUrl}}/api/auth/logout
+X-CSRF-Token: {{csrfToken}}
+
+> {%
+  client.test("Signed out", function() {
+    client.assert(response.status === 204, "Expected 204, got " + response.status);
+  });
+%}
