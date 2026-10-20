@@ -33,7 +33,9 @@ describe('getFailureMessage', () => {
 
   it('explains network and server failures', () => {
     expect(getFailureMessage({ kind: 'network' })).toBe(ERROR_NETWORK);
-    expect(getFailureMessage({ code: 'internal', kind: 'server', status: 500 })).toBe(ERROR_SERVER);
+    expect(getFailureMessage({ code: 'internal', detail: null, kind: 'server', status: 500 })).toBe(
+      ERROR_SERVER
+    );
     expect(getFailureMessage({ kind: 'invalid_response' })).toBe(ERROR_SERVER);
   });
 });

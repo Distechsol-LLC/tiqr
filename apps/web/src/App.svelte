@@ -7,7 +7,6 @@
   import '@fontsource-variable/geist';
   import '@/router.ts';
   import Modal from '@/components/Modal.svelte';
-  import ThemeToggle from '@/components/ThemeToggle.svelte';
   import { toaster } from '%/toaster.ts';
   import { modalHost } from '%/useModal.svelte.ts';
   import { useTooltip } from '%/useTooltip.ts';
@@ -17,7 +16,6 @@
   onMount(useTooltip);
 </script>
 
-<ThemeToggle />
 <Router />
 
 {#if activeModal}

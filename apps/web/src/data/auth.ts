@@ -11,23 +11,29 @@ import {
 const USERNAME_MAX = 150;
 const PASSWORD_MAX = 1024;
 
+const passwordSchema = z
+  .string()
+  .max(PASSWORD_MAX, ERROR_PASSWORD_LONG)
+  .refine((password) => password.trim().length > 0, ERROR_PASSWORD_REQUIRED);
+
+const usernameSchema = z
+  .string()
+  .trim()
+  .min(1, ERROR_USERNAME_REQUIRED)
+  .max(USERNAME_MAX, ERROR_USERNAME_LONG);
+
 const credentialsSchema = z.object({
   // The core strips only the username, so the password goes out exactly as typed
-  password: z
-    .string()
-    .max(PASSWORD_MAX, ERROR_PASSWORD_LONG)
-    .refine((password) => password.trim().length > 0, ERROR_PASSWORD_REQUIRED),
-  username: z
-    .string()
-    .trim()
-    .min(1, ERROR_USERNAME_REQUIRED)
-    .max(USERNAME_MAX, ERROR_USERNAME_LONG),
+  password: passwordSchema,
+  username: usernameSchema,
 });
+
+const roleSchema = z.enum(['admin', 'manager', 'operator']);
 
 const userSchema = z.object({
   active: z.boolean(),
   id: z.uuid(),
-  role: z.enum(['admin', 'manager', 'operator']),
+  role: roleSchema,
   username: z.string(),
 });
 
@@ -44,7 +50,17 @@ const apiErrorSchema = z.object({
 });
 
 type Credentials = z.infer<typeof credentialsSchema>;
+type Role = z.infer<typeof roleSchema>;
 type Session = z.infer<typeof sessionSchema>;
+type User = z.infer<typeof userSchema>;
 
-export type { Credentials, Session };
-export { apiErrorSchema, credentialsSchema, sessionSchema };
+export type { Credentials, Role, Session, User };
+export {
+  apiErrorSchema,
+  credentialsSchema,
+  passwordSchema,
+  roleSchema,
+  sessionSchema,
+  userSchema,
+  usernameSchema,
+};

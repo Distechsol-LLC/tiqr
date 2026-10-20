@@ -7,6 +7,7 @@
 
   import FloatingInput from '@/components/FloatingInput.svelte';
   import Logo from '@/components/Logo.svelte';
+  import ThemeToggle from '@/components/ThemeToggle.svelte';
   import { navigate } from '@/router.ts';
   import { getFailureMessage } from '%/getFailureMessage.ts';
   import { toaster } from '%/toaster.ts';
@@ -79,10 +80,12 @@
   <title>Sign in · TiQR</title>
 </svelte:head>
 
+<ThemeToggle />
+
 <main class="grid min-h-dvh place-items-center p-4">
   <div class="w-full max-w-sm space-y-8">
     <header class="flex justify-center-safe items-center-safe gap-4 text-center">
-      <Logo class="size-20 shadow-lg" />
+      <Logo class="size-14 shadow-lg" />
       <h1 class="h3">TiQR</h1>
     </header>
 

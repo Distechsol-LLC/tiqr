@@ -2,6 +2,7 @@
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 
   import Logo from '@/components/Logo.svelte';
+  import ThemeToggle from '@/components/ThemeToggle.svelte';
   import { p } from '@/router.ts';
 
   const ICON_SIZE = 18;
@@ -10,6 +11,8 @@
 <svelte:head>
   <title>Page not found · TiQR</title>
 </svelte:head>
+
+<ThemeToggle />
 
 <main class="grid min-h-dvh place-items-center p-4">
   <div class="flex flex-col items-center gap-6 text-center">

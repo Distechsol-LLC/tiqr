@@ -3,6 +3,7 @@ import type { Credentials, Session } from '$/auth.ts';
 
 type AuthController = {
   readonly session: Session | null;
+  expire: () => void;
   restore: () => Promise<void>;
   signIn: (credentials: Credentials) => Promise<ApiResult<Session>>;
   signOut: () => Promise<void>;
@@ -14,6 +15,10 @@ const createAuth = (): AuthController => {
   let restoring: Promise<void> | null = null;
 
   return {
+    // The server already ended the session, so there's nothing to log out of
+    expire: (): void => {
+      session = null;
+    },
     restore: (): Promise<void> => {
       restoring ??= fetchSession().then((result) => {
         if (result.ok) session = result.data;
