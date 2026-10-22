@@ -1,9 +1,11 @@
+import { THEMES } from '$/themes.ts';
+
 type Mode = 'light' | 'dark';
 
 type ThemeController = {
   readonly mode: Mode;
-  // TIQR_THEME: light or dark set the mode until the user picks one, default follows the OS, and
-  // any other name selects the theme of that name in the stylesheet
+  // theme: light or dark set the mode until the user picks one, default follows the OS, and
+  // the name of any Skeleton theme selects it; an unknown name keeps the built-in one
   configure: (name: string) => void;
   toggle: () => void;
 };
@@ -11,7 +13,6 @@ type ThemeController = {
 // Also read by the inline script in index.html, which applies the mode before first paint
 const STORAGE_KEY = 'tiqr-mode';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
-const DEFAULT_THEME = 'default';
 // What the stylesheet calls the built-in theme
 const BUILT_IN_THEME = 'vintage';
 
@@ -51,7 +52,7 @@ const createTheme = (): ThemeController => {
       preferred = name === 'light' || name === 'dark' ? name : null;
 
       document.documentElement.dataset.theme =
-        name === DEFAULT_THEME || preferred ? BUILT_IN_THEME : name;
+        preferred || !THEMES.has(name) ? BUILT_IN_THEME : name;
 
       if (!isChosen) apply(initial());
     },

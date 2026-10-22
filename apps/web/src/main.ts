@@ -12,7 +12,7 @@ const target = document.getElementById('root');
 const start = async (): Promise<void> => {
   await branding.load();
   theme.configure(branding.theme);
-  i18n.configure(branding.locales, branding.fallbackLocale);
+  i18n.configure(branding.locales);
   document.title = branding.appName;
 
   if (branding.logoSrc)

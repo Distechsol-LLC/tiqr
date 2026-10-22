@@ -48,6 +48,8 @@ jobs:
           smoke="$RUNNER_TEMP/smoke"
           mkdir "$smoke"
           cp dist/tiqr* "$smoke/"
+          # The executable refuses to run without its branding file beside it.
+          cp tiqr_branding.jsonc "$smoke/"
           # Named explicitly: once setup creates tiqr.db, a tiqr* glob would match it too.
           exe=$(basename dist/tiqr*)
           cd "$smoke"

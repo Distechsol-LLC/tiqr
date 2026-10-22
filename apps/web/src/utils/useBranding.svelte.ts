@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, LOCALE_CODES, type Locale, isLocale } from '@/config/locales.ts';
+import { LOCALE_CODES, type Locale, isLocale } from '@/config/locales.ts';
 import { fetchBranding } from '%/api.ts';
 import type { Branding } from '$/branding.ts';
 import { type Currency, currencySchema } from '$/catalog.ts';
@@ -11,7 +11,6 @@ type BrandingController = {
   readonly appName: string;
   // Every currency until the server says which its languages use
   readonly currencies: readonly Currency[];
-  readonly fallbackLocale: Locale;
   // The built-in logo is used when the install has none of its own
   readonly logoSrc: string | null;
   // The languages offered, as the web app's own codes: en-US is en
@@ -38,12 +37,6 @@ const createBranding = (): BrandingController => {
     },
     get currencies(): readonly Currency[] {
       return current && current.currencies.length > 0 ? current.currencies : currencySchema.options;
-    },
-    get fallbackLocale(): Locale {
-      const [first = DEFAULT_LOCALE] = offered();
-      const [preferred] = toLocales([current?.default_language ?? '']);
-
-      return preferred && offered().includes(preferred) ? preferred : first;
     },
     load: async (): Promise<void> => {
       const result = await fetchBranding();

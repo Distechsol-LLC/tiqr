@@ -309,7 +309,7 @@ def test_user_management(client):
     login(client, "newcomer", "newcomer-password")
 
 
-def test_server_printing_is_off_by_default(client, printed):
+def test_server_printing_is_off_when_disabled(client, printed):
     login(client)
     ticket_id = create_ticket(client)["id"]
     response = client.post(f"/api/tickets/{ticket_id}/print")

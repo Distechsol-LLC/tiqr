@@ -1,6 +1,8 @@
 import json
 import os
+import shutil
 import sqlite3
+import sys
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
@@ -13,6 +15,13 @@ from zoneinfo import ZoneInfo
 
 import typer
 
+from tiqr.cli.installer import (
+    is_administrator,
+    lan_address,
+    open_firewall,
+    register_service,
+    wait_until_healthy,
+)
 from tiqr.core.auth import AuthenticationError, Session
 from tiqr.core.biostar import ACCESS_GROUP_NAME, BioStarClient, BioStarError, BioStarXProvisioner
 from tiqr.core.localtime import parse_input_datetime
@@ -22,13 +31,17 @@ from tiqr.core.repository import SQLiteRepository
 from tiqr.core.runtime import open_service
 from tiqr.core.service import TicketService
 from tiqr.core.settings import (
+    BRANDING_FILE,
     LOCAL_ENV_FILE,
     Settings,
+    branding_path,
     database_path,
     discard_access_group_id,
     discard_secret,
+    load_branding,
     provision_secret,
     session_path,
+    write_local_settings,
 )
 
 # Failures a user can act on; anything else is a bug and keeps its traceback.
@@ -216,6 +229,100 @@ def reset(
         if removed:
             typer.echo(f"Deleted database: {database}")
         typer.echo("Reset complete. Next: tiqr setup")
+
+
+@app.command()
+def install(
+    *,
+    source: Annotated[
+        Path | None,
+        typer.Option(
+            help="Folder holding tiqr_branding.jsonc and WinSW; default: beside the executable."
+        ),
+    ] = None,
+    host: Annotated[
+        str | None,
+        typer.Option(help="Address operators' PCs use; asked for, or this machine's LAN address."),
+    ] = None,
+    port: Annotated[int | None, typer.Option(help="TCP port; asked for, or 7102.")] = None,
+    service: Annotated[
+        bool, typer.Option("--service/--no-service", help="Register and start the service.")
+    ] = True,
+    firewall: Annotated[
+        bool, typer.Option("--firewall/--no-firewall", help="Open the port in the host firewall.")
+    ] = True,
+) -> None:
+    """Install TiQR on this machine: branding, address, database, admin, firewall and service.
+
+    Run it from the folder the service will run from, as an administrator (sudo on Linux). The
+    executable is registered where it stands, and its folder holds the data. Terminal runs ask for
+    the address, port and first admin; scripts take the defaults. Each step can be skipped.
+    """
+    with _errors():
+        if (service or firewall) and not is_administrator():
+            raise RuntimeError("tiqr install needs administrator rights (sudo on Linux)")
+        if service and not getattr(sys, "frozen", False):
+            raise RuntimeError(
+                "Service registration needs the packaged executable; use --no-service"
+            )
+        origin_folder = source or _executable_folder()
+        origin = origin_folder / BRANDING_FILE
+        target = branding_path()
+        load_branding(origin)
+        if origin.resolve() == target.resolve():
+            typer.echo(f"{target} is already in place")
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(origin, target)
+            typer.echo(f"Copied {origin} to {target}")
+
+        host = host or _ask("Address operators' PCs use to reach TiQR", lan_address())
+        port = port or _ask("TCP port", 7102)
+        if write_local_settings({"TIQR_HOST": host, "TIQR_PORT": str(port)}):
+            typer.echo(f"Set TIQR_HOST and TIQR_PORT in {LOCAL_ENV_FILE}")
+
+        setup()
+        with SQLiteRepository(Settings.from_env().database_path) as repository:
+            has_users = bool(repository.list_users())
+        if not has_users:
+            if _interactive():
+                create_first_admin()
+            else:
+                typer.echo("No users yet. Next: tiqr user add <username> --role admin")
+
+        if firewall:
+            typer.echo(open_firewall(port))
+        if service:
+            home = branding_path().parent
+            typer.echo(register_service(Path(sys.executable), home, origin_folder))
+            wait_until_healthy(host, port)
+            typer.echo(f"TiQR is answering on {host}:{port}")
+
+
+def _ask[T](text: str, default: T) -> T:
+    """Ask at a terminal; a script takes the default."""
+    if _interactive():
+        return typer.prompt(text, default=default, type=type(default))
+    return default
+
+
+def _interactive() -> bool:
+    return sys.stdin is not None and sys.stdin.isatty()
+
+
+def create_first_admin() -> None:
+    """Prompt until an admin account exists, or the user cancels."""
+    typer.echo("No users yet. Create the first admin account.")
+    while True:
+        username = typer.prompt("Admin username")
+        # A rejected attempt has printed its error; ask again.
+        if not app(args=["user", "add", username, "--role", "admin"], standalone_mode=False):
+            return
+
+
+def _executable_folder() -> Path:
+    # A frozen build runs from its own folder; a source checkout uses the working directory.
+    return Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path.cwd()
 
 
 @user_app.command("add")

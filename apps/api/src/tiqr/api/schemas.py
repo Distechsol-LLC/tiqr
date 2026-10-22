@@ -268,16 +268,16 @@ class ConfigOut(BaseModel):
 
 
 class BrandingOut(BaseModel):
-    app_name: Annotated[str, Field(description="TIQR_APP_NAME, for titles and the header")]
-    theme: Annotated[str, Field(description="TIQR_THEME: default, light, dark or a custom name")]
+    app_name: Annotated[str, Field(description="app_name, for titles and the header")]
+    theme: Annotated[str, Field(description="theme: default, light, dark or a Skeleton theme name")]
     languages: Annotated[
-        list[str], Field(description="TIQR_LANGUAGES, such as en-US: what the switcher offers")
+        list[str],
+        Field(description="languages, such as en-US: what the switcher offers, first is default"),
     ]
-    default_language: Annotated[str, Field(description="The language shown before anyone picks")]
     currencies: Annotated[
         list[Currency], Field(description="The currencies of the languages' regions")
     ]
-    has_logo: Annotated[bool, Field(description="Whether /api/logo serves TIQR_LOGO_PATH")]
+    has_logo: Annotated[bool, Field(description="Whether /api/logo serves logo_path")]
 
 
 class HealthOut(BaseModel):

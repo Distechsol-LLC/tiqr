@@ -13,6 +13,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 from tiqr.core import pdf
 from tiqr.core.models import Ticket, TicketState, UsageType
+from tiqr.core.settings import BRANDING_FILE
 
 BAKU = "Asia/Baku"
 HALF_WIDTH, HALF_HEIGHT = A4[0] / 2, A4[1] / 2
@@ -37,6 +38,11 @@ def ticket():
         assigned_operator=owner,
         created_at=START,
     )
+
+
+# The project root is each test's tmp_path, so its branding file sits there too
+def outputs(directory):
+    return [path for path in directory.iterdir() if path.name != BRANDING_FILE]
 
 
 @pytest.fixture
@@ -193,7 +199,7 @@ def test_reprint_overwrites_the_same_path(ticket, render, tmp_path):
     first.write_bytes(b"old-file")
     assert render(zone="UTC") == first
     assert first.read_bytes().startswith(b"%PDF-")
-    assert list(tmp_path.iterdir()) == [first]
+    assert outputs(tmp_path) == [first]
 
 
 @pytest.mark.parametrize(
@@ -237,7 +243,7 @@ def test_write_failure_keeps_the_existing_pdf_and_leaves_no_temp_file(
     with pytest.raises(type(error), match=str(error)):
         render()
     assert destination.read_bytes() == b"existing-pdf"
-    assert list(tmp_path.iterdir()) == [destination]
+    assert outputs(tmp_path) == [destination]
 
 
 def test_render_failure_does_not_increment_the_print_count(
@@ -260,4 +266,4 @@ def test_render_failure_does_not_increment_the_print_count(
     with pytest.raises(OSError, match="disk full"):
         service.print_ticket(actor, ticket.id, tmp_path, renderer=pdf.render_pdf)
     assert service.repository.get_ticket(ticket.id).print_count == 0
-    assert not list(tmp_path.iterdir())
+    assert not outputs(tmp_path)

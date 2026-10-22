@@ -27,8 +27,8 @@ def _number(environment: Mapping[str, str], name: str, default: int) -> int:
         raise ValueError(f"TIQR_{name} must be a whole number") from exc
 
 
-def _flag(environment: Mapping[str, str], name: str) -> bool:
-    value = _value(environment, name).lower() or "false"
+def _flag(environment: Mapping[str, str], name: str, *, default: bool) -> bool:
+    value = _value(environment, name).lower() or str(default).lower()
     if value not in ("true", "false"):
         raise ValueError(f"TIQR_{name} must be true or false")
     return value == "true"
@@ -98,7 +98,7 @@ class ServerConfig:
             tls_cert=tls_cert or _path(environment, "TLS_CERT"),
             tls_key=tls_key or _path(environment, "TLS_KEY"),
             dev=dev,
-            server_printing=_flag(environment, "SERVER_PRINTING"),
+            server_printing=_flag(environment, "SERVER_PRINTING", default=False),
             sync_interval=_number(environment, "SYNC_INTERVAL", _SYNC_INTERVAL),
             cleanup_interval=_number(environment, "CLEANUP_INTERVAL", _CLEANUP_INTERVAL),
         )

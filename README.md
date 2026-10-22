@@ -36,7 +36,15 @@ also reads `.env` and then `.env.local` from the project root (the checkout that
 environment variables win over both. `.env` is committed and lists every key with blank
 placeholders; a blank value counts as unset, so local mode works and CI can fill the
 BioStar block in. `.env.local` is git-ignored and holds private values such as
-`TIQR_SECRET_KEY` and `TIQR_BIOSTAR_PASSWORD`. A partly filled BioStar block is an error.
+`TIQR_SECRET_KEY` and `TIQR_BIOSTAR_PASSWORD`. `tiqr_branding.jsonc` (comments allowed) sits in the same folder and is required: the program
+does not run without it. It holds the name, logo, theme and languages (the web app reads them from
+the server at load, so one build serves any of them) and may also set the other non-secret keys:
+`db`, `out`, `prefix`, `default_tz`, the server's `host`, `port`, `tls_cert`, `tls_key`,
+`server_printing`, `sync_interval`, `cleanup_interval`, and a `biostar` block. Each is the
+`TIQR_*` setting of the same name; the file wins over `.env` and `.env.local`, real environment
+variables win over it, and `null` leaves a key to the layers below. `TIQR_SECRET_KEY` and the
+BioStar password are refused there. `theme` is `default` (the Vintage theme) or any Skeleton theme
+name, and the first of `languages` is the one shown by default. A partly filled BioStar block is an error.
 Relative `TIQR_DB` and `TIQR_OUT` paths are also resolved against the project root.
 An installed service sets `TIQR_HOME` in its real environment instead, and the project root
 becomes that folder: config, database, PDFs and the CLI session then stay put while release
@@ -69,7 +77,7 @@ flag in `.env`, because local mode must keep working.
 | `TIQR_HOST` | `127.0.0.1`; the address `tiqr serve` binds. Use the server's LAN IP, not `0.0.0.0` |
 | `TIQR_PORT` | `7102` |
 | `TIQR_TLS_CERT`, `TIQR_TLS_KEY` | Optional PEM certificate and key, relative to the project root; both set serves HTTPS |
-| `TIQR_SERVER_PRINTING` | `false`; `true` lets the web UI print on the server's default printer |
+| `TIQR_SERVER_PRINTING` | `false`; `true` lets operators print on the server's default printer from the web UI |
 | `TIQR_SYNC_INTERVAL` | `60` seconds between scheduled syncs while serving; `0` turns them off |
 | `TIQR_CLEANUP_INTERVAL` | `3600` seconds between scheduled cleanups while serving; `0` turns them off |
 
@@ -500,7 +508,8 @@ from `prod` or a `v*` tag upload the executables as 7-day artifacts; a manual ru
 only builds and tests. The executable contains Python, the fonts and logos, and
 the time zone data. Its config and data live beside it, not in a temporary folder:
 `.env.local`, `tiqr.db` and `out/` appear in the folder that holds the executable. Copy
-your own `.env.local` there to supply BioStar settings. Secrets are never built in.
+your own `.env.local` there to supply BioStar settings, and put `tiqr_branding.jsonc` there too: the
+executable refuses to run without it. Secrets are never built in.
 
 - **Windows:** double-clicking `tiqr.exe` runs setup when needed, then opens a terminal
   window in its folder that runs the CLI.

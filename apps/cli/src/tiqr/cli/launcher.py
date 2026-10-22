@@ -13,7 +13,7 @@ from pathlib import Path
 
 import typer
 
-from tiqr.cli.commands import app
+from tiqr.cli.commands import app, create_first_admin
 from tiqr.core.repository import SQLiteRepository
 from tiqr.core.settings import Settings, database_path
 
@@ -68,15 +68,6 @@ def _needs_admin(arguments: Sequence[str]) -> bool:
         return not repository.list_users()
 
 
-def _create_first_admin() -> None:
-    typer.echo("No users yet. Create the first admin account.")
-    while True:
-        username = typer.prompt("Admin username")
-        # A rejected attempt has printed its error; ask again.
-        if not app(args=["user", "add", username, "--role", "admin"], standalone_mode=False):
-            return
-
-
 def _open_terminal(executable: Path) -> bool:
     """Open a terminal in the executable's folder that runs the CLI and stays open."""
     folder = executable.parent
@@ -120,7 +111,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             raise SystemExit(code)
     if _needs_admin(arguments):
         try:
-            _create_first_admin()
+            create_first_admin()
         except typer.Abort:
             typer.echo("Cancelled before an admin account was created.", err=True)
             raise SystemExit(1) from None

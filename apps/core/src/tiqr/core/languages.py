@@ -31,14 +31,14 @@ def parse_language(code: str) -> str:
     return f"{language}-{region}"
 
 
-def parse_languages(value: str) -> tuple[str, ...]:
-    """Split a comma-separated list; blank means every language. Order is kept."""
-    codes = [part for part in value.split(",") if part.strip()]
+def parse_languages(codes: Iterable[str]) -> tuple[str, ...]:
+    """Normalize the codes, dropping repeats; the first is the language shown by default."""
+    codes = list(codes)
     if not codes:
-        return DEFAULT_LANGUAGES
+        raise ValueError("At least one language is required")
     parsed = tuple(dict.fromkeys(parse_language(code) for code in codes))
     if len({code.partition("-")[0] for code in parsed}) != len(parsed):
-        raise ValueError("TIQR_LANGUAGES lists a language more than once")
+        raise ValueError("languages lists a language more than once")
     return parsed
 
 

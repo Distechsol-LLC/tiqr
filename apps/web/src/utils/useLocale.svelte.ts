@@ -6,8 +6,8 @@ type LocaleController = {
   readonly t: Messages;
   set: (next: Locale) => void;
   // Narrows the choice to the languages the server offers. A stored or browser pick outside them
-  // gives way to `fallback`.
-  configure: (offered: readonly Locale[], fallback: Locale) => void;
+  // gives way to the first language offered.
+  configure: (offered: readonly Locale[]) => void;
 };
 
 // Also read by the inline script in index.html, which sets <html lang> before first paint
@@ -38,8 +38,8 @@ const createLocale = (): LocaleController => {
     get code(): Locale {
       return code;
     },
-    configure: (offered: readonly Locale[], fallback: Locale): void => {
-      code = readStored(offered) ?? readPreferred(offered) ?? fallback;
+    configure: (offered: readonly Locale[]): void => {
+      code = readStored(offered) ?? readPreferred(offered) ?? offered[0] ?? DEFAULT_LOCALE;
     },
     set: (next: Locale): void => {
       code = next;

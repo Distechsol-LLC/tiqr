@@ -36,7 +36,7 @@ uv sync --locked
 | `TIQR_HOST` | `127.0.0.1` | Bind address. Set to the server's LAN address for operators' PCs. |
 | `TIQR_PORT` | `7102` | Listen port, 1 to 65535. |
 | `TIQR_TLS_CERT`, `TIQR_TLS_KEY` | unset | PEM certificate and key. Set both to serve HTTPS, or neither for plain HTTP. |
-| `TIQR_SERVER_PRINTING` | `false` | When `true`, operators may print on the server's default printer as well as download the PDF. |
+| `TIQR_SERVER_PRINTING` | `false` | When `true`, operators may print on the server's default printer as well as download the PDF. Leave `false` to allow download only. |
 | `TIQR_SYNC_INTERVAL` | `60` | Seconds between scheduled access-event syncs. `0` turns it off. |
 | `TIQR_CLEANUP_INTERVAL` | `3600` | Seconds between scheduled BioStar cleanups. `0` turns it off. |
 | `TIQR_BIOSTAR_BASE_URL`, `_USERNAME`, `_PASSWORD` | unset | BioStar connection. Leave all three unset for local mode. |

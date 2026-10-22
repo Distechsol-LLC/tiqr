@@ -6,7 +6,6 @@ import { currencySchema } from '$/catalog.ts';
 const brandingSchema = z.object({
   app_name: z.string(),
   currencies: z.array(currencySchema),
-  default_language: z.string(),
   has_logo: z.boolean(),
   languages: z.array(z.string()),
   theme: z.string(),

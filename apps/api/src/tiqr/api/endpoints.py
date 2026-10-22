@@ -137,7 +137,6 @@ def branding(server: Server) -> BrandingOut:
         app_name=settings.app_name,
         theme=settings.theme,
         languages=list(settings.languages),
-        default_language=settings.initial_language,
         currencies=list(settings.currencies),
         has_logo=settings.logo_path is not None,
     )
@@ -148,7 +147,7 @@ def branding(server: Server) -> BrandingOut:
     tags=["meta"],
     response_class=FileResponse,
     responses={
-        200: {"content": {"image/*": {}}, "description": "TIQR_LOGO_PATH, as it is on disk"},
+        200: {"content": {"image/*": {}}, "description": "logo_path, as it is on disk"},
         404: {"model": ErrorOut, "description": "No logo is configured"},
     },
 )
@@ -263,7 +262,7 @@ def list_ticket_types(me: Signed, server: Server, paging: Paging) -> TicketTypeP
 def create_ticket_type(body: TicketTypeIn, me: Signed, server: Server) -> TicketTypeOut:
     """Add a ticket type, its price and the currency it is in. Admins and managers.
 
-    The currency must be one of the languages' regions' (TIQR_LANGUAGES).
+    The currency must be one of the languages' regions' (languages in tiqr_branding.jsonc).
     """
     _require_offered(server, body.currency)
     return TicketTypeOut.of(

@@ -17,14 +17,15 @@ def test_codes_the_app_cannot_serve_are_refused(code):
         parse_language(code)
 
 
-def test_blank_means_every_language_and_repeats_collapse():
-    assert parse_languages("") == ("en-US", "ru-RU", "az-AZ")
-    assert parse_languages("ru-RU, ru-ru") == ("ru-RU",)
+def test_repeats_collapse_and_an_empty_list_is_refused():
+    assert parse_languages(["ru-RU", "ru-ru"]) == ("ru-RU",)
+    with pytest.raises(ValueError, match="At least one"):
+        parse_languages([])
 
 
 def test_one_language_cannot_have_two_regions():
     with pytest.raises(ValueError, match="more than once"):
-        parse_languages("en-US,en-AZ")
+        parse_languages(["en-US", "en-AZ"])
 
 
 def test_currencies_follow_the_regions_in_order():
@@ -33,10 +34,7 @@ def test_currencies_follow_the_regions_in_order():
 
 
 def test_settings_check_branding(tmp_path):
-    with pytest.raises(ValueError, match="DEFAULT_LANGUAGE"):
-        Settings(secret_key=KEY, languages=("en-US",), default_language="ru-RU")
-    with pytest.raises(ValueError, match="LOGO_PATH"):
+    with pytest.raises(ValueError, match="logo_path"):
         Settings(secret_key=KEY, logo_path=tmp_path / "missing.png")
-    with pytest.raises(ValueError, match="APP_NAME"):
+    with pytest.raises(ValueError, match="app_name"):
         Settings(secret_key=KEY, app_name=" ")
-    assert Settings(secret_key=KEY, languages=("az-AZ", "en-US")).initial_language == "az-AZ"
