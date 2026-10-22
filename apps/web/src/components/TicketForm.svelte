@@ -1,17 +1,27 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import TicketIcon from '@lucide/svelte/icons/ticket';
+  import TicketsIcon from '@lucide/svelte/icons/tickets';
+  import { type Component, untrack } from 'svelte';
   import { z } from 'zod';
 
-  import FieldError from '@/components/FieldError.svelte';
+  import DateTimeField from '@/components/DateTimeField.svelte';
   import FloatingInput from '@/components/FloatingInput.svelte';
+  import FloatingSelect from '@/components/FloatingSelect.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
   import { createTicket } from '%/api.ts';
-  import { USAGE_LABELS, nextMinute, toLocalInput } from '%/formatters.ts';
+  import { nextMinute, toLocalInput } from '%/formatters.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
-  import { type Ticket, type UsageType, ticketInputSchema, usageTypeSchema } from '$/tickets.ts';
+  import { i18n } from '%/useLocale.svelte.ts';
+  import {
+    type Ticket,
+    type UsageType,
+    ticketInputSchema,
+    usageTypeSchema,
+    visitorTypeOptions,
+  } from '$/tickets.ts';
 
   type TicketFormProps = {
     isOpen: boolean;
@@ -22,6 +32,15 @@
   const { isOpen, onClose, onCreated }: TicketFormProps = $props();
 
   const DAY_END = 'T23:59';
+  const USAGE_ICON_SIZE = 16;
+  const USAGE_ICONS: Record<UsageType, Component> = {
+    multi_use: TicketsIcon,
+    one_time: TicketIcon,
+  };
+  const USAGE_OPTIONS = usageTypeSchema.options.map((value) => ({
+    Icon: USAGE_ICONS[value],
+    value,
+  }));
 
   let visitorName = $state('');
   let visitorType = $state('');
@@ -77,13 +96,16 @@
     isPending = false;
 
     if (!result.ok) {
-      await notifyFailure('Ticket not created', result.error);
+      await notifyFailure(i18n.t.ticketForm.notCreated, result.error);
       return;
     }
 
     toaster.success({
-      description: `${result.data.readable_serial} for ${result.data.visitor_name}`,
-      title: 'Ticket created',
+      description: i18n.t.ticketForm.createdFor(
+        result.data.readable_serial,
+        result.data.visitor_name
+      ),
+      title: i18n.t.ticketForm.created,
     });
     onCreated(result.data);
     onClose();
@@ -95,73 +117,65 @@
   {isPending}
   {onClose}
   onSubmit={handleSubmit}
-  submitLabel="Create"
-  title="New ticket"
+  submitLabel={i18n.t.common.create}
+  title={i18n.t.ticketForm.title}
 >
   <FloatingInput
     autocomplete="off"
     error={fieldErrors.visitor_name?.[0]}
     id="visitor-name"
-    label="Visitor name"
+    label={i18n.t.ticketForm.visitorName}
     required
     bind:value={visitorName}
   />
 
-  <FloatingInput
-    autocomplete="off"
+  <FloatingSelect
     error={fieldErrors.visitor_type?.[0]}
     id="visitor-type"
-    label="Visitor type"
-    required
+    label={i18n.t.ticketForm.visitorType}
+    options={visitorTypeOptions}
     bind:value={visitorType}
   />
 
   <div class="grid gap-4">
-    <label class="label">
-      <span class="label-text">Valid from</span>
-      <input
-        aria-describedby={fieldErrors.valid_from ? 'valid-from-error' : undefined}
-        aria-invalid={fieldErrors.valid_from ? 'true' : undefined}
-        class="input aria-invalid:ring-error-500"
-        required
-        type="datetime-local"
-        bind:value={validFrom}
-      />
-      <FieldError error={fieldErrors.valid_from?.[0]} id="valid-from-error" />
-    </label>
+    <DateTimeField
+      error={fieldErrors.valid_from?.[0]}
+      id="valid-from"
+      label={i18n.t.ticketForm.validFrom}
+      timeZone={config.current?.timezone}
+      bind:value={validFrom}
+    />
 
-    <label class="label">
-      <span class="label-text">Valid until</span>
-      <input
-        aria-describedby={fieldErrors.valid_until ? 'valid-until-error' : undefined}
-        aria-invalid={fieldErrors.valid_until ? 'true' : undefined}
-        class="input aria-invalid:ring-error-500"
-        min={validFrom}
-        required
-        type="datetime-local"
-        bind:value={validUntil}
-      />
-      <FieldError error={fieldErrors.valid_until?.[0]} id="valid-until-error" />
-    </label>
+    <DateTimeField
+      error={fieldErrors.valid_until?.[0]}
+      id="valid-until"
+      label={i18n.t.ticketForm.validUntil}
+      min={validFrom}
+      timeZone={config.current?.timezone}
+      bind:value={validUntil}
+    />
   </div>
 
-  {#if config.current}
-    <p class="-mt-2 text-surface-600-400 text-xs">Times are in {config.current.timezone}.</p>
-  {/if}
-
   <fieldset class="space-y-2">
-    <legend class="label-text">Usage</legend>
-    <div class="flex gap-6">
-      {#each usageTypeSchema.options as option (option)}
-        <label class="flex items-center gap-2">
+    <legend class="label-text">{i18n.t.ticketForm.usage}</legend>
+    <!-- Still radios underneath, for arrow keys and the form, but shown as a pair of buttons -->
+    <div class="grid grid-cols-2 gap-2">
+      {#each USAGE_OPTIONS as { Icon, value: option } (option)}
+        <label
+          class={[
+            'btn h-12 cursor-pointer has-focus-visible:outline-2 has-focus-visible:outline-primary-500 has-focus-visible:outline-offset-2',
+            usageType === option ? 'preset-filled-primary-500' : 'preset-tonal',
+          ]}
+        >
           <input
-            class="radio"
+            class="sr-only"
             name="usage-type"
             type="radio"
             value={option}
             bind:group={usageType}
           />
-          {USAGE_LABELS[option]}
+          <Icon aria-hidden="true" size={USAGE_ICON_SIZE} />
+          {i18n.t.usage[option]}
         </label>
       {/each}
     </div>

@@ -1,23 +1,3 @@
-import type { Role } from '$/auth.ts';
-import type { TicketState, UsageType } from '$/tickets.ts';
-
-const ROLE_LABELS: Record<Role, string> = {
-  admin: 'Admin',
-  manager: 'Manager',
-  operator: 'Operator',
-};
-
-const STATE_LABELS: Record<TicketState, string> = {
-  expired: 'Expired',
-  issued: 'Issued',
-  passed: 'Passed',
-};
-
-const USAGE_LABELS: Record<UsageType, string> = {
-  multi_use: 'Multi-use',
-  one_time: 'One-time',
-};
-
 const MINUTE_MS = 60_000;
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
@@ -69,4 +49,4 @@ const toLocalInput = (date: Date, timeZone: string): string => {
 const nextMinute = (now = new Date()): Date =>
   new Date(Math.ceil((now.getTime() + 1) / MINUTE_MS) * MINUTE_MS);
 
-export { ROLE_LABELS, STATE_LABELS, USAGE_LABELS, formatDatetime, nextMinute, toLocalInput };
+export { formatDatetime, nextMinute, toLocalInput };

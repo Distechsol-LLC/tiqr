@@ -163,7 +163,7 @@
             }
           ],
           "request": {
-            "description": "Roles: `admin`, `manager`, `operator`. Saves `newUserId`. **201**; **409** if the username is taken.",
+            "description": "Roles: `admin`, `manager`, `operator`; managers create operators only. Saves `newUserId`. **201**; **409** if the username is taken.",
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
@@ -219,7 +219,7 @@
             }
           ],
           "request": {
-            "description": "Blocks sign-in and ends their sessions. **200**.",
+            "description": "Blocks sign-in and ends their sessions. Managers may do this to operators. **200**.",
             "method": "PATCH",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
@@ -286,6 +286,15 @@
               "raw": "{\n  \"password\": \"another-password\"\n}",
               "options": { "raw": { "language": "json" } }
             },
+            "url": "{{baseUrl}}/api/users/{{newUserId}}"
+          }
+        },
+        {
+          "name": "[WRITE] Delete user",
+          "request": {
+            "description": "Admins only. Run **Deactivate user** first, or this is refused since **Reactivate user** ran above; then **Assign ticket** finds no `clerk`. **204**; **409** if active or they created or hold tickets.",
+            "method": "DELETE",
+            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
             "url": "{{baseUrl}}/api/users/{{newUserId}}"
           }
         }

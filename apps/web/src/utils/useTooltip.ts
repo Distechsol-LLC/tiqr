@@ -11,14 +11,23 @@ export const useTooltip = (): (() => void) => {
     arrow: false,
     content: (reference) => reference.getAttribute('title') ?? '',
     delay: [SHOW_DELAY, HIDE_DELAY],
+    // Nothing to say: the element dropped its title since this tooltip was made
+    onShow: (instance) => {
+      if (instance.props.content === '') return false;
+    },
     onTrigger: (instance) => {
       // removes native title popup
       const title = instance.reference.getAttribute('title');
 
-      if (title !== null) {
-        instance.setContent(title);
-        instance.reference.removeAttribute('title');
-      }
+      instance.setContent(title ?? '');
+      instance.reference.removeAttribute('title');
+    },
+    // Hand the title back, so a later change or removal of it is seen on the next trigger
+    onUntrigger: (instance) => {
+      const { content } = instance.props;
+
+      if (typeof content === 'string' && content !== '')
+        instance.reference.setAttribute('title', content);
     },
     target: TOOLTIP_TARGETS,
     theme: 'tiqr',

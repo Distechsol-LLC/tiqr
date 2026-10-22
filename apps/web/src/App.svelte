@@ -8,12 +8,18 @@
   import '@/router.ts';
   import Modal from '@/components/Modal.svelte';
   import { toaster } from '%/toaster.ts';
+  import { i18n } from '%/useLocale.svelte.ts';
   import { modalHost } from '%/useModal.svelte.ts';
   import { useTooltip } from '%/useTooltip.ts';
 
   const activeModal = $derived(modalHost.current);
 
   onMount(useTooltip);
+
+  // Screen readers, hyphenation and spellcheck follow the language showing
+  $effect(() => {
+    document.documentElement.lang = i18n.code;
+  });
 </script>
 
 <Router />

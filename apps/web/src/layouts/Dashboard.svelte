@@ -12,7 +12,9 @@
 
 <div class="flex min-h-dvh flex-col md:flex-row">
   <Sidebar />
-  <main class="min-w-0 flex-1 p-4 md:p-8">
+  <!-- On wide screens the page is exactly the viewport: the header bar stays put and the table
+       scrolls beneath it -->
+  <main class="flex min-w-0 flex-1 flex-col md:h-dvh">
     {@render children()}
   </main>
 </div>

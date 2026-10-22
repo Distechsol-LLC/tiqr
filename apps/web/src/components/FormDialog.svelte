@@ -3,19 +3,29 @@
   import type { Snippet } from 'svelte';
 
   import Modal from '@/components/Modal.svelte';
+  import { i18n } from '%/useLocale.svelte.ts';
 
   type FormDialogProps = {
     title: string;
     submitLabel: string;
     isOpen: boolean;
     isPending: boolean;
+    isDestructive?: boolean;
     onClose: () => void;
     onSubmit: (event: SubmitEvent) => void | Promise<void>;
     children: Snippet;
   };
 
-  const { title, submitLabel, isOpen, isPending, onClose, onSubmit, children }: FormDialogProps =
-    $props();
+  const {
+    title,
+    submitLabel,
+    isOpen,
+    isPending,
+    isDestructive = false,
+    onClose,
+    onSubmit,
+    children,
+  }: FormDialogProps = $props();
 
   const ICON_SIZE = 18;
 
@@ -38,10 +48,22 @@
     {@render children()}
 
     <footer class="flex justify-end gap-2 pt-2">
-      <button class="btn preset-tonal" disabled={isPending} onclick={onClose} type="button">
-        Cancel
+      <button
+        class="btn h-11 min-w-36 preset-tonal"
+        disabled={isPending}
+        onclick={onClose}
+        type="button"
+      >
+        {i18n.t.common.cancel}
       </button>
-      <button class="btn preset-filled-primary-500" disabled={isPending} type="submit">
+      <button
+        class={[
+          'btn h-11 min-w-36',
+          isDestructive ? 'preset-filled-error-500' : 'preset-filled-primary-500',
+        ]}
+        disabled={isPending}
+        type="submit"
+      >
         {#if isPending}
           <LoaderCircle aria-hidden="true" class="animate-spin" size={ICON_SIZE} />
         {/if}

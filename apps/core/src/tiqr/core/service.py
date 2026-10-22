@@ -59,6 +59,18 @@ def _can_view(actor: User, ticket: Ticket) -> bool:
     return actor.role != Role.OPERATOR or ticket.assigned_operator == actor.id
 
 
+def _counts(tickets: list[Ticket]) -> Counts:
+    states = Counter(ticket.state for ticket in tickets)
+    return Counts(
+        total=len(tickets),
+        issued=states[TicketState.ISSUED],
+        passed=states[TicketState.PASSED],
+        expired=states[TicketState.EXPIRED],
+        uses=sum(ticket.use_count for ticket in tickets),
+        prints=sum(ticket.print_count for ticket in tickets),
+    )
+
+
 class PermissionDeniedError(PermissionError):
     pass
 
@@ -71,13 +83,17 @@ class NotFoundError(LookupError):
     pass
 
 
-class Stats(TypedDict):
+class Counts(TypedDict):
     total: int
     issued: int
     passed: int
     expired: int
     uses: int
     prints: int
+
+
+class Stats(Counts):
+    visitor_types: dict[str, Counts]
 
 
 class TicketService:
@@ -119,8 +135,14 @@ class TicketService:
         return self.repository.list_users()
 
     def create_user(self, actor: User, username: str, password: str, role: Role) -> User:
-        """`add_user` for an authenticated caller rather than the trusted local OS account."""
-        self._require(self._actor(actor), _ADMINS)
+        """`add_user` for an authenticated caller rather than the trusted local OS account.
+
+        Admins create any role; managers create operators only.
+        """
+        actor = self._actor(actor)
+        self._require(actor, _STAFF)
+        if actor.role == Role.MANAGER and Role(role) != Role.OPERATOR:
+            raise PermissionDeniedError("Managers can only create operators")
         return self.add_user(username, password, role)
 
     def list_accounts(self, actor: User) -> list[User]:
@@ -182,16 +204,45 @@ class TicketService:
         active: bool | None = None,
         password: str | None = None,
     ) -> User:
-        """`edit_user` for an authenticated admin. Admins may reset their own password, but
-        not change their own role or deactivate themselves, which also keeps one admin active.
+        """`edit_user` for an authenticated admin or manager. Admins may reset their own password,
+        but not change their own role or deactivate themselves, which also keeps one admin active.
+        Managers may only deactivate and reactivate operators.
         """
         actor = self._actor(actor)
-        self._require(actor, _ADMINS)
+        self._require(actor, _STAFF)
+        if actor.role == Role.MANAGER:
+            target = self.repository.user_by_id(user_id)
+            if target is None:
+                raise NotFoundError("User not found")
+            if target.role != Role.OPERATOR or role is not None or password is not None:
+                raise PermissionDeniedError("Managers can only deactivate or reactivate operators")
         if actor.id == user_id and (role not in (None, actor.role) or active is False):
             raise PermissionDeniedError(
                 "Admins cannot change their own role or deactivate themselves"
             )
         return self.edit_user(user_id, role=role, active=active, password=password)
+
+    def remove_user(self, user_id: UUID) -> None:
+        """Delete a deactivated account, as the trusted local OS account.
+
+        Only deactivated accounts go, so a deletion is always a second, deliberate step; accounts
+        that created or hold tickets stay, deactivated, to keep the history whole.
+        """
+        with self.repository.transaction():
+            user = self.repository.user_by_id(user_id)
+            if user is None:
+                raise NotFoundError("User not found")
+            if user.active:
+                raise StateError("Deactivate the user before deleting them")
+            tickets = self.repository.list_tickets()
+            if any(user.id in (ticket.created_by, ticket.assigned_operator) for ticket in tickets):
+                raise StateError("Users with tickets cannot be deleted; they stay deactivated")
+            self.repository.delete_user(user.id)
+
+    def delete_user(self, actor: User, user_id: UUID) -> None:
+        """`remove_user` for an authenticated admin."""
+        self._require(self._actor(actor), _ADMINS)
+        self.remove_user(user_id)
 
     @staticmethod
     def _is_active_admin(user: User) -> bool:
@@ -491,12 +542,10 @@ class TicketService:
         actor = self._actor(actor)
         self._require(actor, _STAFF)
         tickets = self._expire_all()
-        states = Counter(ticket.state for ticket in tickets)
+        by_type: dict[str, list[Ticket]] = {}
+        for ticket in tickets:
+            by_type.setdefault(ticket.visitor_type, []).append(ticket)
         return Stats(
-            total=len(tickets),
-            issued=states[TicketState.ISSUED],
-            passed=states[TicketState.PASSED],
-            expired=states[TicketState.EXPIRED],
-            uses=sum(ticket.use_count for ticket in tickets),
-            prints=sum(ticket.print_count for ticket in tickets),
+            **_counts(tickets),
+            visitor_types={name: _counts(group) for name, group in sorted(by_type.items())},
         )

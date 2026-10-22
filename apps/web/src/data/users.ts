@@ -19,4 +19,4 @@ type UserInput = z.infer<typeof userInputSchema>;
 type UserPatch = z.infer<typeof userPatchSchema>;
 
 export type { UserInput, UserPatch };
-export { passwordResetSchema, userInputSchema };
+export { passwordResetSchema, userInputSchema, userPatchSchema };

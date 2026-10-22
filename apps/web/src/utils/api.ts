@@ -105,7 +105,11 @@ const request = async <T>(
 };
 
 // Every write carries the session's CSRF token; the API refuses it otherwise
-const write = (method: 'PATCH' | 'POST', csrfToken: string, body?: unknown): RequestInit => ({
+const write = (
+  method: 'DELETE' | 'PATCH' | 'POST',
+  csrfToken: string,
+  body?: unknown
+): RequestInit => ({
   body: body === undefined ? undefined : JSON.stringify(body),
   headers: {
     [CSRF_HEADER]: csrfToken,
@@ -135,6 +139,10 @@ const createUser = (csrfToken: string, input: UserInput): Promise<ApiResult<User
 
 const updateUser = (csrfToken: string, id: string, patch: UserPatch): Promise<ApiResult<User>> =>
   request(`/users/${id}`, userSchema, write('PATCH', csrfToken, patch));
+
+// Only deactivated accounts without tickets; the API refuses the rest
+const deleteUser = (csrfToken: string, id: string): Promise<ApiResult<null>> =>
+  request(`/users/${id}`, z.null(), write('DELETE', csrfToken));
 
 const fetchTickets = (state?: TicketState): Promise<ApiResult<Ticket[]>> =>
   request(state ? `/tickets?state=${state}` : '/tickets', z.array(ticketSchema));
@@ -192,6 +200,7 @@ export {
   assignTicket,
   createTicket,
   createUser,
+  deleteUser,
   fetchConfig,
   fetchSession,
   fetchStats,

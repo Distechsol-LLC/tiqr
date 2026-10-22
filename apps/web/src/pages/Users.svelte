@@ -2,40 +2,74 @@
   import KeyRound from '@lucide/svelte/icons/key-round';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
   import UserCheck from '@lucide/svelte/icons/user-check';
   import UserPlus from '@lucide/svelte/icons/user-plus';
   import UserX from '@lucide/svelte/icons/user-x';
+  import UsersRound from '@lucide/svelte/icons/users-round';
   import { onMount } from 'svelte';
 
+  import ActionsHeader from '@/components/ActionsHeader.svelte';
   import DataTable from '@/components/DataTable.svelte';
+  import FormDialog from '@/components/FormDialog.svelte';
   import PageHeader from '@/components/PageHeader.svelte';
   import PasswordForm from '@/components/PasswordForm.svelte';
+  import SortHeader from '@/components/SortHeader.svelte';
   import UserForm from '@/components/UserForm.svelte';
-  import { fetchUsers, updateUser } from '%/api.ts';
-  import { ROLE_LABELS } from '%/formatters.ts';
+  import { deleteUser, fetchUsers, updateUser } from '%/api.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
+  import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
+  import { i18n } from '%/useLocale.svelte.ts';
   import { type Role, type User, roleSchema } from '$/auth.ts';
   import type { UserPatch } from '$/users.ts';
 
+  type SortKey = 'role' | 'status' | 'username';
+
+  type PatchTitles = {
+    done: string;
+    failed: string;
+  };
+
   const ICON_SIZE = 18;
   const BASE_COLUMNS = 3;
+  // Admins reset, toggle and delete; managers only toggle
+  const ADMIN_ACTIONS = 3;
+  const MANAGER_ACTIONS = 1;
 
-  // Managers read accounts to pick assignees; only admins change them
+  // Managers read accounts to pick assignees, and add, deactivate and reactivate operators;
+  // admins do everything, including role changes, password resets and deletions
   const isAdmin = $derived(auth.session?.user.role === 'admin');
+  const isStaff = $derived(isAdmin || auth.session?.user.role === 'manager');
   const selfId = $derived(auth.session?.user.id);
-  // The actions column is admin-only
-  const columns = $derived(BASE_COLUMNS + (isAdmin ? 1 : 0));
+  // The actions column is for staff
+  const columns = $derived(BASE_COLUMNS + (isStaff ? 1 : 0));
 
   let users = $state<User[]>([]);
+  let sort = $state<Sort<SortKey> | null>({ direction: 'asc', key: 'username' });
   let isLoading = $state(true);
   let isCreating = $state(false);
   let resetting = $state<User | null>(null);
+  let deleting = $state<User | null>(null);
+  let isDeletePending = $state(false);
   let pendingId = $state<string | null>(null);
 
-  // Accounts are never deleted, so the list only grows; keep it alphabetical
-  const rows = $derived(users.toSorted((a, b) => a.username.localeCompare(b.username)));
+  const sortValues: SortValues<User, SortKey> = {
+    role: (user) => i18n.t.roles[user.role],
+    status: (user) => Number(user.active),
+    username: (user) => user.username,
+  };
+
+  // Starts alphabetical
+  const rows = $derived(sortRows(users, sort, sortValues));
+
+  const sortBy = (key: SortKey): void => {
+    sort = toggleSort(sort, key);
+  };
+
+  const directionOf = (key: SortKey): Sort<SortKey>['direction'] | null =>
+    sort?.key === key ? sort.direction : null;
 
   const load = async (): Promise<void> => {
     isLoading = true;
@@ -45,10 +79,14 @@
     isLoading = false;
 
     if (result.ok) users = result.data;
-    else await notifyFailure('Accounts not loaded', result.error);
+    else await notifyFailure(i18n.t.users.notLoaded, result.error);
   };
 
-  const patch = async (user: User, changes: UserPatch, title: string): Promise<boolean> => {
+  const patch = async (
+    user: User,
+    changes: UserPatch,
+    { done, failed }: PatchTitles
+  ): Promise<boolean> => {
     const csrfToken = auth.session?.csrf_token;
 
     if (!csrfToken) return false;
@@ -60,12 +98,12 @@
     pendingId = null;
 
     if (!result.ok) {
-      await notifyFailure(`${title} failed`, result.error);
+      await notifyFailure(failed, result.error);
       return false;
     }
 
     users = users.map((current) => (current.id === user.id ? result.data : current));
-    toaster.success({ description: result.data.username, title });
+    toaster.success({ description: result.data.username, title: done });
 
     return true;
   };
@@ -74,17 +112,55 @@
     const select = event.currentTarget as HTMLSelectElement;
     const role = roleSchema.parse(select.value);
 
+    const titles = {
+      done: i18n.t.users.roleChanged(i18n.t.roles[role]),
+      failed: i18n.t.users.roleNotChanged,
+    };
+
     // A refused change puts the old role back on screen
-    if (!(await patch(user, { role }, `Role changed to ${ROLE_LABELS[role]}`)))
-      select.value = user.role;
+    if (!(await patch(user, { role }, titles))) select.value = user.role;
   };
 
   const toggleActive = (user: User): void => {
+    const { users: text } = i18n.t;
+
     void patch(
       user,
       { active: !user.active },
-      user.active ? 'User deactivated' : 'User reactivated'
+      user.active
+        ? { done: text.userDeactivated, failed: text.notDeactivated }
+        : { done: text.userReactivated, failed: text.notReactivated }
     );
+  };
+
+  // Admins act on anyone but themselves; managers only on operators
+  const canToggle = (user: User): boolean =>
+    user.id !== selfId && (isAdmin || user.role === 'operator');
+
+  const confirmDelete = async (): Promise<void> => {
+    const csrfToken = auth.session?.csrf_token;
+    const user = deleting;
+
+    if (!(csrfToken && user)) return;
+
+    isDeletePending = true;
+
+    const result = await deleteUser(csrfToken, user.id);
+
+    isDeletePending = false;
+
+    if (!result.ok) {
+      await notifyFailure(i18n.t.users.notDeleted, result.error);
+      return;
+    }
+
+    users = users.filter((current) => current.id !== user.id);
+    toaster.success({ description: user.username, title: i18n.t.users.userDeleted });
+    deleting = null;
+  };
+
+  const closeDelete = (): void => {
+    deleting = null;
   };
 
   const closeCreate = (): void => {
@@ -105,18 +181,16 @@
 </script>
 
 <PageHeader
-  description={isAdmin
-    ? 'Accounts are never deleted; deactivate them instead.'
-    : 'Every account tickets can be assigned to.'}
-  title={isAdmin ? 'Users' : 'Accounts'}
+  description={isAdmin ? i18n.t.users.descriptionAdmin : i18n.t.users.descriptionManager}
+  title={isAdmin ? i18n.t.users.titleAdmin : i18n.t.users.titleManager}
 >
   {#snippet actions()}
     <button
-      aria-label="Refresh"
-      class="btn-icon preset-tonal"
+      aria-label={i18n.t.common.refresh}
+      class="btn-icon size-11 preset-tonal"
       disabled={isLoading}
       onclick={load}
-      title="Refresh"
+      title={i18n.t.common.refresh}
       type="button"
     >
       <RefreshCw
@@ -125,34 +199,50 @@
         size={ICON_SIZE}
       />
     </button>
-    {#if isAdmin}
+    {#if isStaff}
       <button
-        class="btn preset-filled-primary-500"
+        class="btn h-11 min-w-36 preset-filled-primary-500"
         onclick={(): void => {
           isCreating = true;
         }}
         type="button"
       >
         <UserPlus aria-hidden="true" size={ICON_SIZE} />
-        New user
+        {i18n.t.users.new}
       </button>
     {/if}
   {/snippet}
 </PageHeader>
 
 <DataTable
-  caption="Accounts"
+  caption={i18n.t.users.caption}
   {columns}
-  emptyMessage="No accounts."
+  emptyIcon={UsersRound}
+  emptyMessage={i18n.t.users.empty}
   isEmpty={rows.length === 0}
   {isLoading}
+  minWidth="40rem"
 >
   {#snippet head()}
-    <th>Username</th>
-    <th>Role</th>
-    <th>Status</th>
-    {#if isAdmin}
-      <th><span class="sr-only">Actions</span></th>
+    <SortHeader
+      direction={directionOf('username')}
+      label={i18n.t.users.columns.username}
+      onSort={(): void => sortBy('username')}
+    />
+    <SortHeader
+      class="w-56"
+      direction={directionOf('role')}
+      label={i18n.t.users.columns.role}
+      onSort={(): void => sortBy('role')}
+    />
+    <SortHeader
+      class="w-40"
+      direction={directionOf('status')}
+      label={i18n.t.users.columns.status}
+      onSort={(): void => sortBy('status')}
+    />
+    {#if isStaff}
+      <ActionsHeader count={isAdmin ? ADMIN_ACTIONS : MANAGER_ACTIONS} />
     {/if}
   {/snippet}
 
@@ -161,57 +251,78 @@
       <td class="font-semibold">
         {user.username}
         {#if user.id === selfId}
-          <span class="badge preset-tonal-secondary ml-1">You</span>
+          <span class="badge ml-1 border border-surface-400-600 text-surface-700-300"
+            >{i18n.t.users.you}</span
+          >
         {/if}
       </td>
       <td>
         <!-- Admins can't change their own role; the API refuses it anyway -->
         {#if isAdmin && user.id !== selfId}
           <select
-            aria-label={`Role of ${user.username}`}
-            class="select w-36 py-1"
+            aria-label={i18n.t.users.roleOf(user.username)}
+            class="select h-10 w-full"
             disabled={pendingId === user.id}
             onchange={(event): Promise<void> => changeRole(user, event)}
             value={user.role}
           >
             {#each roleSchema.options as option (option)}
-              <option value={option}>{ROLE_LABELS[option as Role]}</option>
+              <option value={option}>{i18n.t.roles[option as Role]}</option>
             {/each}
           </select>
         {:else}
-          {ROLE_LABELS[user.role]}
+          {i18n.t.roles[user.role]}
         {/if}
       </td>
       <td>
-        <span class={['badge', user.active ? 'preset-tonal-success' : 'preset-tonal-surface']}>
-          {user.active ? 'Active' : 'Deactivated'}
+        <!-- Both labels share one grid cell, the other one hidden, so the column is always as wide
+             as the longer and never shifts when a status flips -->
+        <span class="inline-grid max-w-full grid-cols-1">
+          {#each [true, false] as isActive (isActive)}
+            <span
+              aria-hidden={isActive !== user.active}
+              class={[
+                'badge-status col-start-1 row-start-1 max-w-full justify-self-start',
+                isActive ? 'badge-success' : 'badge-error',
+                isActive !== user.active && 'invisible',
+              ]}
+            >
+              <span class="truncate">
+                {isActive ? i18n.t.users.active : i18n.t.users.deactivated}
+              </span>
+            </span>
+          {/each}
         </span>
       </td>
-      {#if isAdmin}
+      {#if isStaff}
         <td>
-          <div class="flex justify-end gap-1">
-            <button
-              aria-label={`Reset password for ${user.username}`}
-              class="btn-icon btn-icon-sm hover:preset-tonal"
-              disabled={pendingId === user.id}
-              onclick={(): void => {
-                resetting = user;
-              }}
-              title="Reset password"
-              type="button"
-            >
-              <KeyRound aria-hidden="true" size={ICON_SIZE} />
-            </button>
-            {#if user.id !== selfId}
+          <div class="flex justify-start gap-1">
+            {#if isAdmin}
               <button
-                aria-label={`${user.active ? 'Deactivate' : 'Reactivate'} ${user.username}`}
+                aria-label={i18n.t.users.resetPasswordFor(user.username)}
+                class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-primary"
+                disabled={pendingId === user.id}
+                onclick={(): void => {
+                  resetting = user;
+                }}
+                title={i18n.t.users.resetPassword}
+                type="button"
+              >
+                <KeyRound aria-hidden="true" size={ICON_SIZE} />
+              </button>
+            {/if}
+            {#if canToggle(user)}
+              <button
+                aria-label={user.active
+                  ? i18n.t.users.deactivateUser(user.username)
+                  : i18n.t.users.reactivateUser(user.username)}
                 class={[
-                  'btn-icon btn-icon-sm',
-                  user.active ? 'hover:preset-tonal-error' : 'hover:preset-tonal-success',
+                  'btn-icon btn-icon-lg text-surface-950-50',
+                  user.active ? 'hover:preset-tint-error' : 'hover:preset-tint-success',
                 ]}
                 disabled={pendingId === user.id}
                 onclick={(): void => toggleActive(user)}
-                title={user.active ? 'Deactivate' : 'Reactivate'}
+                title={i18n.t.users.toggleStatus}
                 type="button"
               >
                 {#if pendingId === user.id}
@@ -223,6 +334,21 @@
                 {/if}
               </button>
             {/if}
+            <!-- Deleting is a second step, offered once an account is deactivated -->
+            {#if isAdmin && !user.active && user.id !== selfId}
+              <button
+                aria-label={i18n.t.users.deleteUser(user.username)}
+                class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-error"
+                disabled={pendingId === user.id}
+                onclick={(): void => {
+                  deleting = user;
+                }}
+                title={i18n.t.users.delete}
+                type="button"
+              >
+                <Trash2 aria-hidden="true" size={ICON_SIZE} />
+              </button>
+            {/if}
           </div>
         </td>
       {/if}
@@ -230,7 +356,20 @@
   {/each}
 </DataTable>
 
+{#if isStaff}
+  <UserForm canPickRole={isAdmin} isOpen={isCreating} onClose={closeCreate} onCreated={addUser} />
+{/if}
 {#if isAdmin}
-  <UserForm isOpen={isCreating} onClose={closeCreate} onCreated={addUser} />
   <PasswordForm onClose={closeReset} user={resetting} />
+  <FormDialog
+    isDestructive
+    isOpen={deleting !== null}
+    isPending={isDeletePending}
+    onClose={closeDelete}
+    onSubmit={confirmDelete}
+    submitLabel={i18n.t.users.delete}
+    title={i18n.t.users.deleteTitle}
+  >
+    <p>{deleting ? i18n.t.users.deleteConfirm(deleting.username) : ''}</p>
+  </FormDialog>
 {/if}

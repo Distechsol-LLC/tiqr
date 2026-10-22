@@ -142,20 +142,33 @@ def list_users(me: Signed, server: Server) -> list[UserOut]:
 
 @router.post("/users", tags=["users"], status_code=201, responses=_refusals(401, 403, 422))
 def create_user(body: UserIn, me: Signed, server: Server) -> UserOut:
+    """Admins create any role; managers create operators only."""
     return UserOut.of(server.service.create_user(me.user, body.username, body.password, body.role))
 
 
 @router.patch("/users/{user_id}", tags=["users"], responses=_refusals(401, 403, 404, 409, 422))
 def update_user(user_id: UUID, body: UserPatch, me: Signed, server: Server) -> UserOut:
-    """Change a role, deactivate or reactivate, or reset a password. Admins only.
+    """Change a role, deactivate or reactivate, or reset a password.
 
-    Admins cannot change their own role or deactivate themselves, and the last active admin
-    cannot be demoted. Deactivating or resetting a password ends that user's sessions.
+    Admins do all of it; managers only deactivate and reactivate operators. Admins cannot change
+    their own role or deactivate themselves, and the last active admin cannot be demoted.
+    Deactivating or resetting a password ends that user's sessions.
     """
     user = server.service.manage_user(
         me.user, user_id, role=body.role, active=body.active, password=body.password
     )
     return UserOut.of(user)
+
+
+@router.delete(
+    "/users/{user_id}",
+    tags=["users"],
+    status_code=204,
+    responses=_refusals(401, 403, 404, 409, 422),
+)
+def delete_user(user_id: UUID, me: Signed, server: Server) -> None:
+    """Delete a deactivated account. Admins only; accounts with tickets stay, deactivated."""
+    server.service.delete_user(me.user, user_id)
 
 
 @router.get("/tickets", tags=["tickets"], responses=_refusals(401, 422))
@@ -263,4 +276,4 @@ def cleanup(me: Signed, server: Server) -> CountOut:
 
 @router.get("/stats", tags=["operations"], responses=_refusals(401, 403))
 def stats(me: Signed, server: Server) -> StatsOut:
-    return StatsOut(**server.service.stats(me.user))
+    return StatsOut.model_validate(server.service.stats(me.user))

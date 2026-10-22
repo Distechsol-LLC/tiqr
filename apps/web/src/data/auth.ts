@@ -1,26 +1,24 @@
 import { z } from 'zod';
 
-import {
-  ERROR_PASSWORD_LONG,
-  ERROR_PASSWORD_REQUIRED,
-  ERROR_USERNAME_LONG,
-  ERROR_USERNAME_REQUIRED,
-} from '@/config/errors.ts';
+import { i18n } from '%/useLocale.svelte.ts';
 
 // Same bounds as LoginIn in apps/api/src/tiqr/api/schemas.py
 const USERNAME_MAX = 150;
 const PASSWORD_MAX = 1024;
 
+// Messages are read at parse time, so they come out in the language showing then
 const passwordSchema = z
   .string()
-  .max(PASSWORD_MAX, ERROR_PASSWORD_LONG)
-  .refine((password) => password.trim().length > 0, ERROR_PASSWORD_REQUIRED);
+  .max(PASSWORD_MAX, { error: () => i18n.t.errors.passwordLong })
+  .refine((password) => password.trim().length > 0, {
+    error: () => i18n.t.errors.passwordRequired,
+  });
 
 const usernameSchema = z
   .string()
   .trim()
-  .min(1, ERROR_USERNAME_REQUIRED)
-  .max(USERNAME_MAX, ERROR_USERNAME_LONG);
+  .min(1, { error: () => i18n.t.errors.usernameRequired })
+  .max(USERNAME_MAX, { error: () => i18n.t.errors.usernameLong });
 
 const credentialsSchema = z.object({
   // The core strips only the username, so the password goes out exactly as typed

@@ -1,34 +1,29 @@
-import {
-  ERROR_INVALID_CREDENTIALS,
-  ERROR_NETWORK,
-  ERROR_RATE_LIMITED,
-  ERROR_SERVER,
-} from '@/config/errors.ts';
 import type { ApiFailure } from '%/api.ts';
+import { i18n } from '%/useLocale.svelte.ts';
 
 const SECONDS_PER_MINUTE = 60;
 
 const formatWait = (seconds: number): string => {
-  if (seconds < SECONDS_PER_MINUTE) return seconds === 1 ? '1 second' : `${seconds} seconds`;
+  if (seconds < SECONDS_PER_MINUTE) return i18n.t.errors.seconds(seconds);
 
-  const minutes = Math.ceil(seconds / SECONDS_PER_MINUTE);
-
-  return minutes === 1 ? '1 minute' : `${minutes} minutes`;
+  return i18n.t.errors.minutes(Math.ceil(seconds / SECONDS_PER_MINUTE));
 };
 
 export const getFailureMessage = (failure: ApiFailure): string => {
+  const { errors } = i18n.t;
+
   switch (failure.kind) {
     case 'unauthenticated':
-      return ERROR_INVALID_CREDENTIALS;
+      return errors.invalidCredentials;
     case 'rate_limited':
       return failure.retryAfter
-        ? `Too many failed sign-ins. Try again in ${formatWait(failure.retryAfter)}.`
-        : ERROR_RATE_LIMITED;
+        ? errors.rateLimitedFor(formatWait(failure.retryAfter))
+        : errors.rateLimited;
     case 'network':
-      return ERROR_NETWORK;
+      return errors.network;
     case 'invalid_response':
     case 'server':
-      return ERROR_SERVER;
+      return errors.server;
     default:
       return failure satisfies never;
   }

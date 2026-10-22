@@ -105,6 +105,10 @@ name = "cz_conventional_commits"
 help = "Regenerate the API schema the web app's client is built from"
 cmd = "python -m tiqr.api.openapi apps/api/openapi.json"
 
+[tool.poe.tasks.seed]
+help = "Add demo operators and tickets to the local database; set TIQR_SEED_PASSWORD first"
+cmd = "python -m tiqr.core.seed"
+
 [tool.poe.tasks.fix]
 help = "Apply ruff fixes and formatting, then run pyright"
 sequence = [

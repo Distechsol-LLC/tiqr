@@ -121,10 +121,45 @@ def test_edit_needs_a_change_and_an_existing_user(service, accounts):
     assert service.find_user(" operator ") == accounts["operator"]
 
 
-@pytest.mark.parametrize("role", [Role.MANAGER, Role.OPERATOR])
-def test_only_admins_manage_users(service, accounts, role):
+def test_operators_cannot_manage_users(service, accounts):
     with pytest.raises(PermissionDeniedError):
-        service.manage_user(accounts[role.value], accounts["other"].id, active=False)
+        service.manage_user(accounts["operator"], accounts["other"].id, active=False)
+
+
+def test_managers_only_deactivate_and_reactivate_operators(service, accounts):
+    manager, other = accounts["manager"], accounts["other"]
+    assert service.manage_user(manager, other.id, active=False).active is False
+    assert service.manage_user(manager, other.id, active=True).active is True
+    for change in ({"role": Role.MANAGER}, {"password": "new-password"}):
+        with pytest.raises(PermissionDeniedError, match="only deactivate or reactivate"):
+            service.manage_user(manager, other.id, **change)
+    for target in ("admin", "manager"):
+        with pytest.raises(PermissionDeniedError, match="only deactivate or reactivate"):
+            service.manage_user(manager, accounts[target].id, active=False)
+    with pytest.raises(NotFoundError):
+        service.manage_user(manager, UUID(int=0), active=False)
+
+
+def test_only_deactivated_users_without_tickets_are_deleted(service, accounts, clock):
+    admin, other, operator = accounts["admin"], accounts["other"], accounts["operator"]
+    token, _ = service.open_web_session(other)
+    with pytest.raises(StateError, match="Deactivate the user"):
+        service.delete_user(admin, other.id)
+    service.edit_user(other.id, active=False)
+    for actor in ("manager", "operator"):
+        with pytest.raises(PermissionDeniedError):
+            service.delete_user(accounts[actor], other.id)
+    service.delete_user(admin, other.id)
+    assert service.repository.user_by_id(other.id) is None
+    with pytest.raises(AuthenticationError):
+        service.resume_web_session(token)
+    with pytest.raises(NotFoundError):
+        service.delete_user(admin, other.id)
+    # Ticket history keeps its people.
+    issue(service, operator, clock)
+    service.edit_user(operator.id, active=False)
+    with pytest.raises(StateError, match="with tickets"):
+        service.remove_user(operator.id)
 
 
 def test_admins_cannot_demote_or_deactivate_themselves(service, accounts):

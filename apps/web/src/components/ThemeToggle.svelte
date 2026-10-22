@@ -3,23 +3,23 @@
   import Sun from '@lucide/svelte/icons/sun';
   import type { ClassValue } from 'svelte/elements';
 
+  import { i18n } from '%/useLocale.svelte.ts';
   import { theme } from '%/useTheme.svelte.ts';
 
   type ThemeToggleProps = {
     class?: ClassValue;
   };
 
-  // Floats in the corner of standalone pages; the sidebar places it inline instead
-  const { class: className = 'fixed top-4 right-4 z-10 size-12' }: ThemeToggleProps = $props();
+  const { class: className }: ThemeToggleProps = $props();
 
-  const label = $derived(theme.mode === 'dark' ? 'Light' : 'Dark');
+  const label = $derived(theme.mode === 'dark' ? i18n.t.theme.light : i18n.t.theme.dark);
 </script>
 
 <button
   aria-label={label}
-  class={['btn-icon btn-icon-2xl text-surface-950-50 hover:preset-tonal', className]}
+  class={['btn-icon btn-icon-2xl text-surface-950-50 hover:preset-tint-primary', className]}
   onclick={theme.toggle}
-  title={label}
+  title={i18n.t.theme.toggle}
   type="button"
 >
   {#if theme.mode === 'dark'}

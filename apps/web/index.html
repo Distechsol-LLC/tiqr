@@ -14,7 +14,9 @@
     <link href='/favicon.png' rel='icon' sizes='512x512' type='image/png'>
     <title>TiQR</title>
 
-    <!-- Applies the saved or OS color mode before first paint; the key matches useTheme.svelte.ts -->
+    <!-- Applies the saved or OS color mode before first paint; the key matches useTheme.svelte.ts.
+      Also sets the saved language on <html lang>; the key matches useLocale.svelte.ts, which
+      checks the value and takes over once the app starts -->
     <script>
       try {
         const stored = localStorage.getItem('tiqr-mode');
@@ -22,6 +24,10 @@
           stored === 'light' || stored === 'dark'
             ? stored
             : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      } catch {}
+      try {
+        const locale = localStorage.getItem('tiqr-locale');
+        if (locale && /^[a-z]{2,3}$/.test(locale)) document.documentElement.lang = locale;
       } catch {}
     </script>
   </head>

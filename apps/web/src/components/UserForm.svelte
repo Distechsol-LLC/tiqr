@@ -5,20 +5,22 @@
   import FloatingInput from '@/components/FloatingInput.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
   import { createUser } from '%/api.ts';
-  import { ROLE_LABELS } from '%/formatters.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
+  import { i18n } from '%/useLocale.svelte.ts';
   import { type Role, type User, roleSchema } from '$/auth.ts';
   import { userInputSchema } from '$/users.ts';
 
   type UserFormProps = {
+    // Admins pick any role; managers only create operators, so they get no choice
+    canPickRole: boolean;
     isOpen: boolean;
     onClose: () => void;
     onCreated: (user: User) => void;
   };
 
-  const { isOpen, onClose, onCreated }: UserFormProps = $props();
+  const { canPickRole, isOpen, onClose, onCreated }: UserFormProps = $props();
 
   let username = $state('');
   let password = $state('');
@@ -56,13 +58,13 @@
     isPending = false;
 
     if (!result.ok) {
-      await notifyFailure('User not created', result.error);
+      await notifyFailure(i18n.t.userForm.notCreated, result.error);
       return;
     }
 
     toaster.success({
-      description: `${result.data.username} (${ROLE_LABELS[result.data.role]})`,
-      title: 'User created',
+      description: `${result.data.username} (${i18n.t.roles[result.data.role]})`,
+      title: i18n.t.userForm.created,
     });
     onCreated(result.data);
     onClose();
@@ -74,15 +76,15 @@
   {isPending}
   {onClose}
   onSubmit={handleSubmit}
-  submitLabel="Create"
-  title="New user"
+  submitLabel={i18n.t.common.create}
+  title={i18n.t.userForm.title}
 >
   <FloatingInput
     autocapitalize="none"
     autocomplete="off"
     error={fieldErrors.username?.[0]}
     id="new-username"
-    label="Username"
+    label={i18n.t.userForm.username}
     required
     spellcheck={false}
     bind:value={username}
@@ -92,18 +94,20 @@
     autocomplete="new-password"
     error={fieldErrors.password?.[0]}
     id="new-password"
-    label="Password"
+    label={i18n.t.userForm.password}
     required
     type="password"
     bind:value={password}
   />
 
-  <label class="label">
-    <span class="label-text">Role</span>
-    <select class="select" bind:value={role}>
-      {#each roleSchema.options as option (option)}
-        <option value={option}>{ROLE_LABELS[option]}</option>
-      {/each}
-    </select>
-  </label>
+  {#if canPickRole}
+    <label class="label">
+      <span class="label-text text-base">{i18n.t.userForm.role}</span>
+      <select class="select h-12" bind:value={role}>
+        {#each roleSchema.options as option (option)}
+          <option value={option}>{i18n.t.roles[option]}</option>
+        {/each}
+      </select>
+    </label>
+  {/if}
 </FormDialog>

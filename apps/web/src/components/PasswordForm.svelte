@@ -4,12 +4,12 @@
 
   import FloatingInput from '@/components/FloatingInput.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
-  import { ERROR_PASSWORD_MISMATCH } from '@/config/errors.ts';
   import { navigate } from '@/router.ts';
   import { updateUser } from '%/api.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
+  import { i18n } from '%/useLocale.svelte.ts';
   import type { User } from '$/auth.ts';
   import { passwordResetSchema } from '$/users.ts';
 
@@ -32,7 +32,7 @@
   // As `tiqr user password` does, the new password is typed twice
   const confirmationError = $derived(
     isSubmitted && validation.success && confirmation !== password
-      ? ERROR_PASSWORD_MISMATCH
+      ? i18n.t.errors.passwordMismatch
       : undefined
   );
 
@@ -60,7 +60,7 @@
     isPending = false;
 
     if (!result.ok) {
-      await notifyFailure('Password not reset', result.error);
+      await notifyFailure(i18n.t.password.notReset, result.error);
       return;
     }
 
@@ -68,9 +68,9 @@
 
     toaster.success({
       description: isSelf
-        ? 'Sign in with the new password.'
-        : `${result.data.username} is signed out everywhere.`,
-      title: 'Password reset',
+        ? i18n.t.password.signInAgain
+        : i18n.t.password.signedOut(result.data.username),
+      title: i18n.t.password.reset,
     });
     onClose();
 
@@ -87,14 +87,14 @@
   {isPending}
   {onClose}
   onSubmit={handleSubmit}
-  submitLabel="Reset"
-  title={`Reset password for ${user?.username ?? 'user'}`}
+  submitLabel={i18n.t.password.submit}
+  title={i18n.t.password.title(user?.username ?? i18n.t.password.fallback)}
 >
   <FloatingInput
     autocomplete="new-password"
     error={fieldErrors.password?.[0]}
     id="reset-password"
-    label="New password"
+    label={i18n.t.password.new}
     required
     type="password"
     bind:value={password}
@@ -104,7 +104,7 @@
     autocomplete="new-password"
     error={confirmationError}
     id="reset-password-confirmation"
-    label="Confirm password"
+    label={i18n.t.password.confirm}
     required
     type="password"
     bind:value={confirmation}

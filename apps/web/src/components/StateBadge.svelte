@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { STATE_LABELS } from '%/formatters.ts';
+  import { i18n } from '%/useLocale.svelte.ts';
   import type { TicketState } from '$/tickets.ts';
 
   type StateBadgeProps = {
@@ -9,10 +9,13 @@
   const { state }: StateBadgeProps = $props();
 
   const PRESETS: Record<TicketState, string> = {
-    expired: 'preset-tonal-surface',
-    issued: 'preset-tonal-primary',
-    passed: 'preset-tonal-success',
+    expired: 'badge-surface',
+    issued: 'badge-primary',
+    passed: 'badge-success',
   };
 </script>
 
-<span class={['badge', PRESETS[state]]}>{STATE_LABELS[state]}</span>
+<!-- A flex box isn't cut with an ellipsis by its cell, so the label inside is -->
+<span class={['badge-status max-w-full', PRESETS[state]]}>
+  <span class="truncate">{i18n.t.states[state]}</span>
+</span>

@@ -122,13 +122,14 @@ All paths are relative to `/api`. Times are ISO 8601 with an offset. Input witho
 
 ### Users
 
-Admins only, except listing, which managers may also do.
+Admins manage every account. Managers list accounts, create operators, and deactivate or reactivate them.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/users` | session | List accounts visible to the caller. |
-| POST | `/users` | session + CSRF | Create a user. Body `{username, password, role}`. Returns `201`. |
-| PATCH | `/users/{user_id}` | session + CSRF | Change `role`, set `active`, or reset `password`. Omitted fields are unchanged. Admins only. |
+| POST | `/users` | session + CSRF | Create a user. Body `{username, password, role}`. Managers create operators only. Returns `201`. |
+| PATCH | `/users/{user_id}` | session + CSRF | Change `role`, set `active`, or reset `password`. Omitted fields are unchanged. Managers may only set `active`, on operators. |
+| DELETE | `/users/{user_id}` | session + CSRF | Delete a deactivated user. Admins only. Returns `204`; `409` if active or they created or hold tickets. |
 
 Admins cannot change their own role or deactivate themselves. The last active admin cannot be demoted.
 
@@ -170,7 +171,7 @@ Admins and managers.
 | --- | --- | --- | --- |
 | POST | `/sync` | session + CSRF | Fetch and apply new access events now. Returns `{count}`. |
 | POST | `/cleanup` | session + CSRF | Remove finished tickets from BioStar now. Returns `{count}`. |
-| GET | `/stats` | session | Totals: `total`, `issued`, `passed`, `expired`, `uses`, `prints`. |
+| GET | `/stats` | session | Totals: `total`, `issued`, `passed`, `expired`, `uses`, `prints`, plus the same counts per visitor type under `visitor_types`. |
 
 Sync and cleanup share a lock with the scheduled jobs, so runs never overlap.
 
@@ -178,8 +179,8 @@ Sync and cleanup share a lock with the scheduled jobs, so runs never overlap.
 
 | Role | Can |
 | --- | --- |
-| `admin` | Manage users (create, change role, deactivate, reset passwords), plus everything a manager can do |
-| `manager` | Assign tickets, run sync, cleanup and stats, and list users |
+| `admin` | Manage users (create, change role, deactivate, reset passwords, delete), plus everything a manager can do |
+| `manager` | Assign tickets, run sync, cleanup and stats, list users, and create, deactivate or reactivate operators |
 | `operator` | Issue tickets, and view and print only the tickets assigned to them |
 
 Anyone active can issue tickets. Permissions are enforced in `tiqr-core`'s service layer, and this table summarizes them.

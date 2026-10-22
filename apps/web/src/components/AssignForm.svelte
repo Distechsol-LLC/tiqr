@@ -4,10 +4,10 @@
   import FieldError from '@/components/FieldError.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
   import { assignTicket } from '%/api.ts';
-  import { ROLE_LABELS } from '%/formatters.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
+  import { i18n } from '%/useLocale.svelte.ts';
   import type { User } from '$/auth.ts';
   import { type Ticket, assignInputSchema } from '$/tickets.ts';
 
@@ -57,13 +57,13 @@
     isPending = false;
 
     if (!result.ok) {
-      await notifyFailure('Ticket not assigned', result.error);
+      await notifyFailure(i18n.t.assign.notAssigned, result.error);
       return;
     }
 
     toaster.success({
       description: `${result.data.readable_serial} → ${validation.data.assignee}`,
-      title: 'Ticket assigned',
+      title: i18n.t.assign.assigned,
     });
     onAssigned(result.data);
     onClose();
@@ -75,25 +75,25 @@
   {isPending}
   {onClose}
   onSubmit={handleSubmit}
-  submitLabel="Assign"
-  title={`Assign ${ticket?.readable_serial ?? 'ticket'}`}
+  submitLabel={i18n.t.assign.submit}
+  title={i18n.t.assign.title(ticket?.readable_serial ?? i18n.t.assign.fallback)}
 >
   {#if ticket}
     <p class="text-surface-600-400">{ticket.visitor_name} · {ticket.visitor_type}</p>
   {/if}
 
   <label class="label">
-    <span class="label-text">Assignee</span>
+    <span class="label-text text-base">{i18n.t.assign.assignee}</span>
     <select
       aria-describedby={error ? 'assignee-error' : undefined}
       aria-invalid={error ? 'true' : undefined}
-      class="select aria-invalid:ring-error-500"
+      class="select h-12 aria-invalid:ring-error-500"
       required
       bind:value={assignee}
     >
-      <option disabled value="">Pick an account</option>
+      <option disabled value="">{i18n.t.assign.pick}</option>
       {#each candidates as account (account.id)}
-        <option value={account.username}>{account.username} ({ROLE_LABELS[account.role]})</option>
+        <option value={account.username}>{account.username} ({i18n.t.roles[account.role]})</option>
       {/each}
     </select>
     <FieldError {error} id="assignee-error" />

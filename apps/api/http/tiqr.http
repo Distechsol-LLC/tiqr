@@ -66,7 +66,8 @@ X-CSRF-Token: {{csrfToken}}
 %}
 
 ### [WRITE] Create user
-# Roles: admin, manager, operator. Saves newUserId. 201; 409 if the username is taken.
+# Roles: admin, manager, operator; managers create operators only. Saves newUserId.
+# 201; 409 if the username is taken.
 POST {{baseUrl}}/api/users
 Content-Type: application/json
 X-CSRF-Token: {{csrfToken}}
@@ -95,7 +96,7 @@ X-CSRF-Token: {{csrfToken}}
 }
 
 ### [WRITE] Deactivate user
-# Blocks sign-in and ends their sessions. 200.
+# Blocks sign-in and ends their sessions. Managers may do this to operators. 200.
 PATCH {{baseUrl}}/api/users/{{newUserId}}
 Content-Type: application/json
 X-CSRF-Token: {{csrfToken}}
@@ -123,6 +124,12 @@ X-CSRF-Token: {{csrfToken}}
 {
   "password": "another-password"
 }
+
+### [WRITE] Delete user
+# Admins only. Run Deactivate user first, or this is refused since Reactivate ran above; then
+# Assign ticket below finds no "clerk". 204; 409 if active or they created or hold tickets.
+DELETE {{baseUrl}}/api/users/{{newUserId}}
+X-CSRF-Token: {{csrfToken}}
 
 
 ### List tickets

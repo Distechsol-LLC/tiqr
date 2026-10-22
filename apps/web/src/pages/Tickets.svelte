@@ -5,31 +5,48 @@
   import Printer from '@lucide/svelte/icons/printer';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import Search from '@lucide/svelte/icons/search';
+  import SearchX from '@lucide/svelte/icons/search-x';
+  import Send from '@lucide/svelte/icons/send';
+  import TicketIcon from '@lucide/svelte/icons/ticket';
   import UserRoundPen from '@lucide/svelte/icons/user-round-pen';
   import { onMount, untrack } from 'svelte';
 
+  import ActionsHeader from '@/components/ActionsHeader.svelte';
   import AssignForm from '@/components/AssignForm.svelte';
   import DataTable from '@/components/DataTable.svelte';
   import PageHeader from '@/components/PageHeader.svelte';
+  import SortHeader from '@/components/SortHeader.svelte';
   import StateBadge from '@/components/StateBadge.svelte';
   import TicketForm from '@/components/TicketForm.svelte';
   import { fetchTicket, fetchTickets, fetchUsers, printTicket, renderTicketPdf } from '%/api.ts';
-  import { STATE_LABELS, USAGE_LABELS, formatDatetime } from '%/formatters.ts';
+  import { formatDatetime } from '%/formatters.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
+  import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
+  import { i18n } from '%/useLocale.svelte.ts';
   import type { User } from '$/auth.ts';
   import { type Ticket, type TicketState, ticketStateSchema } from '$/tickets.ts';
 
   type Filter = TicketState | 'all';
-  type RowAction = 'pdf' | 'print';
+  type RowAction = 'browser' | 'pdf' | 'print';
+  type SortKey =
+    | 'assignee'
+    | 'prints'
+    | 'serial'
+    | 'state'
+    | 'usage'
+    | 'uses'
+    | 'valid'
+    | 'visitor';
 
   const ICON_SIZE = 18;
   const BASE_COLUMNS = 8;
   const FILTERS: Filter[] = ['all', ...ticketStateSchema.options];
   // Long enough for the browser to start the download before the URL goes
   const REVOKE_DELAY = 60_000;
+  const STATE_ORDER = new Map(ticketStateSchema.options.map((state, index) => [state, index]));
 
   const role = $derived(auth.session?.user.role ?? 'operator');
   // Operators see only their own tickets and can't list accounts; only managers assign
@@ -38,11 +55,14 @@
   const canServerPrint = $derived(config.current?.server_printing ?? false);
   // The assignee column is staff-only
   const columns = $derived(BASE_COLUMNS + (isStaff ? 1 : 0));
+  // Download and PDF always, then printing on the server and assigning where they're offered
+  const actionCount = $derived(2 + Number(canServerPrint) + Number(canAssign));
 
   let tickets = $state<Ticket[]>([]);
   let accounts = $state<User[]>([]);
   let filter = $state<Filter>('all');
   let query = $state('');
+  let sort = $state<Sort<SortKey> | null>(null);
   let isLoading = $state(true);
   let isCreating = $state(false);
   let assigning = $state<Ticket | null>(null);
@@ -50,7 +70,18 @@
 
   const usernames = $derived(new Map(accounts.map((account) => [account.id, account.username])));
 
-  // The API sorts by serial; the newest tickets are what people look for first
+  const sortValues: SortValues<Ticket, SortKey> = {
+    assignee: (ticket) => usernames.get(ticket.assigned_operator) ?? '',
+    prints: (ticket) => ticket.print_count,
+    serial: (ticket) => ticket.readable_serial,
+    state: (ticket) => STATE_ORDER.get(ticket.state) ?? 0,
+    usage: (ticket) => i18n.t.usage[ticket.usage_type],
+    uses: (ticket) => ticket.use_count,
+    valid: (ticket) => Date.parse(ticket.valid_from),
+    visitor: (ticket) => ticket.visitor_name,
+  };
+
+  // The API sorts by serial; the newest tickets are what people look for first, until a column is picked
   const rows = $derived.by(() => {
     const needle = query.trim().toLocaleLowerCase();
     const matches = needle
@@ -61,7 +92,7 @@
         )
       : tickets;
 
-    return matches.toReversed();
+    return sortRows(matches.toReversed(), sort, sortValues);
   });
 
   const load = async (state: Filter): Promise<void> => {
@@ -75,15 +106,22 @@
     isLoading = false;
 
     if (result.ok) tickets = result.data;
-    else await notifyFailure('Tickets not loaded', result.error);
+    else await notifyFailure(i18n.t.tickets.notLoaded, result.error);
   };
 
   const loadAccounts = async (): Promise<void> => {
     const result = await fetchUsers();
 
     if (result.ok) accounts = result.data;
-    else await notifyFailure('Accounts not loaded', result.error);
+    else await notifyFailure(i18n.t.tickets.accountsNotLoaded, result.error);
   };
+
+  const sortBy = (key: SortKey): void => {
+    sort = toggleSort(sort, key);
+  };
+
+  const directionOf = (key: SortKey): Sort<SortKey>['direction'] | null =>
+    sort?.key === key ? sort.direction : null;
 
   const refresh = (): void => {
     void load(filter);
@@ -93,35 +131,59 @@
     tickets = tickets.map((current) => (current.id === ticket.id ? ticket : current));
   };
 
-  const download = async (ticket: Ticket): Promise<void> => {
+  // Renders the PDF and hands its URL to `open`; every render counts as a print
+  const renderBadge = async (
+    ticket: Ticket,
+    action: RowAction,
+    open: (url: string) => void
+  ): Promise<void> => {
     const csrfToken = auth.session?.csrf_token;
 
     if (!csrfToken || pending) return;
 
-    pending = { action: 'pdf', id: ticket.id };
+    pending = { action, id: ticket.id };
 
     const result = await renderTicketPdf(csrfToken, ticket.id);
 
     pending = null;
 
     if (!result.ok) {
-      await notifyFailure('Badge not rendered', result.error);
+      await notifyFailure(i18n.t.tickets.badgeNotRendered, result.error);
       return;
     }
 
     const url = URL.createObjectURL(result.data);
-    const link = document.createElement('a');
 
-    link.href = url;
-    link.download = `${ticket.readable_serial}.pdf`;
-    link.click();
+    open(url);
     setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY);
 
-    // Every render counts as a print
     const updated = await fetchTicket(ticket.id);
 
     if (updated.ok) replace(updated.data);
   };
+
+  const download = (ticket: Ticket): Promise<void> =>
+    renderBadge(ticket, 'pdf', (url) => {
+      const link = document.createElement('a');
+
+      link.href = url;
+      link.download = `${ticket.readable_serial}.pdf`;
+      link.click();
+    });
+
+  // A hidden frame loads the PDF, so the print dialog covers the page rather than a new tab
+  const printPdf = (ticket: Ticket): Promise<void> =>
+    renderBadge(ticket, 'browser', (url) => {
+      const frame = document.createElement('iframe');
+
+      frame.hidden = true;
+      frame.src = url;
+      frame.onload = (): void => {
+        frame.contentWindow?.addEventListener('afterprint', () => frame.remove(), { once: true });
+        frame.contentWindow?.print();
+      };
+      document.body.append(frame);
+    });
 
   const print = async (ticket: Ticket): Promise<void> => {
     const csrfToken = auth.session?.csrf_token;
@@ -135,12 +197,15 @@
     pending = null;
 
     if (!result.ok) {
-      await notifyFailure('Badge not printed', result.error);
+      await notifyFailure(i18n.t.tickets.badgeNotPrinted, result.error);
       return;
     }
 
     replace(result.data);
-    toaster.success({ description: result.data.readable_serial, title: 'Sent to the printer' });
+    toaster.success({
+      description: result.data.readable_serial,
+      title: i18n.t.tickets.sentToPrinter,
+    });
   };
 
   const closeCreate = (): void => {
@@ -170,16 +235,16 @@
 </script>
 
 <PageHeader
-  description={isStaff ? 'Every ticket, in every state.' : 'Tickets assigned to you.'}
-  title="Tickets"
+  description={isStaff ? i18n.t.tickets.descriptionStaff : i18n.t.tickets.descriptionOwn}
+  title={i18n.t.tickets.title}
 >
   {#snippet actions()}
     <button
-      aria-label="Refresh"
-      class="btn-icon preset-tonal"
+      aria-label={i18n.t.common.refresh}
+      class="btn-icon size-11 preset-tonal"
       disabled={isLoading}
       onclick={refresh}
-      title="Refresh"
+      title={i18n.t.common.refresh}
       type="button"
     >
       <RefreshCw
@@ -189,90 +254,134 @@
       />
     </button>
     <button
-      class="btn preset-filled-primary-500"
+      class="btn h-11 min-w-36 preset-filled-primary-500"
       onclick={(): void => {
         isCreating = true;
       }}
       type="button"
     >
       <Plus aria-hidden="true" size={ICON_SIZE} />
-      New ticket
+      {i18n.t.tickets.new}
     </button>
+  {/snippet}
+  {#snippet toolbar()}
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <fieldset class="flex flex-wrap gap-2">
+        <legend class="sr-only">{i18n.t.tickets.filter}</legend>
+        {#each FILTERS as option (option)}
+          <button
+            aria-pressed={filter === option}
+            class={['chip', filter === option ? 'preset-filled-primary-500' : 'preset-tonal']}
+            onclick={(): void => {
+              filter = option;
+            }}
+            type="button"
+          >
+            {option === 'all' ? i18n.t.tickets.all : i18n.t.states[option]}
+          </button>
+        {/each}
+      </fieldset>
+
+      <label class="relative w-full sm:w-72">
+        <span class="sr-only">{i18n.t.tickets.search}</span>
+        <Search
+          aria-hidden="true"
+          class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[color:light-dark(var(--color-surface-300),var(--color-surface-400))]"
+          size={ICON_SIZE}
+        />
+        <input
+          class="input bg-surface-100-900 pl-10 ring-surface-200-800 [--field-placeholder:light-dark(var(--color-surface-300),var(--color-surface-400))]"
+          placeholder={i18n.t.tickets.searchPlaceholder}
+          type="search"
+          bind:value={query}
+        />
+      </label>
+    </div>
   {/snippet}
 </PageHeader>
 
-<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-  <fieldset class="flex flex-wrap gap-2">
-    <legend class="sr-only">Filter by state</legend>
-    {#each FILTERS as option (option)}
-      <button
-        aria-pressed={filter === option}
-        class={['chip', filter === option ? 'preset-filled-primary-500' : 'preset-tonal']}
-        onclick={(): void => {
-          filter = option;
-        }}
-        type="button"
-      >
-        {option === 'all' ? 'All' : STATE_LABELS[option]}
-      </button>
-    {/each}
-  </fieldset>
-
-  <label class="relative w-full sm:w-72">
-    <span class="sr-only">Search tickets</span>
-    <Search
-      aria-hidden="true"
-      class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-surface-600-400"
-      size={ICON_SIZE}
-    />
-    <input
-      class="input pl-10"
-      placeholder="Serial, name or type"
-      type="search"
-      bind:value={query}
-    />
-  </label>
-</div>
-
 <DataTable
-  caption="Tickets"
+  caption={i18n.t.tickets.title}
   {columns}
-  emptyMessage={query ? 'No tickets match the search.' : 'No tickets yet.'}
+  emptyIcon={query ? SearchX : TicketIcon}
+  emptyMessage={query ? i18n.t.tickets.emptySearch : i18n.t.tickets.empty}
   isEmpty={rows.length === 0}
   {isLoading}
+  minWidth="72rem"
 >
   {#snippet head()}
-    <th>Serial</th>
-    <th>Visitor</th>
-    <th>Usage</th>
-    <th>Valid</th>
-    <th>State</th>
+    <SortHeader
+      class="w-48"
+      direction={directionOf('serial')}
+      label={i18n.t.tickets.columns.serial}
+      onSort={(): void => sortBy('serial')}
+    />
+    <SortHeader
+      direction={directionOf('visitor')}
+      label={i18n.t.tickets.columns.visitor}
+      onSort={(): void => sortBy('visitor')}
+    />
+    <SortHeader
+      class="w-34"
+      direction={directionOf('usage')}
+      label={i18n.t.tickets.columns.usage}
+      onSort={(): void => sortBy('usage')}
+    />
+    <SortHeader
+      class="w-36"
+      direction={directionOf('valid')}
+      label={i18n.t.tickets.columns.valid}
+      onSort={(): void => sortBy('valid')}
+    />
+    <SortHeader
+      class="w-32"
+      direction={directionOf('state')}
+      label={i18n.t.tickets.columns.state}
+      onSort={(): void => sortBy('state')}
+    />
     {#if isStaff}
-      <th>Assignee</th>
+      <SortHeader
+        class="w-30"
+        direction={directionOf('assignee')}
+        label={i18n.t.tickets.columns.assignee}
+        onSort={(): void => sortBy('assignee')}
+      />
     {/if}
-    <th class="text-right">Prints</th>
-    <th class="text-right">Uses</th>
-    <th><span class="sr-only">Actions</span></th>
+    <SortHeader
+      class="w-24"
+      direction={directionOf('prints')}
+      isEnd
+      label={i18n.t.tickets.columns.prints}
+      onSort={(): void => sortBy('prints')}
+    />
+    <SortHeader
+      class="w-24"
+      direction={directionOf('uses')}
+      isEnd
+      label={i18n.t.tickets.columns.uses}
+      onSort={(): void => sortBy('uses')}
+    />
+    <ActionsHeader count={actionCount} />
   {/snippet}
 
   {#each rows as ticket (ticket.id)}
     <tr>
-      <td class="font-mono whitespace-nowrap">{ticket.readable_serial}</td>
+      <td class="font-mono">{ticket.readable_serial}</td>
       <td>
         <p class="font-semibold">{ticket.visitor_name}</p>
         <p class="text-surface-600-400 text-xs">{ticket.visitor_type}</p>
       </td>
-      <td class="whitespace-nowrap">{USAGE_LABELS[ticket.usage_type]}</td>
-      <td class="whitespace-nowrap">
+      <td>{i18n.t.usage[ticket.usage_type]}</td>
+      <td>
         <p>{formatDatetime(ticket.valid_from, ticket.timezone)}</p>
         <p class="text-surface-600-400 text-xs">
-          until {formatDatetime(ticket.valid_until, ticket.timezone)}
+          {formatDatetime(ticket.valid_until, ticket.timezone)}
         </p>
       </td>
       <td>
         <StateBadge state={ticket.state} />
         {#if ticket.passed_at}
-          <p class="mt-1 whitespace-nowrap text-surface-600-400 text-xs" title="First passage">
+          <p class="mt-1 text-surface-600-400 text-xs" title={i18n.t.tickets.firstPassage}>
             {formatDatetime(ticket.passed_at, ticket.timezone)}
           </p>
         {/if}
@@ -283,14 +392,14 @@
       <td class="text-right tabular-nums">{ticket.print_count}</td>
       <td class="text-right tabular-nums">{ticket.use_count}</td>
       <td>
-        <div class="flex justify-end gap-1">
+        <div class="flex justify-start gap-1">
           <!-- The API prints only issued tickets, as many times as needed -->
           <button
-            aria-label={`Download badge for ${ticket.readable_serial}`}
-            class="btn-icon btn-icon-sm hover:preset-tonal"
+            aria-label={i18n.t.tickets.downloadFor(ticket.readable_serial)}
+            class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-primary"
             disabled={ticket.state !== 'issued' || pending !== null}
             onclick={(): Promise<void> => download(ticket)}
-            title="Download badge"
+            title={i18n.t.tickets.download}
             type="button"
           >
             {#if isPending(ticket, 'pdf')}
@@ -299,30 +408,44 @@
               <FileDown aria-hidden="true" size={ICON_SIZE} />
             {/if}
           </button>
+          <button
+            aria-label={i18n.t.tickets.printPdfFor(ticket.readable_serial)}
+            class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-primary"
+            disabled={ticket.state !== 'issued' || pending !== null}
+            onclick={(): Promise<void> => printPdf(ticket)}
+            title={i18n.t.tickets.printPdf}
+            type="button"
+          >
+            {#if isPending(ticket, 'browser')}
+              <LoaderCircle aria-hidden="true" class="animate-spin" size={ICON_SIZE} />
+            {:else}
+              <Printer aria-hidden="true" size={ICON_SIZE} />
+            {/if}
+          </button>
           {#if canServerPrint}
             <button
-              aria-label={`Print badge for ${ticket.readable_serial}`}
-              class="btn-icon btn-icon-sm hover:preset-tonal"
+              aria-label={i18n.t.tickets.printFor(ticket.readable_serial)}
+              class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-primary"
               disabled={ticket.state !== 'issued' || pending !== null}
               onclick={(): Promise<void> => print(ticket)}
-              title="Print on the server"
+              title={i18n.t.tickets.print}
               type="button"
             >
               {#if isPending(ticket, 'print')}
                 <LoaderCircle aria-hidden="true" class="animate-spin" size={ICON_SIZE} />
               {:else}
-                <Printer aria-hidden="true" size={ICON_SIZE} />
+                <Send aria-hidden="true" size={ICON_SIZE} />
               {/if}
             </button>
           {/if}
           {#if canAssign}
             <button
-              aria-label={`Assign ${ticket.readable_serial}`}
-              class="btn-icon btn-icon-sm hover:preset-tonal"
+              aria-label={i18n.t.tickets.assignFor(ticket.readable_serial)}
+              class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-primary"
               onclick={(): void => {
                 assigning = ticket;
               }}
-              title="Assign"
+              title={i18n.t.tickets.assign}
               type="button"
             >
               <UserRoundPen aria-hidden="true" size={ICON_SIZE} />

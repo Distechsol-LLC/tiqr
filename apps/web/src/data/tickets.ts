@@ -1,21 +1,14 @@
 import { z } from 'zod';
 
-import {
-  ERROR_ASSIGNEE_REQUIRED,
-  ERROR_VALID_FROM_REQUIRED,
-  ERROR_VALID_UNTIL_BEFORE,
-  ERROR_VALID_UNTIL_REQUIRED,
-  ERROR_VISITOR_NAME_LONG,
-  ERROR_VISITOR_NAME_REQUIRED,
-  ERROR_VISITOR_TYPE_LONG,
-  ERROR_VISITOR_TYPE_REQUIRED,
-} from '@/config/errors.ts';
+import { i18n } from '%/useLocale.svelte.ts';
 
 // Same bound as _Name in apps/api/src/tiqr/api/schemas.py
 const NAME_MAX = 200;
 
 const ticketStateSchema = z.enum(['issued', 'passed', 'expired']);
 const usageTypeSchema = z.enum(['one_time', 'multi_use']);
+// Offered when creating a ticket; the API keeps any name, so older tickets may hold others
+const visitorTypeOptions = ['Guest', 'Staff', 'Student'] as const;
 
 const offsetDatetime = z.iso.datetime({ offset: true });
 
@@ -40,32 +33,35 @@ const ticketSchema = z.object({
 
 // The form sends <input type="datetime-local"> values; the server reads them in its own zone.
 // Both ends are inclusive, so an equal pair is a legal one-instant window.
+// Messages are read at parse time, so they come out in the language showing then.
 const ticketInputSchema = z
   .object({
     usage_type: usageTypeSchema,
-    valid_from: z.string().min(1, ERROR_VALID_FROM_REQUIRED),
-    valid_until: z.string().min(1, ERROR_VALID_UNTIL_REQUIRED),
+    valid_from: z.string().min(1, { error: () => i18n.t.errors.validFromRequired }),
+    valid_until: z.string().min(1, { error: () => i18n.t.errors.validUntilRequired }),
     visitor_name: z
       .string()
       .trim()
-      .min(1, ERROR_VISITOR_NAME_REQUIRED)
-      .max(NAME_MAX, ERROR_VISITOR_NAME_LONG),
+      .min(1, { error: () => i18n.t.errors.visitorNameRequired })
+      .max(NAME_MAX, { error: () => i18n.t.errors.visitorNameLong }),
     visitor_type: z
       .string()
       .trim()
-      .min(1, ERROR_VISITOR_TYPE_REQUIRED)
-      .max(NAME_MAX, ERROR_VISITOR_TYPE_LONG),
+      .min(1, { error: () => i18n.t.errors.visitorTypeRequired })
+      .max(NAME_MAX, { error: () => i18n.t.errors.visitorTypeLong }),
   })
   // Same-format local strings compare in time order
   .refine(
     (input) => !(input.valid_from && input.valid_until) || input.valid_until >= input.valid_from,
     {
-      message: ERROR_VALID_UNTIL_BEFORE,
+      error: () => i18n.t.errors.validUntilBefore,
       path: ['valid_until'],
     }
   );
 
-const assignInputSchema = z.object({ assignee: z.string().min(1, ERROR_ASSIGNEE_REQUIRED) });
+const assignInputSchema = z.object({
+  assignee: z.string().min(1, { error: () => i18n.t.errors.assigneeRequired }),
+});
 
 type AssignInput = z.infer<typeof assignInputSchema>;
 type Ticket = z.infer<typeof ticketSchema>;
@@ -74,4 +70,11 @@ type TicketState = z.infer<typeof ticketStateSchema>;
 type UsageType = z.infer<typeof usageTypeSchema>;
 
 export type { AssignInput, Ticket, TicketInput, TicketState, UsageType };
-export { assignInputSchema, ticketInputSchema, ticketSchema, ticketStateSchema, usageTypeSchema };
+export {
+  assignInputSchema,
+  ticketInputSchema,
+  ticketSchema,
+  ticketStateSchema,
+  usageTypeSchema,
+  visitorTypeOptions,
+};

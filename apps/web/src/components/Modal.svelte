@@ -42,7 +42,10 @@
   const handleKeydown = (event: KeyboardEvent): void => {
     if (!isOpen) return;
 
+    // A popup inside the dialog (a date picker) takes Escape first and marks it handled
     if (event.key === 'Escape') {
+      if (event.defaultPrevented) return;
+
       event.preventDefault();
       handleClose();
       return;
@@ -78,14 +81,14 @@
 
 {#if isOpen}
   <div
-    class="fixed inset-0 z-20 grid min-h-dvh place-items-center backdrop-blur-xs"
+    class="fixed inset-0 z-20 grid min-h-dvh place-items-center bg-surface-50-950/85 backdrop-blur-xs"
     role="presentation"
     bind:this={overlay}
   >
     <div
       aria-label={ariaLabel}
       aria-modal="true"
-      class="w-11/12 max-w-lg h-3/4 p-4"
+      class="w-11/12 max-w-lg p-4"
       onsubmit={handleSubmit}
       role="dialog"
       tabindex="-1"

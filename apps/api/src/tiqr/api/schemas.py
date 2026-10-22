@@ -135,13 +135,19 @@ class CountOut(BaseModel):
     count: int
 
 
-class StatsOut(BaseModel):
+class CountsOut(BaseModel):
     total: int
     issued: int
     passed: int
     expired: int
     uses: int
     prints: int
+
+
+class StatsOut(CountsOut):
+    visitor_types: Annotated[
+        dict[str, CountsOut], Field(description="The same counts for each visitor type")
+    ]
 
 
 class ConfigOut(BaseModel):

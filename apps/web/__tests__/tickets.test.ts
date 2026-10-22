@@ -1,6 +1,8 @@
-import { describe, expect, test as it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test as it } from 'bun:test';
 
-import { ERROR_VALID_UNTIL_BEFORE, ERROR_VISITOR_NAME_REQUIRED } from '@/config/errors.ts';
+import { az } from '@/locales/az.ts';
+import { en } from '@/locales/en.ts';
+import { i18n } from '%/useLocale.svelte.ts';
 import { ticketInputSchema, ticketSchema } from '$/tickets.ts';
 import { ticket } from '../__mocks__/api.ts';
 
@@ -13,6 +15,14 @@ const input = {
 };
 
 describe('tickets', () => {
+  beforeEach(() => {
+    i18n.set('en');
+  });
+
+  afterEach(() => {
+    i18n.set('en');
+  });
+
   it('reads tickets with microsecond timestamps', () => {
     expect(ticketSchema.safeParse(ticket).success).toBeTrue();
   });
@@ -24,12 +34,20 @@ describe('tickets', () => {
   it('refuses a reversed window', () => {
     const result = ticketInputSchema.safeParse({ ...input, valid_until: '2030-06-01T08:59' });
 
-    expect(result.error?.issues[0]?.message).toBe(ERROR_VALID_UNTIL_BEFORE);
+    expect(result.error?.issues[0]?.message).toBe(en.errors.validUntilBefore);
   });
 
   it('refuses a blank visitor name', () => {
     const result = ticketInputSchema.safeParse({ ...input, visitor_name: '   ' });
 
-    expect(result.error?.issues[0]?.message).toBe(ERROR_VISITOR_NAME_REQUIRED);
+    expect(result.error?.issues[0]?.message).toBe(en.errors.visitorNameRequired);
+  });
+
+  it('words refusals in the language showing at parse time', () => {
+    i18n.set('az');
+
+    const result = ticketInputSchema.safeParse({ ...input, visitor_name: '   ' });
+
+    expect(result.error?.issues[0]?.message).toBe(az.errors.visitorNameRequired);
   });
 });

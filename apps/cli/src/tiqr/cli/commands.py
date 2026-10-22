@@ -259,6 +259,15 @@ def user_activate(username: Annotated[str, typer.Argument()]) -> None:
         _json(_user_data(runtime.service.edit_user(user.id, active=True)))
 
 
+@user_app.command("delete")
+def user_delete(username: Annotated[str, typer.Argument()]) -> None:
+    """Delete a deactivated user; users with tickets stay, deactivated, to keep the history."""
+    with _session() as runtime:
+        user = runtime.service.find_user(username)
+        runtime.service.remove_user(user.id)
+        _json({"deleted": user.username})
+
+
 @user_app.command("password")
 def user_password(username: Annotated[str, typer.Argument()]) -> None:
     """Reset a user's password, prompting for a hidden, confirmed one; ends their sessions."""

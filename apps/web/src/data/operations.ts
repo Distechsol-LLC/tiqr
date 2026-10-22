@@ -7,7 +7,7 @@ const configSchema = z.object({
 
 const countSchema = z.object({ count: z.number().int().nonnegative() });
 
-const statsSchema = z.object({
+const countsSchema = z.object({
   expired: z.number().int().nonnegative(),
   issued: z.number().int().nonnegative(),
   passed: z.number().int().nonnegative(),
@@ -16,8 +16,13 @@ const statsSchema = z.object({
   uses: z.number().int().nonnegative(),
 });
 
+const statsSchema = countsSchema.extend({
+  visitor_types: z.record(z.string(), countsSchema),
+});
+
 type Config = z.infer<typeof configSchema>;
+type Counts = z.infer<typeof countsSchema>;
 type Stats = z.infer<typeof statsSchema>;
 
-export type { Config, Stats };
-export { configSchema, countSchema, statsSchema };
+export type { Config, Counts, Stats };
+export { configSchema, countSchema, countsSchema, statsSchema };
