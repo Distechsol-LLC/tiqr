@@ -1,0 +1,39 @@
+<!doctype html>
+<html class='scroll-smooth' data-theme='vintage' lang='en'>
+  <head>
+    <meta charset='utf-8'>
+    <meta content='width=device-width, initial-scale=1' name='viewport'>
+    <meta content="QR Ticketing System for Suprema BioStar X" name='description'>
+    <meta content='qr-ticketing, biostar' name='keywords'>
+    <meta content='#201b17' name='theme-color'>
+
+    <meta content='TiQR' property='og:title'>
+    <meta content="QR Ticketing System for Suprema BioStar X" property='og:description'>
+
+    <link href='/site.webmanifest' rel='manifest' type='application/manifest+json'>
+    <link href='/favicon.png' rel='icon' sizes='512x512' type='image/png'>
+    <title>TiQR</title>
+
+    <!-- Applies the saved or OS color mode before first paint; the key matches useTheme.svelte.ts.
+      Also sets the saved language on <html lang>; the key matches useLocale.svelte.ts, which
+      checks the value and takes over once the app starts -->
+    <script>
+      try {
+        const stored = localStorage.getItem('tiqr-mode');
+        document.documentElement.dataset.mode =
+          stored === 'light' || stored === 'dark'
+            ? stored
+            : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      } catch {}
+      try {
+        const locale = localStorage.getItem('tiqr-locale');
+        if (locale && /^[a-z]{2,3}$/.test(locale)) document.documentElement.lang = locale;
+      } catch {}
+    </script>
+  </head>
+
+  <body>
+    <div id='root'></div>
+    <script src='src/main.ts' type='module'></script>
+  </body>
+</html>

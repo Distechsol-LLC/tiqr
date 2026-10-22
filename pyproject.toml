@@ -1,7 +1,7 @@
-# Workspace root. The product version lives here; every member under apps/ matches it.
+# Workspace root. The product version lives here; members under apps/ are versioned separately.
 [project]
 name = "tiqr"
-version = "0.9.4"
+version = "1.0.0"
 description = "QR Ticketing System for Suprema BioStar X"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -103,7 +103,11 @@ name = "cz_conventional_commits"
 
 [tool.poe.tasks.openapi]
 help = "Regenerate the API schema the web app's client is built from"
-cmd = "python -m tiqr.api.openapi apps/web/openapi.json"
+cmd = "python -m tiqr.api.openapi apps/api/openapi.json"
+
+[tool.poe.tasks.seed]
+help = "Add demo operators and tickets to the local database; set TIQR_SEED_PASSWORD first"
+cmd = "python -m tiqr.core.seed"
 
 [tool.poe.tasks.fix]
 help = "Apply ruff fixes and formatting, then run pyright"

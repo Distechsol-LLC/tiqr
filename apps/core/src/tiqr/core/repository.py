@@ -297,6 +297,10 @@ class SQLiteRepository(Repository):
     def list_users(self) -> list[User]:
         return self._fetch_all(_user, "SELECT * FROM users ORDER BY username")
 
+    def delete_user(self, user_id: UUID) -> None:
+        """Delete an account; its web sessions go with it."""
+        self._execute("DELETE FROM users WHERE id=?", (str(user_id),))
+
     def save_ticket(self, ticket: Ticket) -> None:
         self._execute(
             _UPSERT_TICKET, {column: _to_sql(getattr(ticket, column)) for column in _TICKET_COLUMNS}

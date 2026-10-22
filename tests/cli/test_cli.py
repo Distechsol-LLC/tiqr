@@ -126,7 +126,12 @@ def test_all_commands_use_core_fakes(cli_env):
     assert synced.exit_code == 0, synced.output
     assert "1" in synced.output
     stats = output_json(invoke(["stats", "--as", "admin"]))
-    assert stats == {"issued": 0, "passed": 1, "expired": 0, "total": 1, "uses": 1, "prints": 1}
+    counts = {"issued": 0, "passed": 1, "expired": 0, "total": 1, "uses": 1, "prints": 1}
+    assert stats == {**counts, "visitor_types": {"Visitor": counts}}
+    dated = ["stats", "--since", "2000-01-01", "--until", "2999-12-31", "--as", "admin"]
+    assert output_json(invoke(dated))["total"] == 1
+    assert output_json(invoke(["stats", "--since", "2999-01-01", "--as", "admin"]))["total"] == 0
+    assert invoke(["stats", "--since", "01.01.2000", "--as", "admin"]).exit_code == 2
     cleanup = invoke(["cleanup", "--as", "manager"])
     assert cleanup.exit_code == 0, cleanup.output
     assert "0" in cleanup.output

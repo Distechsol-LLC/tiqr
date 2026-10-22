@@ -295,7 +295,8 @@ def test_user_management(client):
         "other",
     ]
     body = {"username": "newcomer", "password": "newcomer-password", "role": "operator"}
-    assert client.post("/api/users", json=body).status_code == 403
+    assert client.post("/api/users", json=body | {"role": "manager"}).status_code == 403
+    assert client.post("/api/users", json=body | {"username": "clerk"}).status_code == 201
     login(client, "operator")
     assert client.get("/api/users").status_code == 403
     login(client, "admin")
@@ -359,14 +360,14 @@ def test_sync_cleanup_and_stats(client, service):
     assert client.post("/api/sync").json() == {"count": 1}
     assert client.post("/api/sync").json() == {"count": 0}
     assert client.post("/api/cleanup").json() == {"count": 1}
-    assert client.get("/api/stats").json() == {
-        "total": 1,
-        "issued": 0,
-        "passed": 1,
-        "expired": 0,
-        "uses": 1,
-        "prints": 0,
-    }
+    counts = {"total": 1, "issued": 0, "passed": 1, "expired": 0, "uses": 1, "prints": 0}
+    assert client.get("/api/stats").json() == {**counts, "visitor_types": {"Visitor": counts}}
+    assert client.get("/api/stats?since=2026-09-17&until=2026-09-17").json()["total"] == 1
+    assert client.get("/api/stats?until=2026-09-16").json()["total"] == 0
+    assert client.get("/api/stats?since=2026-13-01").status_code == 422
+    backwards = client.get("/api/stats?since=2026-09-18&until=2026-09-17")
+    assert backwards.status_code == 422
+    assert backwards.json()["code"] == "invalid"
 
 
 def test_biostar_failures_are_502_with_their_codes(client, service, monkeypatch):
@@ -434,7 +435,9 @@ def test_admins_change_roles_deactivate_and_reset_passwords(client, accounts):
     operator = accounts["operator"]
     url = f"/api/users/{operator.id}"
     login(client, "manager")
-    assert client.patch(url, json={"active": False}).status_code == 403
+    assert client.patch(url, json={"role": "manager"}).status_code == 403
+    assert client.patch(url, json={"active": False}).json()["active"] is False
+    assert client.patch(url, json={"active": True}).json()["active"] is True
     login(client, "admin")
     promoted = client.patch(url, json={"role": "manager"})
     assert promoted.status_code == 200
@@ -477,6 +480,10 @@ def test_user_update_refusals(client, accounts):
     assert client.patch(me, json={"role": "root"}).status_code == 422
     other = f"/api/users/{accounts['other'].id}"
     assert client.patch(other, json={"password": " "}).json()["code"] == "invalid"
+    assert client.delete(other).json()["code"] == "conflict"
+    assert client.patch(other, json={"active": False}).status_code == 200
+    assert client.delete(other).status_code == 204
+    assert client.delete(other).status_code == 404
     # Writes still need the CSRF token.
     token = client.headers.pop("X-CSRF-Token")
     assert client.patch(other, json={"active": False}).json()["code"] == "csrf"

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "TiQR",
-    "version": "0.9.4"
+    "version": "1.0.0"
   },
   "paths": {
     "/api/health": {
@@ -323,6 +323,7 @@
           "users"
         ],
         "summary": "Create User",
+        "description": "Admins create any role; managers create operators only.",
         "operationId": "create_user",
         "requestBody": {
           "content": {
@@ -402,7 +403,7 @@
           "users"
         ],
         "summary": "Update User",
-        "description": "Change a role, deactivate or reactivate, or reset a password. Admins only.\n\nAdmins cannot change their own role or deactivate themselves, and the last active admin\ncannot be demoted. Deactivating or resetting a password ends that user's sessions.",
+        "description": "Change a role, deactivate or reactivate, or reset a password.\n\nAdmins do all of it; managers only deactivate and reactivate operators. Admins cannot change\ntheir own role or deactivate themselves, and the last active admin cannot be demoted.\nDeactivating or resetting a password ends that user's sessions.",
         "operationId": "update_user",
         "parameters": [
           {
@@ -501,6 +502,99 @@
                     }
                   ],
                   "title": "Response 422 Update User"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Delete User",
+        "description": "Delete a deactivated account. Admins only; accounts with tickets stay, deactivated.",
+        "operationId": "delete_user",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or user not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The ticket or account is not in a state that allows this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Delete User"
                 }
               }
             }
@@ -1218,7 +1312,48 @@
           "operations"
         ],
         "summary": "Stats",
+        "description": "Ticket figures, for every ticket or those created within days of TIQR_DEFAULT_TZ.",
         "operationId": "stats",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day counted, inclusive",
+              "title": "Since"
+            },
+            "description": "First day counted, inclusive"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day counted, inclusive",
+              "title": "Until"
+            },
+            "description": "Last day counted, inclusive"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1256,6 +1391,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Stats"
                 }
               }
             }
@@ -1314,6 +1467,44 @@
           "count"
         ],
         "title": "CountOut"
+      },
+      "CountsOut": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "issued": {
+            "type": "integer",
+            "title": "Issued"
+          },
+          "passed": {
+            "type": "integer",
+            "title": "Passed"
+          },
+          "expired": {
+            "type": "integer",
+            "title": "Expired"
+          },
+          "uses": {
+            "type": "integer",
+            "title": "Uses"
+          },
+          "prints": {
+            "type": "integer",
+            "title": "Prints"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "issued",
+          "passed",
+          "expired",
+          "uses",
+          "prints"
+        ],
+        "title": "CountsOut"
       },
       "ErrorOut": {
         "properties": {
@@ -1517,6 +1708,14 @@
           "prints": {
             "type": "integer",
             "title": "Prints"
+          },
+          "visitor_types": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CountsOut"
+            },
+            "type": "object",
+            "title": "Visitor Types",
+            "description": "The same counts for each visitor type"
           }
         },
         "type": "object",
@@ -1526,7 +1725,8 @@
           "passed",
           "expired",
           "uses",
-          "prints"
+          "prints",
+          "visitor_types"
         ],
         "title": "StatsOut"
       },

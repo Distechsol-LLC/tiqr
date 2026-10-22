@@ -36,11 +36,14 @@ def _version(pyproject):
 @pytest.fixture(scope="module")
 def built_wheels(tmp_path_factory):
     output = tmp_path_factory.mktemp("wheels")
-    uv = shutil.which("uv")
-    if uv is None:
-        local = PROJECT / ".tools" / "uv"
-        assert local.is_file(), "uv is required: install uv or provide project .tools/uv"
-        uv = str(local)
+    candidates = [
+        shutil.which("uv"),
+        os.environ.get("UV"),
+        PROJECT / ".tools" / "uv",
+        Path.home() / ".local" / "bin" / "uv",
+    ]
+    uv = next((str(c) for c in candidates if c and Path(c).is_file()), None)
+    assert uv is not None, "uv is required: install uv, set UV, or provide project .tools/uv"
     result = subprocess.run(
         [uv, "build", "--all-packages", "--wheel", "--out-dir", str(output)],
         cwd=PROJECT,

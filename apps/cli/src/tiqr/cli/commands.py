@@ -259,6 +259,15 @@ def user_activate(username: Annotated[str, typer.Argument()]) -> None:
         _json(_user_data(runtime.service.edit_user(user.id, active=True)))
 
 
+@user_app.command("delete")
+def user_delete(username: Annotated[str, typer.Argument()]) -> None:
+    """Delete a deactivated user; users with tickets stay, deactivated, to keep the history."""
+    with _session() as runtime:
+        user = runtime.service.find_user(username)
+        runtime.service.remove_user(user.id)
+        _json({"deleted": user.username})
+
+
 @user_app.command("password")
 def user_password(username: Annotated[str, typer.Argument()]) -> None:
     """Reset a user's password, prompting for a hidden, confirmed one; ends their sessions."""
@@ -367,10 +376,26 @@ def cleanup(actor: Actor) -> None:
 
 
 @app.command()
-def stats(actor: Actor) -> None:
-    """Show ticket, access and PDF rendering totals."""
+def stats(
+    actor: Actor,
+    since: Annotated[
+        datetime | None, typer.Option(formats=["%Y-%m-%d"], help="First local day, inclusive.")
+    ] = None,
+    until: Annotated[
+        datetime | None, typer.Option(formats=["%Y-%m-%d"], help="Last local day, inclusive.")
+    ] = None,
+) -> None:
+    """Show ticket, access and PDF rendering totals, for tickets created in a date range."""
     with _session() as runtime:
-        _json(runtime.service.stats(runtime.authenticate(actor)))
+        user = runtime.authenticate(actor)
+        _json(
+            runtime.service.stats(
+                user,
+                since=since.date() if since else None,
+                until=until.date() if until else None,
+                timezone=runtime.settings.default_tz,
+            )
+        )
 
 
 @app.command()

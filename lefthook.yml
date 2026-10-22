@@ -1,13 +1,30 @@
 commit-msg:
+  piped: true
   commands:
     commitizen:
       run: uv run cz check --commit-msg-file {1}
+    commitlint:
+      root: apps/web/
+      run: bun commitlint -e -s
 pre-commit:
+  piped: true
   commands:
     check:
       run: uv run ruff check . && uv run ruff format --check . && uv run pyright
+    fix:
+      root: apps/web/
+      glob: "apps/web/**"
+      run: bun fix:s && git update-index -g
 pre-push:
   parallel: true
   commands:
     test:
       run: uv run pytest
+    orphans:
+      root: apps/web/
+      glob: "apps/web/**"
+      run: bun orphans
+    cover:
+      root: apps/web/
+      glob: "apps/web/**"
+      run: bun cover

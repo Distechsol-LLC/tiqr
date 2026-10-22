@@ -1,0 +1,326 @@
+@import 'tailwindcss';
+
+@import '@skeletonlabs/skeleton';
+@import '@skeletonlabs/skeleton-svelte';
+@import '@skeletonlabs/skeleton/themes/vintage';
+
+/* Dark mode follows <html data-mode>, set from the OS or the user's pick (see useTheme.svelte.ts) */
+@custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
+
+@theme inline {
+  --font-geist: 'Geist Variable';
+}
+
+/* Vintage ships its own fonts; use Geist everywhere. Vintage also tints light-mode headings green
+   (secondary-950); make them black, mirroring the white in dark mode */
+[data-theme='vintage'] {
+  --typo-base--font-family: var(--font-geist), sans-serif;
+  --typo-heading--font-family: var(--font-geist), sans-serif;
+  --typo-heading--color-light: oklch(0 0 0);
+
+  /* Vintage's 500 is the logo's orange (#EA861D), but its darker shades lose chroma and slide
+     towards red, reading as brown. Hold the hue and chroma so every shade stays orange */
+  --color-primary-600: oklch(66% 0.165 56deg);
+  --color-primary-700: oklch(60% 0.165 52deg);
+  --color-primary-800: oklch(53% 0.155 49deg);
+  --color-primary-900: oklch(46% 0.14 47deg);
+  --color-primary-950: oklch(38% 0.12 45deg);
+
+  /* Vintage's surfaces are a muddy grey; make the panel shades (sidebar, table stripes) and
+     their borders a neutral grey instead: light in light mode, dark in dark mode. The panels stay
+     close to the white table so the step between them is soft; the page itself (surface-50) sits
+     a step lighter still */
+  --color-surface-50: oklch(98.5% 0 0);
+  --color-surface-100: oklch(97.5% 0 0);
+  --color-surface-200: oklch(87% 0 0);
+  --color-surface-800: oklch(30% 0 0);
+  --color-surface-900: oklch(24% 0 0);
+
+  /* Vintage's errors lean brick and brown (hue ~23deg, low chroma); hold the lightness steps but
+     move them to a true red, with the chroma to match */
+  --color-error-400: oklch(74% 0.18 27deg);
+  --color-error-500: oklch(64% 0.23 27deg);
+  --color-error-600: oklch(58% 0.22 27deg);
+  --color-error-700: oklch(52% 0.21 27deg);
+  --color-error-800: oklch(45% 0.18 27deg);
+
+  /* Text on orange is the logo's near-black stripe, not dark brown */
+  --color-primary-contrast-dark: var(--color-surface-950);
+}
+
+/* Dark mode reads secondary text (table heads, hints) in surface-300/400, which Vintage keeps
+   nearly as dark as the panels. Lift them so they stand off the background */
+[data-theme='vintage'][data-mode='dark'] {
+  --color-surface-300: oklch(84% 0 0);
+  --color-surface-400: oklch(74% 0 0);
+
+  /* Red text on the dark panels is lifted to match, or it sinks into them */
+  --color-error-300: oklch(80% 0.16 27deg);
+}
+
+/* Cerberus's panel shade (sidebar, title bar, table stripes) is a darker grey than the page; lift it
+   in light mode, keeping it a step darker than the page (surface-50) */
+[data-theme='cerberus'] {
+  --color-surface-100: oklch(97.5% 0 0);
+}
+
+/* Focus: the browser's ring follows the OS accent, so use the theme's instead */
+@layer base {
+  :root {
+    accent-color: var(--color-primary-500);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+  }
+
+  /* Tailwind v4 leaves buttons, and selects with their options, with the default cursor */
+  button:not(:disabled),
+  .select:not(:disabled),
+  .select option:not(:disabled),
+  [role='button']:not(:disabled),
+  [role^='menuitem']:not([data-disabled]) {
+    cursor: pointer;
+  }
+
+  /* Skeleton's .input already turns its ring primary on focus */
+  .input:focus-visible {
+    outline: none;
+  }
+
+  /*
+    Customizable select (Chrome): the open list is styled by us rather than by the OS, so options
+    highlight orange instead of the system accent. Skeleton leaves .select without inline padding
+    for the native arrow; with base-select that arrow is ours, so pad both sides like .input.
+    Browsers without base-select (Firefox) draw their arrow against the edge whatever the padding,
+    so there the arrow is replaced by a drawn chevron, inset as far as base-select's.
+  */
+  .select {
+    --select-chevron-inset: --spacing(3.5);
+
+    appearance: base-select;
+    padding-inline: calc((var(--field-size) - --spacing(0.5)) / 2 + var(--spacing));
+    padding-inline-end: var(--select-chevron-inset);
+  }
+
+  .select::picker-icon {
+    color: var(--color-surface-600-400);
+    margin-inline-start: auto;
+  }
+
+  @supports not (appearance: base-select) {
+    .select {
+      --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23525252' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+
+      appearance: none;
+      background-image: var(--select-chevron);
+      background-repeat: no-repeat;
+      background-position: right var(--select-chevron-inset) center;
+      background-size: 1em;
+      padding-inline-end: calc(var(--select-chevron-inset) + 1em + --spacing(2));
+    }
+
+    [data-mode='dark'] .select {
+      --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23bdbdbd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    }
+  }
+
+  ::picker(select) {
+    appearance: base-select;
+    margin-block: --spacing(1);
+    border: 1px solid var(--color-surface-200-800);
+    border-radius: var(--radius-base);
+    background-color: var(--color-surface-50-950);
+    padding: --spacing(1);
+  }
+
+  .select option {
+    border-radius: var(--radius-base);
+    padding: --spacing(1.5) --spacing(2.5);
+  }
+
+  .select option:hover,
+  .select option:focus-visible {
+    background-color: color-mix(in oklab, var(--color-primary-500) 15%, transparent);
+    outline: none;
+  }
+
+  .select option:checked {
+    color: var(--color-primary-700-300);
+  }
+
+  .select option::checkmark {
+    color: var(--color-primary-600-400);
+  }
+}
+
+/* Lays the customizable select's value and arrow out in a row. Skeleton's select utility sets
+   display: block, which a base-layer rule can't override, so this extends the utility instead */
+@utility select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: --spacing(2);
+}
+
+/* Skeleton's grey preset, lightened, with hover and press steps of its own: the stock brightness
+   filter barely moves a translucent grey */
+@utility preset-tonal {
+  background-color: light-dark(
+    color-mix(in oklab, var(--color-surface-950) 6%, var(--tint-base, transparent)),
+    color-mix(in oklab, var(--color-surface-50) 12%, var(--tint-base, transparent))
+  );
+
+  &:is(button, a, [role='button']):not(:disabled, [aria-disabled='true']) {
+    &:hover {
+      filter: none;
+      background-color: light-dark(
+        color-mix(in oklab, var(--color-surface-950) 11%, var(--tint-base, transparent)),
+        color-mix(in oklab, var(--color-surface-50) 18%, var(--tint-base, transparent))
+      );
+    }
+
+    &:active {
+      background-color: light-dark(
+        color-mix(in oklab, var(--color-surface-950) 17%, var(--tint-base, transparent)),
+        color-mix(in oklab, var(--color-surface-50) 25%, var(--tint-base, transparent))
+      );
+    }
+  }
+}
+
+/* A light orange wash for hovered and highlighted controls; preset-tonal is a neutral grey.
+   These washes mix onto --tint-base, see-through unless set: table rows set it so a wash looks
+   the same on striped and plain rows. They drop the stock hover brightness filter, which would
+   bleach the wash to a grey and leave only the icon colored */
+@utility preset-tint-primary {
+  background-color: color-mix(in oklab, var(--color-primary-500) 15%, var(--tint-base, transparent));
+  color: var(--color-primary-700-300);
+
+  &:is(button, a, [role='button']):not(:disabled, [aria-disabled='true']) {
+    filter: none;
+  }
+}
+
+/* Its red twin, for controls that delete */
+@utility preset-tint-error {
+  background-color: color-mix(in oklab, var(--color-error-500) 15%, var(--tint-base, transparent));
+  color: var(--color-error-700-300);
+
+  &:is(button, a, [role='button']):not(:disabled, [aria-disabled='true']) {
+    filter: none;
+  }
+}
+
+/* Its green twin, for controls that restore */
+@utility preset-tint-success {
+  background-color: color-mix(in oklab, var(--color-success-500) 15%, var(--tint-base, transparent));
+  color: var(--color-success-700-300);
+
+  &:is(button, a, [role='button']):not(:disabled, [aria-disabled='true']) {
+    filter: none;
+  }
+}
+
+/* Status colors: the dark-mode look of preset-tonal-*, kept in light mode too */
+/* Light mode uses a pale tint with dark text; dark mode keeps the solid shade with light text */
+@utility badge-primary {
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+
+  [data-mode='dark'] & {
+    background-color: var(--color-primary-950);
+    color: var(--color-primary-50);
+  }
+}
+
+@utility badge-success {
+  background-color: var(--color-success-100);
+  color: var(--color-success-900);
+
+  [data-mode='dark'] & {
+    background-color: var(--color-success-950);
+    color: var(--color-success-50);
+  }
+}
+
+@utility badge-error {
+  background-color: var(--color-error-100);
+  color: var(--color-error-900);
+
+  [data-mode='dark'] & {
+    background-color: var(--color-error-950);
+    color: var(--color-error-50);
+  }
+}
+
+/* Surface sits on the lightened panels, so it takes the next step up to stay visible */
+@utility badge-surface {
+  background-color: var(--color-surface-200);
+  color: var(--color-surface-900);
+
+  [data-mode='dark'] & {
+    background-color: var(--color-surface-950);
+    color: var(--color-surface-50);
+  }
+}
+
+/* A tinted status pill; pair it with a badge-* color */
+@utility badge-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: --spacing(0.5) --spacing(2.5);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+/* Menus: highlight the item under the pointer or keyboard in orange too. Layered so an item's
+   own text color utility (a red sign-out) still wins */
+@layer components {
+  [data-scope='menu'][data-part='item'][data-highlighted],
+  [data-scope='menu'][data-part='trigger-item'][data-highlighted] {
+    @apply preset-tint-primary;
+  }
+
+  /* Date picker: the day picked is orange like other selections, the rest tint orange on hover */
+  [data-scope='date-picker'] {
+    &:is([data-part='prev-trigger'], [data-part='next-trigger'], [data-part='view-trigger']) {
+      @variant hover {
+        @apply preset-tint-primary;
+      }
+    }
+
+    &[data-part='table-header'] {
+      color: var(--color-surface-600-400);
+      font-weight: var(--font-weight-medium);
+    }
+
+    &[data-part='table-cell-trigger'] {
+      @variant hover {
+        @apply preset-tint-primary;
+      }
+
+      &:is([data-selected], [data-in-range]) {
+        @apply preset-filled-primary-500;
+      }
+
+      &[data-today] {
+        font-weight: var(--font-weight-semibold);
+      }
+    }
+  }
+}
+
+/* Tooltip: a small popup like the menus and pickers, light in light mode and dark in dark mode */
+.tippy-box[data-theme~='tiqr'] {
+  border: 1px solid var(--color-surface-200-800);
+  background: var(--color-surface-50-950);
+  color: var(--color-surface-950-50);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-geist), sans-serif;
+  text-align: center;
+}

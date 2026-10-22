@@ -139,19 +139,23 @@ def test_web_session_needs_an_existing_account(service, accounts):
 
 
 @pytest.mark.parametrize("role", list(Role))
-def test_only_admins_create_users_and_staff_list_them(service, accounts, role):
+def test_staff_create_and_list_users(service, accounts, role):
     actor = accounts[role.value]
     if role == Role.OPERATOR:
         with pytest.raises(PermissionDeniedError):
             service.list_accounts(actor)
-    else:
-        assert [user.username for user in service.list_accounts(actor)] == sorted(accounts)
-    if role == Role.ADMIN:
-        created = service.create_user(actor, "newcomer", "newcomer-password", Role.OPERATOR)
-        assert service.repository.user_by_name("newcomer") == created
-    else:
         with pytest.raises(PermissionDeniedError):
             service.create_user(actor, "newcomer", "newcomer-password", Role.OPERATOR)
+        return
+    assert [user.username for user in service.list_accounts(actor)] == sorted(accounts)
+    created = service.create_user(actor, "newcomer", "newcomer-password", Role.OPERATOR)
+    assert service.repository.user_by_name("newcomer") == created
+    # Managers add operators only; admins add any role.
+    if role == Role.MANAGER:
+        with pytest.raises(PermissionDeniedError, match="only create operators"):
+            service.create_user(actor, "boss", "boss-password", Role.MANAGER)
+    else:
+        assert service.create_user(actor, "boss", "boss-password", Role.ADMIN).role == Role.ADMIN
 
 
 def test_scheduled_runs_need_no_actor(service, accounts, clock):

@@ -4,7 +4,7 @@ A Python 3.14 **core library, CLI and web API** for QR tickets registered with S
 BioStar X and scanned by XPass Q2 readers. SQLite keeps local history; the reader
 enforces each ticket's UTC access window. PDF output is saved as a file; `ticket print` also
 sends that file to the default printer. `tiqr serve` runs the same commands as a JSON API for
-the planned SvelteKit frontend; see [Web API](#web-api), and
+the planned Svelte frontend; see [Web API](#web-api), and
 [DEPLOYMENT.md](DEPLOYMENT.md) for how the product is packaged and installed on customer servers.
 
 ## Setup
@@ -116,6 +116,7 @@ uv run tiqr user list
 uv run tiqr user role operator manager
 uv run tiqr user deactivate operator
 uv run tiqr user activate operator
+uv run tiqr user delete operator
 uv run tiqr user password operator
 
 uv run tiqr ticket create --name "Adam Tələbə" --type Student --from "2030-06-01T09:00:00" --until "2030-06-01T18:00:00" --usage one_time --as operator
@@ -128,6 +129,7 @@ uv run tiqr ticket assign <ticket-uuid> operator --as manager
 uv run tiqr sync --as manager
 uv run tiqr cleanup --as admin
 uv run tiqr stats --as manager
+uv run tiqr stats --since 2026-09-01 --until 2026-09-30 --as manager
 ```
 
 Replace `<ticket-uuid>` with the ID returned by creation. `ticket save` and `ticket print`
@@ -174,11 +176,13 @@ output directory are kept.
 | Assign/reassign | No | Yes | No |
 | Statistics, sync, cleanup | Yes | Yes | No |
 | Print/reprint | Visible issued tickets | Visible issued tickets | Assigned issued tickets |
-| Add users, change roles, deactivate, reset passwords (web) | Yes, except their own role or active state | No | No |
+| Add users, deactivate, reactivate (web) | Yes, except their own active state | Operators only | No |
+| Change roles, reset passwords, delete deactivated users (web) | Yes, except their own role | No | No |
 | List users (web) | Yes | Yes, to pick assignees | No |
 
 A deactivated account keeps its tickets and history but cannot sign in, act, or be assigned
-tickets; a manager can reassign its tickets. Deactivating a user or resetting their password ends
+tickets; a manager can reassign its tickets. Only a deactivated account can be deleted, and only
+if it never created or held a ticket; otherwise it stays, deactivated. Deactivating a user or resetting their password ends
 all their sessions, web and CLI. A new role applies from the user's next request. The last active
 admin can be neither demoted nor deactivated, by the web or the CLI, so somebody can always
 manage accounts.
@@ -242,7 +246,8 @@ uv run tiqr serve --dev                                   # adds the API docs, l
 ```
 
 `tiqr serve` runs one Uvicorn process. It serves the JSON API under `/api` and, when a web build
-is bundled, the SvelteKit app on every other path, with `index.html` as the fallback. It checks
+is bundled, the Svelte app under `/tiqr`, with `index.html` as the fallback there; `/` redirects
+to `/tiqr/`. It checks
 the settings and database before it listens, so a bad key or an outdated schema fails at once.
 TiQR runs entirely on the customer's network, so plain HTTP is the default; with a certificate
 and key it terminates TLS in-process instead. Over HTTP, passwords and session cookies cross that
@@ -256,7 +261,8 @@ Run one server process per database: scheduling, login limits and the sync lock 
 | `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/session` | `--as` | — |
 | `GET /api/config` | — | Signed in; default timezone and server printing |
 | `GET /api/users`, `POST /api/users` | `user list`, `user add` | See [Permissions](#permissions) |
-| `PATCH /api/users/{id}` with any of `role`, `active`, `password` | `user role`, `user deactivate`, `user activate`, `user password` | Admins |
+| `PATCH /api/users/{id}` with any of `role`, `active`, `password` | `user role`, `user deactivate`, `user activate`, `user password` | Admins; managers change `active` for operators |
+| `DELETE /api/users/{id}` | `user delete` | Admins; deactivated users without tickets |
 | `GET /api/tickets?state=`, `POST /api/tickets`, `GET /api/tickets/{id}` | `ticket list`, `ticket create` | As the CLI |
 | `POST /api/tickets/{id}/assign` | `ticket assign` | Managers |
 | `POST /api/tickets/{id}/pdf` | `ticket save` | Returns the PDF and keeps it in `TIQR_OUT` |
@@ -283,7 +289,7 @@ twenty from one address, wait 15 minutes; a username alone is never locked, so n
 account out from elsewhere. An unknown username costs the same password hash as a wrong password,
 so timing does not reveal which accounts exist.
 
-`apps/web/openapi.json` is the API's OpenAPI schema for generating the web client. After changing
+`apps/api/openapi.json` is the API's OpenAPI schema for generating the web client. After changing
 the API, regenerate it with `uv run poe openapi`; a test fails while it is stale.
 
 ## Printing
@@ -456,8 +462,8 @@ itself. Each member is its own distribution, and all of them share the `tiqr` im
 |---|---|---|---|
 | `apps/core` | `tiqr-core` | `tiqr.core` | Models, service, SQLite, BioStar adapters, QR, PDF, OS printing, assets |
 | `apps/cli` | `tiqr-cli` | `tiqr.cli` | Typer commands, `tiqr serve`, and the executable's launcher |
-| `apps/api` | `tiqr-api` | `tiqr.api` | FastAPI app, sessions, scheduler, and the bundled web build's host |
-| `apps/web` | — | — | SvelteKit web UI; not started, see its README. Holds `openapi.json` |
+| `apps/api` | `tiqr-api` | `tiqr.api` | FastAPI app, sessions, scheduler, the bundled web build's host, and `openapi.json` |
+| `apps/web` | — | — | Svelte + Vite web UI; see its README |
 | `packaging/` | — | — | PyInstaller spec and entry script |
 | `tests/` | — | — | `core/`, `cli/`, `api/` and packaging tests, sharing one `conftest.py` |
 
@@ -492,7 +498,8 @@ your own `.env.local` there to supply BioStar settings. Secrets are never built 
 
 Any run with arguments, or from a terminal, first runs `setup` when the signing key or
 database is missing, then runs the CLI. `setup`, `reset` and `--help` never run it. `tiqr serve`
-works the same way and serves from that folder; the executable carries no web build yet.
+works the same way and serves from that folder. The executable bundles the web build, which the
+Executables workflow compiles in before PyInstaller runs.
 
 When a terminal run finds no users, it asks for the first admin's username and password
 before the command runs, so the database always gets an admin on first use. Scripts with

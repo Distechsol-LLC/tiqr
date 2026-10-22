@@ -1,0 +1,719 @@
+{
+  "info": {
+    "_postman_id": "7c1f4e2a-3b8d-4f6e-9a51-2d0b7e6c9a10",
+    "name": "TiQR API",
+    "description": "Fill in `username` and `password`, run **Login** first, then the folders top to bottom. **[WRITE]** requests change data: use a test server. Don't export with a password filled in.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('No server error (5xx)', () => pm.expect(pm.response.code).to.be.below(500));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:7102", "description": "Server address. Use https:// if TLS is on." },
+    { "key": "username", "value": "admin", "description": "Your account." },
+    { "key": "password", "value": "", "description": "Your password. Keep it blank in shared copies." },
+    { "key": "csrfToken", "value": "", "description": "Set by Login." },
+    { "key": "meId", "value": "", "description": "Set by Login." },
+    { "key": "newUserId", "value": "", "description": "Set by Create user." },
+    { "key": "ticketId", "value": "", "description": "Set by Issue ticket." }
+  ],
+  "item": [
+    {
+      "name": "Meta",
+      "item": [
+        {
+          "name": "Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Healthy', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "No sign-in needed. **200** when ready.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/health"
+          }
+        },
+        {
+          "name": "Config",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Config read', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Default timezone and whether server printing is on. **200**.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/config"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Signed in', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('csrfToken', body.csrf_token);",
+                  "pm.collectionVariables.set('meId', body.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Sets the session cookie and saves `csrfToken`. **200**; **401** for wrong credentials; **429** when throttled.",
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Session is live', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "The current user. **200**; **401** if the session ended.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/session"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "Listing: admin or manager. Changing users: admin only.",
+      "item": [
+        {
+          "name": "List users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Users listed', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "**200**; **403** for operators.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "[WRITE] Create user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('User created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('newUserId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Roles: `admin`, `manager`, `operator`; managers create operators only. Saves `newUserId`. **201**; **409** if the username is taken.",
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"clerk\",\n  \"password\": \"change-me-please\",\n  \"role\": \"operator\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "[WRITE] Change role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Role changed', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "**200**.",
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"manager\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/users/{{newUserId}}"
+          }
+        },
+        {
+          "name": "[WRITE] Deactivate user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Deactivated', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Blocks sign-in and ends their sessions. Managers may do this to operators. **200**.",
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/users/{{newUserId}}"
+          }
+        },
+        {
+          "name": "[WRITE] Reactivate user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reactivated', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "**200**.",
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/users/{{newUserId}}"
+          }
+        },
+        {
+          "name": "[WRITE] Reset password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Password reset', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Ends their sessions. **200**.",
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"another-password\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/users/{{newUserId}}"
+          }
+        },
+        {
+          "name": "[WRITE] Delete user",
+          "request": {
+            "description": "Admins only. Run **Deactivate user** first, or this is refused since **Reactivate user** ran above; then **Assign ticket** finds no `clerk`. **204**; **409** if active or they created or hold tickets.",
+            "method": "DELETE",
+            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "url": "{{baseUrl}}/api/users/{{newUserId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tickets",
+      "description": "Operators see and print only tickets assigned to them.",
+      "item": [
+        {
+          "name": "List tickets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Tickets listed', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "**200**.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tickets"
+          }
+        },
+        {
+          "name": "List issued tickets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Issued tickets listed', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Filter by `state`: `issued`, `passed` or `expired`. **200**.",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tickets?state=issued",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tickets"],
+              "query": [{ "key": "state", "value": "issued" }]
+            }
+          }
+        },
+        {
+          "name": "[WRITE] Issue ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Ticket issued', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('ticketId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Saves `ticketId`. Times without an offset use `timezone`. **201**; **422** for bad input.",
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_name\": \"Jane Doe\",\n  \"visitor_type\": \"Contractor\",\n  \"valid_from\": \"2030-06-01T09:00\",\n  \"valid_until\": \"2030-06-01T17:00\",\n  \"usage_type\": \"one_time\",\n  \"timezone\": \"Asia/Dubai\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/tickets"
+          }
+        },
+        {
+          "name": "Get ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Ticket read', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "**200**; **403** for an operator if it isn't assigned to them.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tickets/{{ticketId}}"
+          }
+        },
+        {
+          "name": "[WRITE] Assign ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Ticket assigned', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Managers only. `assignee` is any username. **200**; **404** if it doesn't exist.",
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignee\": \"clerk\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/tickets/{{ticketId}}/assign"
+          }
+        },
+        {
+          "name": "[WRITE] Render badge PDF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Badge rendered as PDF', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/pdf');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Returns a PDF and counts as a print. Issued tickets only. **200**; **409** otherwise.",
+            "method": "POST",
+            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "url": "{{baseUrl}}/api/tickets/{{ticketId}}/pdf"
+          }
+        },
+        {
+          "name": "[WRITE] Print on server printer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Printed, or printing is off', () => pm.expect([200, 409, 502]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Needs `TIQR_SERVER_PRINTING=true`. **200**; **409** when it's off; **502** if the printer fails.",
+            "method": "POST",
+            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "url": "{{baseUrl}}/api/tickets/{{ticketId}}/print"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Operations",
+      "description": "Admins and managers.",
+      "item": [
+        {
+          "name": "[WRITE] Sync access events",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Synced', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Runs a BioStar sync now. **200** with `count`; **502** if BioStar fails.",
+            "method": "POST",
+            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "url": "{{baseUrl}}/api/sync"
+          }
+        },
+        {
+          "name": "[WRITE] Clean up finished tickets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cleaned up', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Removes finished tickets from BioStar now. **200** with `count`; **502** if BioStar fails.",
+            "method": "POST",
+            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "url": "{{baseUrl}}/api/cleanup"
+          }
+        },
+        {
+          "name": "Stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Stats read', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Totals: tickets, issued, passed, expired, uses, prints. **200**.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/stats"
+          }
+        },
+        {
+          "name": "Stats for a date range",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Dated stats read', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "The same figures, only for tickets created on these days in TIQR_DEFAULT_TZ; both ends are inclusive and either may be left out. **200**.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/stats?since=2026-09-01&until=2026-09-30"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Negative cases",
+      "description": "These should fail. Run last: the wrong password counts toward the login limit.",
+      "item": [
+        {
+          "name": "Wrong password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Wrong password refused', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "**401**.",
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"definitely-wrong\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Write without CSRF token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CSRF refused', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "No `X-CSRF-Token` header. **403**.",
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_name\": \"No Token\",\n  \"visitor_type\": \"Contractor\",\n  \"valid_from\": \"2030-06-01T09:00\",\n  \"valid_until\": \"2030-06-01T17:00\",\n  \"usage_type\": \"one_time\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/tickets"
+          }
+        },
+        {
+          "name": "Write from another origin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cross-origin refused', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Foreign `Origin` header. **403**.",
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" },
+              { "key": "Origin", "value": "https://evil.example" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"intruder\",\n  \"password\": \"change-me-please\",\n  \"role\": \"admin\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "Malformed ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Bad input refused', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Bad `valid_from`. **422**.",
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_name\": \"Jane Doe\",\n  \"visitor_type\": \"Contractor\",\n  \"valid_from\": \"next tuesday\",\n  \"valid_until\": \"2030-06-01T17:00\",\n  \"usage_type\": \"one_time\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/tickets"
+          }
+        },
+        {
+          "name": "Unknown ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unknown ticket is 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "**404**.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tickets/00000000-0000-0000-0000-000000000000"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sign out",
+      "item": [
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Signed out', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "**204**.",
+            "method": "POST",
+            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "url": "{{baseUrl}}/api/auth/logout"
+          }
+        }
+      ]
+    }
+  ]
+}
