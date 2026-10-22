@@ -641,3 +641,13 @@ def test_a_ticket_is_priced_from_its_types(client):
     unknown = client.post("/api/tickets", json=ticket_body(ticket_type="Nope"))
     assert unknown.status_code == 422
     assert unknown.json()["detail"] == "Unknown ticket type"
+
+
+def test_branding_is_public_and_follows_the_languages(client):
+    body = client.get("/api/branding").json()
+
+    assert body["app_name"] == "TiQR"
+    assert body["languages"] == ["en-US", "ru-RU", "az-AZ"]
+    assert body["currencies"] == ["USD", "RUB", "AZN"]
+    assert body["has_logo"] is False
+    assert client.get("/api/logo").status_code == 404

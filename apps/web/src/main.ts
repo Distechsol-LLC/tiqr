@@ -2,10 +2,23 @@ import { mount } from 'svelte';
 
 import App from '@/App.svelte';
 import { ERROR_SERVICE_WORKER } from '@/config/errors.ts';
+import { branding } from '%/useBranding.svelte.ts';
+import { i18n } from '%/useLocale.svelte.ts';
+import { theme } from '%/useTheme.svelte.ts';
 
 const target = document.getElementById('root');
 
-if (target) mount(App, { target });
+// The install's name, theme and languages come first, so nothing flashes in the built-in ones
+const start = async (): Promise<void> => {
+  await branding.load();
+  theme.configure(branding.theme);
+  i18n.configure(branding.locales, branding.fallbackLocale);
+  document.title = branding.appName;
+
+  if (branding.logoSrc)
+    document.querySelector('link[rel=icon]')?.setAttribute('href', branding.logoSrc);
+  if (target) mount(App, { target });
+};
 
 const registerSW = (): void => {
   if ('serviceWorker' in navigator)
@@ -21,3 +34,4 @@ const registerSW = (): void => {
 };
 
 registerSW();
+void start();

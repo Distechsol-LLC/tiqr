@@ -93,7 +93,7 @@ const ru: Messages = {
     visitorTypes: 'Типы посетителей',
   },
   notFound: {
-    back: 'Вернуться в TiQR',
+    back: 'На главную',
     description: 'Страница, которую вы ищете, не существует',
     title: 'Страница не найдена',
   },

@@ -5,6 +5,7 @@ from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID
@@ -316,12 +317,15 @@ def ticket_list(
 @ticket_app.command("save")
 def ticket_save(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> None:
     """Render a PDF file only; no printer or print queue is used."""
+    from tiqr.core.pdf import render_pdf  # noqa: PLC0415 - ReportLab is slow to import
+
     with _session() as runtime:
         path = runtime.service.print_ticket(
             runtime.authenticate(actor),
             ticket_id,
             output_dir=runtime.settings.output_dir,
             timezone=runtime.settings.default_tz,
+            renderer=partial(render_pdf, title=runtime.settings.app_name),
         )
         typer.echo(str(path))
 
@@ -331,12 +335,14 @@ def ticket_print(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> 
     """Save the PDF, then send it to the default printer; a failed print leaves the count alone."""
     from tiqr.core.pdf import render_pdf  # noqa: PLC0415 - ReportLab is slow to import
 
-    def render_and_print(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
-        path = render_pdf(ticket, output_dir, timezone)
-        send_to_printer(path)
-        return path
-
     with _session() as runtime:
+        title = runtime.settings.app_name
+
+        def render_and_print(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
+            path = render_pdf(ticket, output_dir, timezone, title=title)
+            send_to_printer(path)
+            return path
+
         path = runtime.service.print_ticket(
             runtime.authenticate(actor),
             ticket_id,

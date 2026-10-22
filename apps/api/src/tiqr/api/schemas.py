@@ -267,6 +267,19 @@ class ConfigOut(BaseModel):
     server_printing: Annotated[bool, Field(description="Whether /print reaches a printer")]
 
 
+class BrandingOut(BaseModel):
+    app_name: Annotated[str, Field(description="TIQR_APP_NAME, for titles and the header")]
+    theme: Annotated[str, Field(description="TIQR_THEME: default, light, dark or a custom name")]
+    languages: Annotated[
+        list[str], Field(description="TIQR_LANGUAGES, such as en-US: what the switcher offers")
+    ]
+    default_language: Annotated[str, Field(description="The language shown before anyone picks")]
+    currencies: Annotated[
+        list[Currency], Field(description="The currencies of the languages' regions")
+    ]
+    has_logo: Annotated[bool, Field(description="Whether /api/logo serves TIQR_LOGO_PATH")]
+
+
 class HealthOut(BaseModel):
     status: str
     version: str

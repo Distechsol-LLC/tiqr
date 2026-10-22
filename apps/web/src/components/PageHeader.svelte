@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
+  import { branding } from '%/useBranding.svelte.ts';
+
   type PageHeaderProps = {
     title: string;
     description?: string;
@@ -13,7 +15,7 @@
 </script>
 
 <svelte:head>
-  <title>{title} · TiQR</title>
+  <title>{title} · {branding.appName}</title>
 </svelte:head>
 
 <!-- A bar across the top of the page, colored like the sidebar; the table below fills the rest -->

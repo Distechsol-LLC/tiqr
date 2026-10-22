@@ -5,13 +5,14 @@
   import Logo from '@/components/Logo.svelte';
   import ThemeToggle from '@/components/ThemeToggle.svelte';
   import { p } from '@/router.ts';
+  import { branding } from '%/useBranding.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
 
   const ICON_SIZE = 18;
 </script>
 
 <svelte:head>
-  <title>{i18n.t.notFound.title} · TiQR</title>
+  <title>{i18n.t.notFound.title} · {branding.appName}</title>
 </svelte:head>
 
 <!-- Float in the corner here; the sidebar places them inline instead -->

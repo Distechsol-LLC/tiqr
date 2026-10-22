@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 import sys
 from collections.abc import Callable, Mapping
@@ -10,6 +11,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import dotenv_values
 
+from tiqr.core.languages import DEFAULT_LANGUAGES, currencies_for, parse_language, parse_languages
+from tiqr.core.models import Currency
 from tiqr.core.qr import DEFAULT_PREFIX, validate_prefix
 
 
@@ -49,6 +52,10 @@ _PLACEHOLDER_SECRETS = frozenset(
     }
 )
 _PLACEHOLDER_FRAGMENTS = ("placeholder", "do-not-use", "change-me")
+DEFAULT_APP_NAME = "TiQR"
+DEFAULT_THEME = "default"
+LOGO_SUFFIXES = frozenset({".png", ".svg", ".jpg", ".jpeg"})
+_THEME_NAME = re.compile(r"[a-z][a-z0-9-]*")
 _BIOSTAR_REQUIRED = ("BASE_URL", "USERNAME", "PASSWORD", "DEVICE_IDS")
 _BIOSTAR_OPTIONAL = (
     "ACCESS_GROUP_ID",
@@ -187,6 +194,16 @@ def _default_timezone(environment: Mapping[str, str]) -> str:
     return configured or _detected_timezone() or "UTC"
 
 
+def _text(environment: Mapping[str, str], name: str, default: str = "") -> str:
+    return environment.get(f"TIQR_{name}", "").strip() or default
+
+
+def _logo_path(environment: Mapping[str, str]) -> Path | None:
+    value = _text(environment, "LOGO_PATH")
+    # Relative paths follow TIQR_DB and TIQR_OUT: against the project root.
+    return PROJECT_ROOT / value if value else None
+
+
 @dataclass(frozen=True, slots=True)
 class BioStarSettings:
     base_url: str
@@ -251,11 +268,39 @@ class Settings:
     default_tz: str = "UTC"
     prefix: str = DEFAULT_PREFIX
     biostar: BioStarSettings | None = None
+    app_name: str = DEFAULT_APP_NAME
+    logo_path: Path | None = None
+    theme: str = DEFAULT_THEME
+    languages: tuple[str, ...] = DEFAULT_LANGUAGES
+    # Blank means the first of `languages`.
+    default_language: str = ""
 
     def __post_init__(self) -> None:
         validate_secret(self.secret_key)
         validate_prefix(self.prefix)
         ZoneInfo(self.default_tz)
+        if not self.app_name.strip():
+            raise ValueError("TIQR_APP_NAME must not be blank")
+        if _THEME_NAME.fullmatch(self.theme) is None:
+            raise ValueError("TIQR_THEME must be lowercase letters, digits and dashes")
+        if not self.languages or self.languages != parse_languages(",".join(self.languages)):
+            raise ValueError("TIQR_LANGUAGES must list each language once, such as en-US,az-AZ")
+        if self.default_language and self.default_language not in self.languages:
+            raise ValueError("TIQR_DEFAULT_LANGUAGE must be one of TIQR_LANGUAGES")
+        if self.logo_path is not None:
+            if self.logo_path.suffix.lower() not in LOGO_SUFFIXES:
+                raise ValueError("TIQR_LOGO_PATH must be a PNG, SVG or JPG image")
+            if not self.logo_path.is_file():
+                raise ValueError(f"TIQR_LOGO_PATH does not exist: {self.logo_path}")
+
+    @property
+    def initial_language(self) -> str:
+        return self.default_language or self.languages[0]
+
+    @property
+    def currencies(self) -> tuple[Currency, ...]:
+        """What prices may be in: the currency of each language's region."""
+        return currencies_for(self.languages)
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -264,6 +309,8 @@ class Settings:
         # Production sets this so a missing BioStar block fails loudly.
         if _biostar_flag(environment, "REQUIRED", default=False) and biostar is None:
             raise ValueError("TIQR_BIOSTAR_REQUIRED is true but BioStar is not configured")
+        languages = parse_languages(environment.get("TIQR_LANGUAGES", ""))
+        default_language = _text(environment, "DEFAULT_LANGUAGE")
         return cls(
             secret_key=environment.get("TIQR_SECRET_KEY", ""),
             database_path=database_path(environment),
@@ -271,4 +318,9 @@ class Settings:
             default_tz=_default_timezone(environment),
             prefix=_prefix(environment),
             biostar=biostar,
+            app_name=_text(environment, "APP_NAME", DEFAULT_APP_NAME),
+            logo_path=_logo_path(environment),
+            theme=_text(environment, "THEME", DEFAULT_THEME).lower(),
+            languages=languages,
+            default_language=parse_language(default_language) if default_language else "",
         )

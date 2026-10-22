@@ -91,7 +91,7 @@ const az: Messages = {
     visitorTypes: 'Ziyarətçi növləri',
   },
   notFound: {
-    back: 'TiQR-a qayıt',
+    back: 'Ana səhifəyə qayıt',
     description: 'Axtardığınız səhifə mövcud deyil',
     title: 'Səhifə tapılmadı',
   },

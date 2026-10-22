@@ -9,6 +9,7 @@ import {
   sessionSchema,
   userSchema,
 } from '$/auth.ts';
+import { type Branding, brandingSchema } from '$/branding.ts';
 import {
   type TicketType,
   type TicketTypeFields,
@@ -139,6 +140,9 @@ const fetchSession = (): Promise<ApiResult<Session>> => request('/auth/session',
 
 const logout = (csrfToken: string): Promise<ApiResult<null>> =>
   request('/auth/logout', z.null(), write('POST', csrfToken));
+
+// Public: the login page shows it before anyone signs in
+const fetchBranding = (): Promise<ApiResult<Branding>> => request('/branding', brandingSchema);
 
 const fetchConfig = (): Promise<ApiResult<Config>> => request('/config', configSchema);
 
@@ -298,6 +302,7 @@ export {
   fetchAllTicketTypes,
   fetchAllUsers,
   fetchAllVisitorTypes,
+  fetchBranding,
   fetchConfig,
   fetchSession,
   fetchStats,

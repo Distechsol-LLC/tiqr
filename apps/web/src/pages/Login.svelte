@@ -13,6 +13,7 @@
   import { getFailureMessage } from '%/getFailureMessage.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
+  import { branding } from '%/useBranding.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { credentialsSchema } from '$/auth.ts';
 
@@ -79,7 +80,7 @@
 </script>
 
 <svelte:head>
-  <title>{i18n.t.login.signIn} · TiQR</title>
+  <title>{i18n.t.login.signIn} · {branding.appName}</title>
 </svelte:head>
 
 <!-- Float in the corner here; the sidebar places them inline instead -->
@@ -92,7 +93,7 @@
   <div class="w-full max-w-sm space-y-8">
     <header class="flex justify-center-safe items-center-safe gap-4 text-center">
       <Logo class="size-14 shadow-lg" />
-      <h1 class="h3">TiQR</h1>
+      <h1 class="h3">{branding.appName}</h1>
     </header>
 
     <form
