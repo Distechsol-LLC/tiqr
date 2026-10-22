@@ -16,7 +16,12 @@ const az: Messages = {
     cancel: 'Ləğv et',
     create: 'Yarat',
     loading: 'Yüklənir',
+    nextPage: 'Növbəti səhifə',
+    pageOf: (page: number, pages: number): string => `Səhifə ${page} / ${pages}`,
+    previousPage: 'Əvvəlki səhifə',
+    range: (from: number, to: number, total: number): string => `${from}–${to} / ${total}`,
     refresh: 'Yenilə',
+    rowsPerPage: 'Səhifədə sətir',
   },
   dateField: {
     hours: 'Saatlar',

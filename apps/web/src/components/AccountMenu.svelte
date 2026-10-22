@@ -9,6 +9,7 @@
   import Flag from '@/components/Flag.svelte';
   import { LOCALES, LOCALE_CODES, isLocale } from '@/config/locales.ts';
   import { navigate } from '@/router.ts';
+  import { initialsOf } from '%/initials.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { theme } from '%/useTheme.svelte.ts';
@@ -30,7 +31,7 @@
   let isPending = $state(false);
 
   const user = $derived(auth.session?.user);
-  const initial = $derived(user?.username.charAt(0).toLocaleUpperCase(i18n.code) ?? '');
+  const initials = $derived(initialsOf(user?.username ?? '', i18n.code));
   const themeLabel = $derived(theme.mode === 'dark' ? i18n.t.theme.light : i18n.t.theme.dark);
 
   const handleSignOut = async (): Promise<void> => {
@@ -62,7 +63,7 @@
         aria-hidden="true"
         class="grid size-9 shrink-0 place-items-center rounded-full bg-primary-500 font-semibold text-primary-contrast-500"
       >
-        {initial}
+        {initials}
       </span>
       {#if variant === 'full'}
         <span

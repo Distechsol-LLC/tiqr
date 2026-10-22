@@ -13,15 +13,18 @@
   import DataTable from '@/components/DataTable.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
   import PageHeader from '@/components/PageHeader.svelte';
+  import Pagination from '@/components/Pagination.svelte';
   import PasswordForm from '@/components/PasswordForm.svelte';
   import SortHeader from '@/components/SortHeader.svelte';
   import UserForm from '@/components/UserForm.svelte';
   import { deleteUser, fetchUsers, updateUser } from '%/api.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
+  import { pageCount } from '%/pagination.ts';
   import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
+  import { createPagination } from '%/usePagination.svelte.ts';
   import { type Role, type User, roleSchema } from '$/auth.ts';
   import type { UserPatch } from '$/users.ts';
 
@@ -46,7 +49,12 @@
   // The actions column is for staff
   const columns = $derived(BASE_COLUMNS + (isStaff ? 1 : 0));
 
+  const pagination = createPagination();
+
   let users = $state<User[]>([]);
+  let total = $state(0);
+  // Counts the requests, so a slow one can't land over a newer one
+  let requestId = 0;
   let sort = $state<Sort<SortKey> | null>({ direction: 'asc', key: 'username' });
   let isLoading = $state(true);
   let isCreating = $state(false);
@@ -72,14 +80,44 @@
     sort?.key === key ? sort.direction : null;
 
   const load = async (): Promise<void> => {
+    requestId += 1;
+
+    const id = requestId;
+
     isLoading = true;
 
-    const result = await fetchUsers();
+    const result = await fetchUsers({ page: pagination.page, size: pagination.size });
+
+    if (id !== requestId) return;
+
+    if (!result.ok) {
+      isLoading = false;
+      await notifyFailure(i18n.t.users.notLoaded, result.error);
+      return;
+    }
+
+    const last = pageCount(result.data.total, pagination.size);
+
+    // A shared link, or deletions, can leave the page past the end: show the last one
+    if (pagination.page > last) {
+      pagination.goTo(last);
+      await load();
+      return;
+    }
 
     isLoading = false;
+    users = result.data.items;
+    total = result.data.total;
+  };
 
-    if (result.ok) users = result.data;
-    else await notifyFailure(i18n.t.users.notLoaded, result.error);
+  const goToPage = (page: number): void => {
+    pagination.goTo(page);
+    void load();
+  };
+
+  const resize = (size: number): void => {
+    pagination.resize(size);
+    void load();
   };
 
   const patch = async (
@@ -154,9 +192,9 @@
       return;
     }
 
-    users = users.filter((current) => current.id !== user.id);
     toaster.success({ description: user.username, title: i18n.t.users.userDeleted });
     deleting = null;
+    await load();
   };
 
   const closeDelete = (): void => {
@@ -171,8 +209,9 @@
     resetting = null;
   };
 
-  const addUser = (user: User): void => {
-    users = [...users, user];
+  // Usernames are alphabetical, so the new account may belong on another page
+  const addUser = (): void => {
+    void load();
   };
 
   onMount(() => {
@@ -355,6 +394,15 @@
     </tr>
   {/each}
 </DataTable>
+
+<Pagination
+  {isLoading}
+  onPage={goToPage}
+  onSize={resize}
+  page={pagination.page}
+  size={pagination.size}
+  {total}
+/>
 
 {#if isStaff}
   <UserForm canPickRole={isAdmin} isOpen={isCreating} onClose={closeCreate} onCreated={addUser} />

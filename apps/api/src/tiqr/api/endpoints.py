@@ -4,13 +4,14 @@ Handlers are plain functions, so FastAPI runs them on its thread pool: the core 
 and its repository and BioStar client serialize their own access.
 """
 
+from dataclasses import dataclass
 from datetime import date
 from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 from tiqr.api import __version__
 from tiqr.api.deps import AppState, Server, Signed
@@ -27,8 +28,10 @@ from tiqr.api.schemas import (
     StatsOut,
     TicketIn,
     TicketOut,
+    TicketPage,
     UserIn,
     UserOut,
+    UserPage,
     UserPatch,
 )
 from tiqr.api.security import clear_session_cookie, cookie_name, set_session_cookie
@@ -45,6 +48,8 @@ router = APIRouter(
 _PDF: dict[int | str, dict[str, Any]] = {
     200: {"content": {"application/pdf": {}}, "description": "The badge, one A4 page"}
 }
+_DEFAULT_SIZE = 20
+_MAX_SIZE = 100
 _IDLE_SECONDS = int(WEB_SESSION_IDLE.total_seconds())
 _REFUSALS: dict[int, str] = {
     401: "Not signed in, or sign-in was refused",
@@ -68,6 +73,21 @@ def _refusals(*statuses: int) -> dict[int | str, dict[str, Any]]:
         }
         for status in statuses
     }
+
+
+@dataclass(frozen=True)
+class _Paging:
+    page: Annotated[int, Query(ge=1, description="The page to return, from 1")] = 1
+    size: Annotated[int, Query(ge=1, le=_MAX_SIZE, description="Most items on a page")] = (
+        _DEFAULT_SIZE
+    )
+
+    def slice[T](self, items: list[T]) -> list[T]:
+        start = (self.page - 1) * self.size
+        return items[start : start + self.size]
+
+
+Paging = Annotated[_Paging, Depends()]
 
 
 def _ticket(server: AppState, ticket: Ticket) -> TicketOut:
@@ -136,9 +156,16 @@ def session(me: Signed) -> SessionOut:
     return SessionOut.of(me.user, me.session, _IDLE_SECONDS)
 
 
-@router.get("/users", tags=["users"], responses=_refusals(401, 403))
-def list_users(me: Signed, server: Server) -> list[UserOut]:
-    return [UserOut.of(user) for user in server.service.list_accounts(me.user)]
+@router.get("/users", tags=["users"], responses=_refusals(401, 403, 422))
+def list_users(me: Signed, server: Server, paging: Paging) -> UserPage:
+    """One page of accounts, by username."""
+    users = server.service.list_accounts(me.user)
+    return UserPage(
+        items=[UserOut.of(user) for user in paging.slice(users)],
+        total=len(users),
+        page=paging.page,
+        size=paging.size,
+    )
 
 
 @router.post("/users", tags=["users"], status_code=201, responses=_refusals(401, 403, 422))
@@ -174,11 +201,17 @@ def delete_user(user_id: UUID, me: Signed, server: Server) -> None:
 
 @router.get("/tickets", tags=["tickets"], responses=_refusals(401, 422))
 def list_tickets(
-    me: Signed, server: Server, state: Annotated[TicketState | None, Query()] = None
-) -> list[TicketOut]:
+    me: Signed, server: Server, paging: Paging, state: Annotated[TicketState | None, Query()] = None
+) -> TicketPage:
+    """One page of tickets, newest first."""
     tickets = server.service.list_tickets(me.user, state=state)
-    tickets.sort(key=lambda ticket: (ticket.readable_serial, str(ticket.id)))
-    return [_ticket(server, ticket) for ticket in tickets]
+    tickets.sort(key=lambda ticket: (ticket.readable_serial, str(ticket.id)), reverse=True)
+    return TicketPage(
+        items=[_ticket(server, ticket) for ticket in paging.slice(tickets)],
+        total=len(tickets),
+        page=paging.page,
+        size=paging.size,
+    )
 
 
 @router.post("/tickets", tags=["tickets"], status_code=201, responses=_refusals(401, 403, 422, 502))

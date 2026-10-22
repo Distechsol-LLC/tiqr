@@ -14,7 +14,12 @@ const en = {
     cancel: 'Cancel',
     create: 'Create',
     loading: 'Loading',
+    nextPage: 'Next page',
+    pageOf: (page: number, pages: number): string => `Page ${page} / ${pages}`,
+    previousPage: 'Previous page',
+    range: (from: number, to: number, total: number): string => `${from}–${to} / ${total}`,
     refresh: 'Refresh',
+    rowsPerPage: 'Rows per page',
   },
   dateField: {
     hours: 'Hours',

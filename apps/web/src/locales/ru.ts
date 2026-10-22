@@ -16,7 +16,12 @@ const ru: Messages = {
     cancel: 'Отмена',
     create: 'Создать',
     loading: 'Загрузка',
+    nextPage: 'Следующая страница',
+    pageOf: (page: number, pages: number): string => `Страница ${page} / ${pages}`,
+    previousPage: 'Предыдущая страница',
+    range: (from: number, to: number, total: number): string => `${from}–${to} / ${total}`,
     refresh: 'Обновить',
+    rowsPerPage: 'Строк на странице',
   },
   dateField: {
     hours: 'Часы',
