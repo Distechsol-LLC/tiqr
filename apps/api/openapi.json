@@ -270,18 +270,44 @@
           "users"
         ],
         "summary": "List Users",
+        "description": "One page of accounts, by username.",
         "operationId": "list_users",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The page to return, from 1",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "The page to return, from 1"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Most items on a page",
+              "default": 20,
+              "title": "Size"
+            },
+            "description": "Most items on a page"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/UserOut"
-                  },
-                  "type": "array",
-                  "title": "Response List Users"
+                  "$ref": "#/components/schemas/UserPage"
                 }
               }
             }
@@ -315,6 +341,24 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 List Users"
+                }
+              }
+            }
           }
         }
       },
@@ -326,14 +370,14 @@
         "description": "Admins create any role; managers create operators only.",
         "operationId": "create_user",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UserIn"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -608,6 +652,7 @@
           "tickets"
         ],
         "summary": "List Tickets",
+        "description": "One page of tickets, newest first.",
         "operationId": "list_tickets",
         "parameters": [
           {
@@ -625,6 +670,33 @@
               ],
               "title": "State"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The page to return, from 1",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "The page to return, from 1"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Most items on a page",
+              "default": 20,
+              "title": "Size"
+            },
+            "description": "Most items on a page"
           }
         ],
         "responses": {
@@ -633,11 +705,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TicketOut"
-                  },
-                  "title": "Response List Tickets"
+                  "$ref": "#/components/schemas/TicketPage"
                 }
               }
             }
@@ -1886,6 +1954,40 @@
         ],
         "title": "TicketOut"
       },
+      "TicketPage": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Every match, across all pages"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "description": "The page shown, from 1"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "description": "Most items on a page"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TicketOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "page",
+          "size",
+          "items"
+        ],
+        "title": "TicketPage"
+      },
       "TicketState": {
         "type": "string",
         "enum": [
@@ -1955,6 +2057,40 @@
           "active"
         ],
         "title": "UserOut"
+      },
+      "UserPage": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Every match, across all pages"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "description": "The page shown, from 1"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "description": "Most items on a page"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UserOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "page",
+          "size",
+          "items"
+        ],
+        "title": "UserPage"
       },
       "UserPatch": {
         "properties": {

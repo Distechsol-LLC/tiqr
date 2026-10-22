@@ -105,6 +105,10 @@ Responses never include password hashes, secrets, or stack traces.
 
 All paths are relative to `/api`. Times are ISO 8601 with an offset. Input without an offset is read in the ticket's `timezone` (or the server's default).
 
+### Pagination
+
+`GET /users` and `GET /tickets` answer one page: `{items, total, page, size}`, where `total` counts every match. Ask with `?page=` (from 1, default 1) and `?size=` (1 to 100, default 20); anything else is a `422`. A page past the end has no `items`.
+
 ### Meta
 
 | Method | Path | Auth | Description |
@@ -126,7 +130,7 @@ Admins manage every account. Managers list accounts, create operators, and deact
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/users` | session | List accounts visible to the caller. |
+| GET | `/users` | session | List accounts visible to the caller, by username, as a page (see Pagination). |
 | POST | `/users` | session + CSRF | Create a user. Body `{username, password, role}`. Managers create operators only. Returns `201`. |
 | PATCH | `/users/{user_id}` | session + CSRF | Change `role`, set `active`, or reset `password`. Omitted fields are unchanged. Managers may only set `active`, on operators. |
 | DELETE | `/users/{user_id}` | session + CSRF | Delete a deactivated user. Admins only. Returns `204`; `409` if active or they created or hold tickets. |
@@ -137,7 +141,7 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/tickets` | session | List tickets, sorted by readable serial. Optional `?state=issued\|passed\|expired`. |
+| GET | `/tickets` | session | List tickets, newest first (by readable serial), as a page (see Pagination). Optional `?state=issued\|passed\|expired`. |
 | POST | `/tickets` | session + CSRF | Issue a ticket. Returns `201`. |
 | GET | `/tickets/{ticket_id}` | session | One ticket. |
 | POST | `/tickets/{ticket_id}/assign` | session + CSRF | Body `{assignee}`: the username of any existing account to assign the ticket to. Managers only. |

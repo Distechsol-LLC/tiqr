@@ -131,6 +131,20 @@ class TicketOut(BaseModel):
         )
 
 
+class _Page(BaseModel):
+    total: Annotated[int, Field(description="Every match, across all pages")]
+    page: Annotated[int, Field(description="The page shown, from 1")]
+    size: Annotated[int, Field(description="Most items on a page")]
+
+
+class UserPage(_Page):
+    items: list[UserOut]
+
+
+class TicketPage(_Page):
+    items: list[TicketOut]
+
+
 class CountOut(BaseModel):
     count: int
 

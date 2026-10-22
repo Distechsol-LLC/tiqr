@@ -210,8 +210,8 @@ def test_ticket_lifecycle_through_the_api(client, accounts):
     assert {"qr_payload", "external_id"}.isdisjoint(created)
     ticket_id = created["id"]
     assert client.get(f"/api/tickets/{ticket_id}").json() == created
-    assert [ticket["id"] for ticket in client.get("/api/tickets").json()] == [ticket_id]
-    assert client.get("/api/tickets", params={"state": "passed"}).json() == []
+    assert [ticket["id"] for ticket in client.get("/api/tickets").json()["items"]] == [ticket_id]
+    assert client.get("/api/tickets", params={"state": "passed"}).json()["items"] == []
 
     pdf = client.post(f"/api/tickets/{ticket_id}/pdf")
     assert pdf.status_code == 200
@@ -260,7 +260,7 @@ def test_operators_see_only_their_tickets_and_cannot_assign(client):
     ticket_id = create_ticket(client)["id"]
     login(client, "operator")
     assert client.get(f"/api/tickets/{ticket_id}").status_code == 403
-    assert client.get("/api/tickets").json() == []
+    assert client.get("/api/tickets").json()["items"] == []
     assign = client.post(f"/api/tickets/{ticket_id}/assign", json={"assignee": "operator"})
     assert assign.status_code == 403
     login(client, "manager")
@@ -288,7 +288,7 @@ def test_passed_tickets_cannot_be_printed(client, service):
 
 def test_user_management(client):
     login(client, "manager")
-    assert [user["username"] for user in client.get("/api/users").json()] == [
+    assert [user["username"] for user in client.get("/api/users").json()["items"]] == [
         "admin",
         "manager",
         "operator",
@@ -451,7 +451,7 @@ def test_admins_change_roles_deactivate_and_reset_passwords(client, accounts):
     refused = client.post("/api/auth/login", json={"username": "operator", "password": PASSWORD})
     assert refused.status_code == 401
     assert refused.json()["detail"] == "This account is deactivated"
-    listed = {user["username"]: user["active"] for user in client.get("/api/users").json()}
+    listed = {user["username"]: user["active"] for user in client.get("/api/users").json()["items"]}
     assert listed["operator"] is False
     assert client.patch(url, json={"active": True, "password": "reset-password"}).status_code == 200
     login(client, "operator", "reset-password")
@@ -488,3 +488,25 @@ def test_user_update_refusals(client, accounts):
     token = client.headers.pop("X-CSRF-Token")
     assert client.patch(other, json={"active": False}).json()["code"] == "csrf"
     client.headers["X-CSRF-Token"] = token
+
+
+def test_lists_are_paged_newest_ticket_first(client):
+    login(client)
+    serials = [create_ticket(client)["readable_serial"] for _ in range(3)]
+    first = client.get("/api/tickets", params={"size": 2}).json()
+    assert (first["total"], first["page"], first["size"]) == (3, 1, 2)
+    assert [ticket["readable_serial"] for ticket in first["items"]] == serials[:0:-1]
+    second = client.get("/api/tickets", params={"size": 2, "page": 2}).json()
+    assert [ticket["readable_serial"] for ticket in second["items"]] == serials[:1]
+    beyond = client.get("/api/tickets", params={"size": 2, "page": 9}).json()
+    assert (beyond["items"], beyond["total"]) == ([], 3)
+    users = client.get("/api/users", params={"size": 3, "page": 2}).json()
+    assert [user["username"] for user in users["items"]] == ["other"]
+    assert users["total"] == 4
+
+
+@pytest.mark.parametrize("params", [{"page": 0}, {"size": 0}, {"size": 101}, {"page": "x"}])
+def test_bad_paging_is_422(client, params):
+    login(client)
+    for path in ("/api/tickets", "/api/users"):
+        assert client.get(path, params=params).status_code == 422

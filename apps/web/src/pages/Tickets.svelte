@@ -15,17 +15,20 @@
   import AssignForm from '@/components/AssignForm.svelte';
   import DataTable from '@/components/DataTable.svelte';
   import PageHeader from '@/components/PageHeader.svelte';
+  import Pagination from '@/components/Pagination.svelte';
   import SortHeader from '@/components/SortHeader.svelte';
   import StateBadge from '@/components/StateBadge.svelte';
   import TicketForm from '@/components/TicketForm.svelte';
-  import { fetchTicket, fetchTickets, fetchUsers, printTicket, renderTicketPdf } from '%/api.ts';
+  import { fetchAllUsers, fetchTicket, fetchTickets, printTicket, renderTicketPdf } from '%/api.ts';
   import { formatDatetime } from '%/formatters.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
+  import { pageCount } from '%/pagination.ts';
   import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
+  import { createPagination } from '%/usePagination.svelte.ts';
   import type { User } from '$/auth.ts';
   import { type Ticket, type TicketState, ticketStateSchema } from '$/tickets.ts';
 
@@ -58,7 +61,12 @@
   // Download and PDF always, then printing on the server and assigning where they're offered
   const actionCount = $derived(2 + Number(canServerPrint) + Number(canAssign));
 
+  const pagination = createPagination();
+
   let tickets = $state<Ticket[]>([]);
+  let total = $state(0);
+  // Counts the requests, so a slow one can't land over a newer one
+  let requestId = 0;
   let accounts = $state<User[]>([]);
   let filter = $state<Filter>('all');
   let query = $state('');
@@ -81,7 +89,8 @@
     visitor: (ticket) => ticket.visitor_name,
   };
 
-  // The API sorts by serial; the newest tickets are what people look for first, until a column is picked
+  // The API sends the newest tickets first, what people look for first, until a column is picked.
+  // Searching and sorting only reach the page showing.
   const rows = $derived.by(() => {
     const needle = query.trim().toLocaleLowerCase();
     const matches = needle
@@ -92,25 +101,46 @@
         )
       : tickets;
 
-    return sortRows(matches.toReversed(), sort, sortValues);
+    return sortRows(matches, sort, sortValues);
   });
 
   const load = async (state: Filter): Promise<void> => {
+    requestId += 1;
+
+    const id = requestId;
+
     isLoading = true;
 
-    const result = await fetchTickets(state === 'all' ? undefined : state);
+    const result = await fetchTickets(
+      { page: pagination.page, size: pagination.size },
+      state === 'all' ? undefined : state
+    );
 
-    // A newer filter may have been picked while this one loaded
-    if (state !== filter) return;
+    // A newer filter or page may have been picked while this one loaded
+    if (id !== requestId) return;
+
+    if (!result.ok) {
+      isLoading = false;
+      await notifyFailure(i18n.t.tickets.notLoaded, result.error);
+      return;
+    }
+
+    const last = pageCount(result.data.total, pagination.size);
+
+    // A shared link can point past the end: show the last page
+    if (pagination.page > last) {
+      pagination.goTo(last);
+      await load(state);
+      return;
+    }
 
     isLoading = false;
-
-    if (result.ok) tickets = result.data;
-    else await notifyFailure(i18n.t.tickets.notLoaded, result.error);
+    tickets = result.data.items;
+    total = result.data.total;
   };
 
   const loadAccounts = async (): Promise<void> => {
-    const result = await fetchUsers();
+    const result = await fetchAllUsers();
 
     if (result.ok) accounts = result.data;
     else await notifyFailure(i18n.t.tickets.accountsNotLoaded, result.error);
@@ -125,6 +155,21 @@
 
   const refresh = (): void => {
     void load(filter);
+  };
+
+  const goToPage = (page: number): void => {
+    pagination.goTo(page);
+    refresh();
+  };
+
+  const resize = (size: number): void => {
+    pagination.resize(size);
+    refresh();
+  };
+
+  // New tickets are the newest, so they open the first page
+  const showNewest = (): void => {
+    goToPage(1);
   };
 
   const replace = (ticket: Ticket): void => {
@@ -273,6 +318,10 @@
             aria-pressed={filter === option}
             class={['chip', filter === option ? 'preset-filled-primary-500' : 'preset-tonal']}
             onclick={(): void => {
+              if (option === filter) return;
+
+              // The effect below loads the new filter; the old page number means nothing to it
+              pagination.goTo(1);
               filter = option;
             }}
             type="button"
@@ -457,7 +506,16 @@
   {/each}
 </DataTable>
 
-<TicketForm isOpen={isCreating} onClose={closeCreate} onCreated={refresh} />
+<Pagination
+  {isLoading}
+  onPage={goToPage}
+  onSize={resize}
+  page={pagination.page}
+  size={pagination.size}
+  {total}
+/>
+
+<TicketForm isOpen={isCreating} onClose={closeCreate} onCreated={showNewest} />
 
 {#if canAssign}
   <AssignForm {accounts} onAssigned={replace} onClose={closeAssign} ticket={assigning} />

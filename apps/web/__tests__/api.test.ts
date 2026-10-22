@@ -2,9 +2,11 @@ import { describe, expect, test as it } from 'bun:test';
 
 import {
   createTicket,
+  fetchAllUsers,
   fetchSession,
   fetchStats,
   fetchTickets,
+  fetchUsers,
   login,
   logout,
   renderTicketPdf,
@@ -13,6 +15,7 @@ import {
 } from '%/api.ts';
 import { mockFetch, session, ticket } from '../__mocks__/api.ts';
 
+const FIRST_PAGE = { page: 1, size: 10 };
 const credentials = { password: 'secret', username: 'clerk' };
 
 describe('api', () => {
@@ -74,17 +77,55 @@ describe('api', () => {
       Response.json({ detail: [{ loc: ['body'], msg: 'bad', type: 'x' }] }, { status: 422 })
     );
 
-    expect(await fetchTickets()).toEqual({
+    expect(await fetchTickets(FIRST_PAGE)).toEqual({
       error: { code: null, detail: null, kind: 'server', status: 422 },
       ok: false,
     });
   });
 
-  it('filters tickets by state', async () => {
-    const fetchMock = mockFetch(Response.json([ticket]));
+  it('asks for a page of tickets, optionally of one state', async () => {
+    const page = { items: [ticket], page: 2, size: 5, total: 6 };
+    const fetchMock = mockFetch(Response.json(page), Response.json(page));
 
-    expect(await fetchTickets('issued')).toEqual({ data: [ticket], ok: true });
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tickets?state=issued');
+    expect(await fetchTickets({ page: 2, size: 5 })).toEqual({ data: page, ok: true });
+    expect(await fetchTickets({ page: 2, size: 5 }, 'issued')).toEqual({ data: page, ok: true });
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      '/api/tickets?page=2&size=5',
+      '/api/tickets?page=2&size=5&state=issued',
+    ]);
+  });
+
+  it('refuses a list that is not a page', async () => {
+    mockFetch(Response.json([ticket]));
+
+    expect(await fetchTickets(FIRST_PAGE)).toEqual({
+      error: { kind: 'invalid_response' },
+      ok: false,
+    });
+  });
+
+  it('reads every account, a page at a time', async () => {
+    const accounts = Array.from({ length: 3 }, (_, index) => ({
+      ...session.user,
+      id: crypto.randomUUID(),
+      username: `user${index}`,
+    }));
+    const fetchMock = mockFetch(
+      Response.json({ items: accounts.slice(0, 2), page: 1, size: 100, total: 3 }),
+      Response.json({ items: accounts.slice(2), page: 2, size: 100, total: 3 })
+    );
+
+    expect(await fetchAllUsers()).toEqual({ data: accounts, ok: true });
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      '/api/users?page=1&size=100',
+      '/api/users?page=2&size=100',
+    ]);
+  });
+
+  it('fails when a page of accounts does', async () => {
+    mockFetch(Response.json({ code: 'forbidden', detail: 'No' }, { status: 403 }));
+
+    expect((await fetchUsers(FIRST_PAGE)).ok).toBe(false);
   });
 
   it('reads the statistics for all time or for a date range', async () => {

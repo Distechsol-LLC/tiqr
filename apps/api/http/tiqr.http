@@ -55,8 +55,8 @@ GET {{baseUrl}}/api/auth/session
 
 
 ### List users
-# Admins and managers. 200; 403 for operators.
-GET {{baseUrl}}/api/users
+# Admins and managers. 200; 403 for operators. One page: ?page=1&size=10 (size up to 100).
+GET {{baseUrl}}/api/users?page=1&size=10
 X-CSRF-Token: {{csrfToken}}
 
 > {%
@@ -133,8 +133,8 @@ X-CSRF-Token: {{csrfToken}}
 
 
 ### List tickets
-# Operators see only tickets assigned to them. 200.
-GET {{baseUrl}}/api/tickets
+# Operators see only tickets assigned to them. 200. One page, newest first: ?page=1&size=10.
+GET {{baseUrl}}/api/tickets?page=1&size=10
 X-CSRF-Token: {{csrfToken}}
 
 > {%

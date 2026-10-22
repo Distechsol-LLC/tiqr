@@ -114,7 +114,7 @@
     {/each}
   </nav>
 
-  <footer class="hidden border-surface-200-800 border-t pt-4 md:flex">
+  <footer class="hidden border-surface-200-800 border-t pt-2 md:flex">
     <AccountMenu
       isCondensed={sidebar.isCollapsed}
       placement={sidebar.isCollapsed ? 'right-end' : 'top-start'}

@@ -10,6 +10,7 @@ import {
   userSchema,
 } from '$/auth.ts';
 import { type Config, type Stats, configSchema, countSchema, statsSchema } from '$/operations.ts';
+import { MAX_SIZE, type Page, type PageRequest, pageSchema } from '$/pagination.ts';
 import {
   type AssignInput,
   type Ticket,
@@ -133,7 +134,28 @@ const logout = (csrfToken: string): Promise<ApiResult<null>> =>
 
 const fetchConfig = (): Promise<ApiResult<Config>> => request('/config', configSchema);
 
-const fetchUsers = (): Promise<ApiResult<User[]>> => request('/users', z.array(userSchema));
+const pageQuery = ({ page, size }: PageRequest): URLSearchParams =>
+  new URLSearchParams({ page: String(page), size: String(size) });
+
+const fetchUsers = (paging: PageRequest): Promise<ApiResult<Page<User>>> =>
+  request(`/users?${pageQuery(paging)}`, pageSchema(userSchema));
+
+// Every account, a page at a time, for the screens that need the whole list
+const fetchAllUsers = async (): Promise<ApiResult<User[]>> => {
+  const users: User[] = [];
+
+  for (let page = 1; ; page += 1) {
+    // Pages are read in turn: the next one is only asked for if this one wasn't the last
+    const result = await fetchUsers({ page, size: MAX_SIZE });
+
+    if (!result.ok) return result;
+
+    users.push(...result.data.items);
+
+    if (result.data.items.length === 0 || users.length >= result.data.total)
+      return { data: users, ok: true };
+  }
+};
 
 const createUser = (csrfToken: string, input: UserInput): Promise<ApiResult<User>> =>
   request('/users', userSchema, write('POST', csrfToken, input));
@@ -145,8 +167,16 @@ const updateUser = (csrfToken: string, id: string, patch: UserPatch): Promise<Ap
 const deleteUser = (csrfToken: string, id: string): Promise<ApiResult<null>> =>
   request(`/users/${id}`, z.null(), write('DELETE', csrfToken));
 
-const fetchTickets = (state?: TicketState): Promise<ApiResult<Ticket[]>> =>
-  request(state ? `/tickets?state=${state}` : '/tickets', z.array(ticketSchema));
+const fetchTickets = (
+  paging: PageRequest,
+  state?: TicketState
+): Promise<ApiResult<Page<Ticket>>> => {
+  const query = pageQuery(paging);
+
+  if (state) query.set('state', state);
+
+  return request(`/tickets?${query}`, pageSchema(ticketSchema));
+};
 
 const fetchTicket = (id: string): Promise<ApiResult<Ticket>> =>
   request(`/tickets/${id}`, ticketSchema);
@@ -204,6 +234,7 @@ export {
   createTicket,
   createUser,
   deleteUser,
+  fetchAllUsers,
   fetchConfig,
   fetchSession,
   fetchStats,
