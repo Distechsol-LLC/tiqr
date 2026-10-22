@@ -163,7 +163,9 @@
   {#each rows as ticketType (ticketType.id)}
     <tr>
       <td class="font-semibold">{ticketType.name}</td>
-      <td class="text-right tabular-nums">{formatMinor(ticketType.price_minor)}</td>
+      <td class="text-right tabular-nums">
+        {formatMinor(ticketType.price_minor, ticketType.currency)}
+      </td>
       <td>
         <div class="flex justify-start gap-1">
           <button

@@ -28,7 +28,8 @@ describe('catalog', () => {
 
   it('reads types as the API sends them', () => {
     expect(
-      ticketTypeSchema.safeParse({ id: ID, name: 'Day', price_minor: 1250 }).success
+      ticketTypeSchema.safeParse({ currency: 'AZN', id: ID, name: 'Day', price_minor: 1250 })
+        .success
     ).toBeTrue();
     expect(
       visitorTypeSchema.safeParse({ discount_percent: 30, id: ID, name: 'Student' }).success
@@ -37,10 +38,11 @@ describe('catalog', () => {
 
   it('refuses a price or discount the API would not send', () => {
     expect(
-      ticketTypeSchema.safeParse({ id: ID, name: 'Day', price_minor: -1 }).success
+      ticketTypeSchema.safeParse({ currency: 'USD', id: ID, name: 'Day', price_minor: -1 }).success
     ).toBeFalse();
     expect(
-      ticketTypeSchema.safeParse({ id: ID, name: 'Day', price_minor: FRACTION }).success
+      ticketTypeSchema.safeParse({ currency: 'USD', id: ID, name: 'Day', price_minor: FRACTION })
+        .success
     ).toBeFalse();
     expect(
       visitorTypeSchema.safeParse({ discount_percent: OVER, id: ID, name: 'Student' }).success
@@ -48,24 +50,41 @@ describe('catalog', () => {
   });
 
   it('turns a typed ticket type into what the API takes', () => {
-    expect(ticketTypeInputSchema.parse({ name: '  Day pass ', price: '12,5' })).toEqual({
-      name: 'Day pass',
-      price: 1250,
-    });
+    expect(
+      ticketTypeInputSchema.parse({ currency: 'RUB', name: '  Day pass ', price: '12,5' })
+    ).toEqual({ currency: 'RUB', name: 'Day pass', price: 1250 });
+  });
+
+  it('refuses a ticket type without a currency, or with one the API does not take', () => {
+    for (const currency of ['', 'EUR']) {
+      const result = ticketTypeInputSchema.safeParse({ currency, name: 'Day', price: '1' });
+
+      expect(result.error?.issues[0]?.message).toBe(en.errors.currencyRequired);
+    }
   });
 
   it('refuses a blank name and a bad or oversized price', () => {
-    const blank = ticketTypeInputSchema.safeParse({ name: '  ', price: '1' });
-    const bad = ticketTypeInputSchema.safeParse({ name: 'Day', price: 'free' });
-    const huge = ticketTypeInputSchema.safeParse({ name: 'Day', price: '10000000.01' });
-    const long = ticketTypeInputSchema.safeParse({ name: 'x'.repeat(OVER_LONG), price: '1' });
+    const blank = ticketTypeInputSchema.safeParse({ currency: 'USD', name: '  ', price: '1' });
+    const bad = ticketTypeInputSchema.safeParse({ currency: 'USD', name: 'Day', price: 'free' });
+    const huge = ticketTypeInputSchema.safeParse({
+      currency: 'USD',
+      name: 'Day',
+      price: '10000000.01',
+    });
+    const long = ticketTypeInputSchema.safeParse({
+      currency: 'USD',
+      name: 'x'.repeat(OVER_LONG),
+      price: '1',
+    });
 
     expect(blank.error?.issues[0]?.message).toBe(en.errors.nameRequired);
     expect(bad.error?.issues[0]?.message).toBe(en.errors.priceInvalid);
     expect(huge.error?.issues[0]?.message).toBe(en.errors.priceInvalid);
     expect(long.error?.issues[0]?.message).toBe(en.errors.nameLong);
     // The limit itself is fine
-    expect(ticketTypeInputSchema.safeParse({ name: 'Day', price: '10000000' }).success).toBeTrue();
+    expect(
+      ticketTypeInputSchema.safeParse({ currency: 'USD', name: 'Day', price: '10000000' }).success
+    ).toBeTrue();
   });
 
   it('turns a typed visitor type into what the API takes', () => {
@@ -88,7 +107,7 @@ describe('catalog', () => {
   it('words refusals in the language showing at parse time', () => {
     i18n.set('az');
 
-    const result = ticketTypeInputSchema.safeParse({ name: '', price: 'free' });
+    const result = ticketTypeInputSchema.safeParse({ currency: 'USD', name: '', price: 'free' });
 
     expect(result.error?.issues.map((issue) => issue.message)).toEqual([
       az.errors.nameRequired,

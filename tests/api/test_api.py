@@ -514,7 +514,9 @@ def test_bad_paging_is_422(client, params):
 
 def test_ticket_types_are_managed_by_staff_and_read_by_everyone(client):
     login(client, "manager")
-    created = client.post("/api/ticket-types", json={"name": "Day pass", "price_minor": 1250})
+    created = client.post(
+        "/api/ticket-types", json={"name": "Day pass", "price_minor": 1250, "currency": "USD"}
+    )
     assert created.status_code == 201
     day = created.json()
     assert day["name"] == "Day pass"
@@ -525,23 +527,34 @@ def test_ticket_types_are_managed_by_staff_and_read_by_everyone(client):
     assert page["items"] == [day]
     assert page["total"] == 1
     assert (
-        client.post("/api/ticket-types", json={"name": "Night", "price_minor": 1}).status_code
+        client.post(
+            "/api/ticket-types", json={"name": "Night", "price_minor": 1, "currency": "USD"}
+        ).status_code
         == 403
     )
     assert (
-        client.patch(f"/api/ticket-types/{day['id']}", json={"price_minor": 1}).status_code == 403
+        client.patch(
+            f"/api/ticket-types/{day['id']}", json={"price_minor": 1, "currency": "USD"}
+        ).status_code
+        == 403
     )
     assert client.delete(f"/api/ticket-types/{day['id']}").status_code == 403
 
     login(client, "admin")
     patched = client.patch(
-        f"/api/ticket-types/{day['id']}", json={"name": "Daily", "price_minor": 2000}
+        f"/api/ticket-types/{day['id']}",
+        json={"name": "Daily", "price_minor": 2000, "currency": "USD"},
     )
-    assert patched.json() == day | {"name": "Daily", "price_minor": 2000}
+    assert patched.json() == day | {"name": "Daily", "price_minor": 2000, "currency": "USD"}
     assert client.delete(f"/api/ticket-types/{day['id']}").status_code == 204
     assert client.get("/api/ticket-types").json()["items"] == []
     assert client.delete(f"/api/ticket-types/{day['id']}").status_code == 404
-    assert client.patch(f"/api/ticket-types/{uuid4()}", json={"price_minor": 1}).status_code == 404
+    assert (
+        client.patch(
+            f"/api/ticket-types/{uuid4()}", json={"price_minor": 1, "currency": "USD"}
+        ).status_code
+        == 404
+    )
 
 
 def test_visitor_types_are_managed_by_staff_and_read_by_everyone(client):
@@ -567,18 +580,24 @@ def test_visitor_types_are_managed_by_staff_and_read_by_everyone(client):
 def test_catalog_refusals(client):
     login(client, "admin")
     assert (
-        client.post("/api/ticket-types", json={"name": "Day", "price_minor": 100}).status_code
+        client.post(
+            "/api/ticket-types", json={"name": "Day", "price_minor": 100, "currency": "USD"}
+        ).status_code
         == 201
     )
-    duplicate = client.post("/api/ticket-types", json={"name": "day", "price_minor": 100})
+    duplicate = client.post(
+        "/api/ticket-types", json={"name": "day", "price_minor": 100, "currency": "USD"}
+    )
     assert duplicate.status_code == 422
     assert duplicate.json()["code"] == "invalid"
     for body in (
-        {"name": "Night", "price_minor": -1},
-        {"name": "Night", "price_minor": 10**9 + 1},
-        {"name": "Night", "price_minor": 1.5},
+        {"name": "Night", "price_minor": -1, "currency": "USD"},
+        {"name": "Night", "price_minor": 10**9 + 1, "currency": "USD"},
+        {"name": "Night", "price_minor": 1.5, "currency": "USD"},
         {"name": "Night"},
-        {"name": " ", "price_minor": 1},
+        {"name": "Night", "price_minor": 1},
+        {"name": "Night", "price_minor": 1, "currency": "EUR"},
+        {"name": " ", "price_minor": 1, "currency": "USD"},
     ):
         assert client.post("/api/ticket-types", json=body).status_code == 422
     for body in (
@@ -592,14 +611,18 @@ def test_catalog_refusals(client):
     assert client.get("/api/ticket-types", params={"size": 0}).status_code == 422
     client.headers.pop("X-CSRF-Token")
     assert (
-        client.post("/api/ticket-types", json={"name": "Night", "price_minor": 1}).status_code
+        client.post(
+            "/api/ticket-types", json={"name": "Night", "price_minor": 1, "currency": "USD"}
+        ).status_code
         == 403
     )
 
 
 def test_a_ticket_is_priced_from_its_types(client):
     login(client, "admin")
-    client.post("/api/ticket-types", json={"name": "Day pass", "price_minor": 1250})
+    client.post(
+        "/api/ticket-types", json={"name": "Day pass", "price_minor": 1250, "currency": "USD"}
+    )
     client.post("/api/visitor-types", json={"name": "Student", "discount_percent": 20})
 
     login(client, "operator")

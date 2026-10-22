@@ -157,9 +157,9 @@ def test_main_seeds_the_configured_database(monkeypatch, tmp_path, capsys):
 
 
 def test_seed_adds_the_catalog_and_prices_the_visits(seeded, repository, reader, accounts):
-    assert {item.name: item.price for item in repository.list_ticket_types()} == dict(
-        seed.TICKET_TYPES.values()
-    )
+    assert {item.name: (item.price, item.currency) for item in repository.list_ticket_types()} == {
+        name: (price, currency) for name, price, currency in seed.TICKET_TYPES.values()
+    }
     assert {item.name: item.discount_percent for item in repository.list_visitor_types()} == dict(
         seed.VISITOR_TYPES
     )

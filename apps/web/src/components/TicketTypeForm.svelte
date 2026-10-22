@@ -3,14 +3,15 @@
   import { z } from 'zod';
 
   import FloatingInput from '@/components/FloatingInput.svelte';
+  import FloatingSelect from '@/components/FloatingSelect.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
   import { createTicketType, updateTicketType } from '%/api.ts';
-  import { toPriceInput } from '%/money.ts';
+  import { CURRENCY_LABELS, toPriceInput } from '%/money.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
-  import { type TicketType, ticketTypeInputSchema } from '$/catalog.ts';
+  import { type TicketType, currencySchema, ticketTypeInputSchema } from '$/catalog.ts';
 
   type TicketTypeFormProps = {
     // The type being changed; null makes a new one
@@ -24,10 +25,11 @@
 
   let name = $state('');
   let price = $state('');
+  let currency = $state('');
   let isPending = $state(false);
   let isSubmitted = $state(false);
 
-  const validation = $derived(ticketTypeInputSchema.safeParse({ name, price }));
+  const validation = $derived(ticketTypeInputSchema.safeParse({ currency, name, price }));
   const fieldErrors = $derived(
     isSubmitted && !validation.success ? z.flattenError(validation.error).fieldErrors : {}
   );
@@ -39,6 +41,7 @@
     untrack(() => {
       name = editing?.name ?? '';
       price = editing ? toPriceInput(editing.price_minor) : '';
+      currency = editing?.currency ?? '';
       isSubmitted = false;
     });
   });
@@ -50,7 +53,11 @@
 
     if (!(validation.success && csrfToken)) return;
 
-    const fields = { name: validation.data.name, price_minor: validation.data.price };
+    const fields = {
+      currency: validation.data.currency,
+      name: validation.data.name,
+      price_minor: validation.data.price,
+    };
 
     isPending = true;
 
@@ -94,13 +101,28 @@
     bind:value={name}
   />
 
-  <FloatingInput
-    autocomplete="off"
-    error={fieldErrors.price?.[0]}
-    id="ticket-type-price"
-    inputmode="decimal"
-    label={i18n.t.ticketTypeForm.price}
-    required
-    bind:value={price}
-  />
+  <div class="flex gap-3">
+    <div class="w-32">
+      <FloatingSelect
+        error={fieldErrors.currency?.[0]}
+        id="ticket-type-currency"
+        label={i18n.t.ticketTypeForm.currency}
+        labels={CURRENCY_LABELS}
+        options={currencySchema.options}
+        bind:value={currency}
+      />
+    </div>
+
+    <div class="flex-1">
+      <FloatingInput
+        autocomplete="off"
+        error={fieldErrors.price?.[0]}
+        id="ticket-type-price"
+        inputmode="decimal"
+        label={i18n.t.ticketTypeForm.price}
+        required
+        bind:value={price}
+      />
+    </div>
+  </div>
 </FormDialog>

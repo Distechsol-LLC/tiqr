@@ -35,6 +35,7 @@ const en = {
   },
   errors: {
     assigneeRequired: 'Pick an account.',
+    currencyRequired: 'Choose a currency.',
     discountInvalid: 'Enter a whole number from 0 to 100.',
     invalidCredentials: 'Invalid username or password.',
     minutes: (count: number): string => (count === 1 ? '1 minute' : `${count} minutes`),
@@ -80,10 +81,11 @@ const en = {
     expand: 'Expand',
     label: 'Main',
     overview: 'Overview',
-    pricing: 'Pricing',
     signOut: 'Sign out',
     tickets: 'Tickets',
+    ticketTypes: 'Ticket types',
     users: 'Users',
+    visitorTypes: 'Visitor types',
   },
   notFound: {
     back: 'Back to TiQR',
@@ -157,11 +159,6 @@ const en = {
     submit: 'Reset',
     title: (username: string): string => `Reset password for ${username}`,
   },
-  pricing: {
-    description: 'Ticket types and their prices, and the discounts visitor types get',
-    tabs: 'Section',
-    title: 'Pricing',
-  },
   roles: {
     admin: 'Admin',
     manager: 'Manager',
@@ -232,6 +229,7 @@ const en = {
   },
   ticketTypeForm: {
     created: 'Ticket type created',
+    currency: 'Currency',
     name: 'Name',
     notCreated: 'Ticket type not created',
     notUpdated: 'Ticket type not updated',
@@ -249,13 +247,13 @@ const en = {
     deleted: 'Ticket type deleted',
     deleteFor: (name: string): string => `Delete ${name}`,
     deleteTitle: 'Delete ticket type',
+    description: 'Ticket types and their prices',
     edit: 'Edit',
     editFor: (name: string): string => `Edit ${name}`,
     empty: 'No ticket types yet',
     new: 'New Ticket Type',
     notDeleted: 'Ticket type not deleted',
     notLoaded: 'Ticket types not loaded',
-    tab: 'Ticket types',
   },
   usage: {
     multi_use: 'Multi-use',
@@ -327,6 +325,7 @@ const en = {
     deleted: 'Visitor type deleted',
     deleteFor: (name: string): string => `Delete ${name}`,
     deleteTitle: 'Delete visitor type',
+    description: 'Visitor types and the discounts they get',
     discount: (percent: number): string => `${percent}%`,
     edit: 'Edit',
     editFor: (name: string): string => `Edit ${name}`,
@@ -334,7 +333,6 @@ const en = {
     new: 'New Visitor Type',
     notDeleted: 'Visitor type not deleted',
     notLoaded: 'Visitor types not loaded',
-    tab: 'Visitor types',
   },
 };
 

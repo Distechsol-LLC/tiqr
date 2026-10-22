@@ -221,17 +221,21 @@ def list_ticket_types(me: Signed, server: Server, paging: Paging) -> TicketTypeP
 
 @router.post("/ticket-types", tags=["catalog"], status_code=201, responses=_refusals(401, 403, 422))
 def create_ticket_type(body: TicketTypeIn, me: Signed, server: Server) -> TicketTypeOut:
-    """Add a ticket type and its price. Admins and managers."""
-    return TicketTypeOut.of(server.service.create_ticket_type(me.user, body.name, body.price_minor))
+    """Add a ticket type, its price and the currency it is in. Admins and managers."""
+    return TicketTypeOut.of(
+        server.service.create_ticket_type(me.user, body.name, body.price_minor, body.currency)
+    )
 
 
 @router.patch("/ticket-types/{type_id}", tags=["catalog"], responses=_refusals(401, 403, 404, 422))
 def update_ticket_type(
     type_id: UUID, body: TicketTypePatch, me: Signed, server: Server
 ) -> TicketTypeOut:
-    """Rename a ticket type or change its price. Tickets already issued keep theirs."""
+    """Rename a ticket type, or change its price or currency. Issued tickets keep theirs."""
     return TicketTypeOut.of(
-        server.service.edit_ticket_type(me.user, type_id, name=body.name, price=body.price_minor)
+        server.service.edit_ticket_type(
+            me.user, type_id, name=body.name, price=body.price_minor, currency=body.currency
+        )
     )
 
 

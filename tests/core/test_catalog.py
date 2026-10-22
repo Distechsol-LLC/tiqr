@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from tiqr.core.models import UsageType, discounted
+from tiqr.core.models import Currency, UsageType, discounted
 from tiqr.core.repository import _MIGRATIONS, SQLiteRepository
 from tiqr.core.service import NotFoundError, PermissionDeniedError
 
@@ -36,14 +36,16 @@ def test_discount_rounds_half_up_in_minor_units(price, percent, expected):
 @pytest.mark.parametrize("role", STAFF)
 def test_staff_manage_ticket_types(service, accounts, role):
     actor = accounts[role]
-    created = service.create_ticket_type(actor, "  Day pass ", 1500)
+    created = service.create_ticket_type(actor, "  Day pass ", 1500, Currency.USD)
     assert (created.name, created.price) == ("Day pass", 1500)
 
     renamed = service.edit_ticket_type(actor, created.id, name="Daily")
     assert (renamed.name, renamed.price) == ("Daily", 1500)
     repriced = service.edit_ticket_type(actor, created.id, price=2000)
     assert (repriced.name, repriced.price) == ("Daily", 2000)
-    assert service.list_ticket_types(actor) == [repriced]
+    changed = service.edit_ticket_type(actor, created.id, currency=Currency.AZN)
+    assert (changed.price, changed.currency) == (2000, Currency.AZN)
+    assert service.list_ticket_types(actor) == [changed]
 
     service.delete_ticket_type(actor, created.id)
     assert service.list_ticket_types(actor) == []
@@ -71,13 +73,13 @@ def test_visitor_type_discount_defaults_to_none(service, accounts):
 
 def test_operators_read_the_catalog_but_cannot_change_it(service, accounts):
     admin, operator = accounts["admin"], accounts["operator"]
-    ticket_type = service.create_ticket_type(admin, "Day", 100)
+    ticket_type = service.create_ticket_type(admin, "Day", 100, Currency.USD)
     visitor_type = service.create_visitor_type(admin, "Student", 10)
 
     assert service.list_ticket_types(operator) == [ticket_type]
     assert service.list_visitor_types(operator) == [visitor_type]
     for denied in (
-        lambda: service.create_ticket_type(operator, "Night", 1),
+        lambda: service.create_ticket_type(operator, "Night", 1, Currency.USD),
         lambda: service.edit_ticket_type(operator, ticket_type.id, price=1),
         lambda: service.delete_ticket_type(operator, ticket_type.id),
         lambda: service.create_visitor_type(operator, "Staff", 1),
@@ -93,7 +95,7 @@ def test_operators_read_the_catalog_but_cannot_change_it(service, accounts):
 def test_deactivated_actors_are_refused(service, accounts):
     service.edit_user(accounts["manager"].id, active=False)
     with pytest.raises(PermissionDeniedError):
-        service.create_ticket_type(accounts["manager"], "Day", 100)
+        service.create_ticket_type(accounts["manager"], "Day", 100, Currency.USD)
     with pytest.raises(PermissionDeniedError):
         service.list_visitor_types(accounts["manager"])
 
@@ -101,9 +103,9 @@ def test_deactivated_actors_are_refused(service, accounts):
 @pytest.mark.parametrize(
     "create",
     [
-        lambda service, actor: service.create_ticket_type(actor, " ", 100),
-        lambda service, actor: service.create_ticket_type(actor, "Day", -1),
-        lambda service, actor: service.create_ticket_type(actor, "Day", 10**9 + 1),
+        lambda service, actor: service.create_ticket_type(actor, " ", 100, Currency.USD),
+        lambda service, actor: service.create_ticket_type(actor, "Day", -1, Currency.USD),
+        lambda service, actor: service.create_ticket_type(actor, "Day", 10**9 + 1, Currency.USD),
         lambda service, actor: service.create_visitor_type(actor, "", 10),
         lambda service, actor: service.create_visitor_type(actor, "Student", -1),
         lambda service, actor: service.create_visitor_type(actor, "Student", 101),
@@ -118,10 +120,10 @@ def test_invalid_catalog_entries_are_refused(service, accounts, create):
 
 def test_names_are_unique_whatever_their_case(service, accounts):
     admin = accounts["admin"]
-    day = service.create_ticket_type(admin, "Day", 100)
-    night = service.create_ticket_type(admin, "Night", 200)
+    day = service.create_ticket_type(admin, "Day", 100, Currency.USD)
+    night = service.create_ticket_type(admin, "Night", 200, Currency.USD)
     with pytest.raises(ValueError, match="already exists"):
-        service.create_ticket_type(admin, " day ", 1)
+        service.create_ticket_type(admin, " day ", 1, Currency.USD)
     with pytest.raises(ValueError, match="already exists"):
         service.edit_ticket_type(admin, night.id, name="DAY")
     # Changing only the case of its own name is not a clash
@@ -138,7 +140,7 @@ def test_names_are_unique_whatever_their_case(service, accounts):
 
 def test_edits_need_a_change_and_an_existing_entry(service, accounts):
     admin = accounts["admin"]
-    day = service.create_ticket_type(admin, "Day", 100)
+    day = service.create_ticket_type(admin, "Day", 100, Currency.USD)
     student = service.create_visitor_type(admin, "Student", 10)
     with pytest.raises(ValueError, match="Nothing to change"):
         service.edit_ticket_type(admin, day.id)
@@ -156,7 +158,7 @@ def test_edits_need_a_change_and_an_existing_entry(service, accounts):
 
 def test_ticket_price_is_the_type_price_less_the_visitor_discount(service, accounts, clock):
     admin = accounts["admin"]
-    service.create_ticket_type(admin, "Day pass", 1250)
+    service.create_ticket_type(admin, "Day pass", 1250, Currency.USD)
     service.create_visitor_type(admin, "Student", 20)
 
     ticket = issue(service, accounts, clock, ticket_type="day pass", visitor_type="student")
@@ -164,11 +166,12 @@ def test_ticket_price_is_the_type_price_less_the_visitor_discount(service, accou
     assert ticket.ticket_type == "Day pass"
     assert ticket.visitor_type == "Student"
     assert (ticket.base_price, ticket.discount_percent, ticket.price) == (1250, 20, 1000)
+    assert ticket.currency == Currency.USD
     assert service.repository.get_ticket(ticket.id) == ticket
 
 
 def test_other_visitor_types_pay_the_full_price(service, accounts, clock):
-    service.create_ticket_type(accounts["admin"], "Day pass", 1250)
+    service.create_ticket_type(accounts["admin"], "Day pass", 1250, Currency.USD)
 
     ticket = issue(service, accounts, clock, ticket_type="Day pass", visitor_type="Walk-in")
 
@@ -193,7 +196,7 @@ def test_an_unknown_ticket_type_is_refused_before_anything_is_issued(service, ac
 
 def test_issued_tickets_keep_their_price_when_the_catalog_changes(service, accounts, clock):
     admin = accounts["admin"]
-    day = service.create_ticket_type(admin, "Day pass", 1000)
+    day = service.create_ticket_type(admin, "Day pass", 1000, Currency.USD)
     student = service.create_visitor_type(admin, "Student", 50)
     ticket = issue(service, accounts, clock, ticket_type="Day pass", visitor_type="Student")
     assert ticket.price == 500

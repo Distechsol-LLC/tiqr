@@ -1,4 +1,5 @@
 import { i18n } from '%/useLocale.svelte.ts';
+import type { Currency } from '$/catalog.ts';
 
 const MINOR_PER_UNIT = 100;
 const FULL_DISCOUNT = 100;
@@ -22,15 +23,34 @@ const parseMinor = (text: string): number | null => {
 // Back into an input's text: 1250 is 12.50
 const toPriceInput = (minor: number): string => (minor / MINOR_PER_UNIT).toFixed(MINOR_DIGITS);
 
-// For showing in the language on screen; the server's currency isn't known, so none is added
-const formatMinor = (minor: number): string =>
-  new Intl.NumberFormat(i18n.code, {
+// The sign of each currency, and whether it goes before the amount: dollars do, roubles and manats
+// come after it
+const CURRENCY_MARKS: Record<Currency, { before: boolean; mark: string }> = {
+  AZN: { before: false, mark: '₼' },
+  RUB: { before: false, mark: '₽' },
+  USD: { before: true, mark: '$' },
+};
+
+// Code and sign together, as the currency is picked
+const CURRENCY_LABELS: Record<Currency, string> = {
+  AZN: `AZN ${CURRENCY_MARKS.AZN.mark}`,
+  RUB: `RUB ${CURRENCY_MARKS.RUB.mark}`,
+  USD: `USD ${CURRENCY_MARKS.USD.mark}`,
+};
+
+// For showing in the language on screen. A no-break space keeps a trailing sign off its amount.
+const formatMinor = (minor: number, currency: Currency): string => {
+  const amount = new Intl.NumberFormat(i18n.code, {
     maximumFractionDigits: MINOR_DIGITS,
     minimumFractionDigits: MINOR_DIGITS,
   }).format(minor / MINOR_PER_UNIT);
+  const { before, mark } = CURRENCY_MARKS[currency];
+
+  return before ? `${mark}${amount}` : `${amount}\u00A0${mark}`;
+};
 
 // Mirrors `discounted` in apps/core/src/tiqr/core/models.py: rounds half up in minor units
 const discountedMinor = (minor: number, percent: number): number =>
   Math.floor((minor * (FULL_DISCOUNT - percent) + FULL_DISCOUNT / 2) / FULL_DISCOUNT);
 
-export { discountedMinor, formatMinor, parseMinor, toPriceInput };
+export { CURRENCY_LABELS, discountedMinor, formatMinor, parseMinor, toPriceInput };

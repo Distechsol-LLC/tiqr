@@ -10,7 +10,12 @@ const DISCOUNT_MAX = 100;
 // Whole per cent only, as the API takes it
 const DISCOUNT_TEXT = /^\d{1,3}$/;
 
+// The currencies the API takes, by the codes it sends
+const CURRENCIES = ['USD', 'RUB', 'AZN'] as const;
+const currencySchema = z.enum(CURRENCIES);
+
 const ticketTypeSchema = z.object({
+  currency: currencySchema,
   id: z.uuid(),
   name: z.string(),
   price_minor: z.number().int().nonnegative(),
@@ -31,6 +36,7 @@ const nameSchema = z
 // The forms hold what was typed; parsing turns it into what the API takes.
 // Messages are read at parse time, so they come out in the language showing then.
 const ticketTypeInputSchema = z.object({
+  currency: z.enum(CURRENCIES, { error: () => i18n.t.errors.currencyRequired }),
   name: nameSchema,
   price: z
     .string()
@@ -52,10 +58,17 @@ const visitorTypeInputSchema = z.object({
   name: nameSchema,
 });
 
+type Currency = z.infer<typeof currencySchema>;
 type TicketType = z.infer<typeof ticketTypeSchema>;
-type TicketTypeFields = { name: string; price_minor: number };
+type TicketTypeFields = { currency: Currency; name: string; price_minor: number };
 type VisitorType = z.infer<typeof visitorTypeSchema>;
 type VisitorTypeFields = { discount_percent: number; name: string };
 
-export type { TicketType, TicketTypeFields, VisitorType, VisitorTypeFields };
-export { ticketTypeInputSchema, ticketTypeSchema, visitorTypeInputSchema, visitorTypeSchema };
+export type { Currency, TicketType, TicketTypeFields, VisitorType, VisitorTypeFields };
+export {
+  currencySchema,
+  ticketTypeInputSchema,
+  ticketTypeSchema,
+  visitorTypeInputSchema,
+  visitorTypeSchema,
+};

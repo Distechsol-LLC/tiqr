@@ -5,11 +5,13 @@
     id: string;
     label: string;
     options: readonly string[];
+    // Shown in place of an option's value, where the value alone reads badly
+    labels?: Partial<Record<string, string>>;
     error?: string;
     value?: string;
   };
 
-  let { id, label, options, error, value = $bindable('') }: FloatingSelectProps = $props();
+  let { id, label, labels, options, error, value = $bindable('') }: FloatingSelectProps = $props();
 
   const errorId = $derived(`${id}-error`);
 </script>
@@ -28,7 +30,7 @@
     >
       <option hidden value=""></option>
       {#each options as option (option)}
-        <option value={option}>{option}</option>
+        <option value={option}>{labels?.[option] ?? option}</option>
       {/each}
     </select>
     <!-- Floats onto the top border like FloatingInput's, once focused or picked -->

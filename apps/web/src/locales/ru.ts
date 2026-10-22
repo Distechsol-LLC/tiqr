@@ -37,6 +37,7 @@ const ru: Messages = {
   },
   errors: {
     assigneeRequired: 'Выберите учётную запись.',
+    currencyRequired: 'Выберите валюту.',
     discountInvalid: 'Введите целое число от 0 до 100.',
     invalidCredentials: 'Неверное имя пользователя или пароль.',
     minutes: (count: number): string =>
@@ -85,10 +86,11 @@ const ru: Messages = {
     expand: 'Развернуть',
     label: 'Главное',
     overview: 'Обзор',
-    pricing: 'Цены',
     signOut: 'Выйти',
     tickets: 'Билеты',
+    ticketTypes: 'Типы билетов',
     users: 'Пользователи',
+    visitorTypes: 'Типы посетителей',
   },
   notFound: {
     back: 'Вернуться в TiQR',
@@ -162,11 +164,6 @@ const ru: Messages = {
     submit: 'Сбросить',
     title: (username: string): string => `Сбросить пароль для ${username}`,
   },
-  pricing: {
-    description: 'Типы билетов и их цены, скидки для типов посетителей',
-    tabs: 'Раздел',
-    title: 'Цены',
-  },
   roles: {
     admin: 'Администратор',
     manager: 'Менеджер',
@@ -237,6 +234,7 @@ const ru: Messages = {
   },
   ticketTypeForm: {
     created: 'Тип билета создан',
+    currency: 'Валюта',
     name: 'Название',
     notCreated: 'Тип билета не создан',
     notUpdated: 'Тип билета не обновлён',
@@ -254,13 +252,13 @@ const ru: Messages = {
     deleted: 'Тип билета удалён',
     deleteFor: (name: string): string => `Удалить ${name}`,
     deleteTitle: 'Удалить тип билета',
+    description: 'Типы билетов и их цены',
     edit: 'Изменить',
     editFor: (name: string): string => `Изменить ${name}`,
     empty: 'Типов билетов пока нет',
     new: 'Новый тип билета',
     notDeleted: 'Тип билета не удалён',
     notLoaded: 'Типы билетов не загружены',
-    tab: 'Типы билетов',
   },
   usage: {
     multi_use: 'Многоразовый',
@@ -333,6 +331,7 @@ const ru: Messages = {
     deleted: 'Тип посетителя удалён',
     deleteFor: (name: string): string => `Удалить ${name}`,
     deleteTitle: 'Удалить тип посетителя',
+    description: 'Типы посетителей и их скидки',
     discount: (percent: number): string => `${percent}%`,
     edit: 'Изменить',
     editFor: (name: string): string => `Изменить ${name}`,
@@ -340,7 +339,6 @@ const ru: Messages = {
     new: 'Новый тип посетителя',
     notDeleted: 'Тип посетителя не удалён',
     notLoaded: 'Типы посетителей не загружены',
-    tab: 'Типы посетителей',
   },
 };
 

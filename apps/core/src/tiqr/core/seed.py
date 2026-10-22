@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from tiqr.core.fakes import InMemoryEventSource
-from tiqr.core.models import RawEvent, Role, UsageType, User
+from tiqr.core.models import Currency, RawEvent, Role, UsageType, User
 from tiqr.core.ports import Clock, Repository
 from tiqr.core.qr import DEFAULT_PREFIX
 from tiqr.core.repository import SQLiteRepository
@@ -25,7 +25,10 @@ DEACTIVATED_OPERATOR = "rufat"
 
 
 # Prices are in minor units, so 1500 is 15.00. Each visit is priced by its usage.
-TICKET_TYPES = {UsageType.ONE_TIME: ("Birdəfəlik", 1500), UsageType.MULTI_USE: ("Çoxgünlük", 6000)}
+TICKET_TYPES = {
+    UsageType.ONE_TIME: ("Birdəfəlik", 1500, Currency.AZN),
+    UsageType.MULTI_USE: ("Çoxgünlük", 6000, Currency.AZN),
+}
 # Every visitor type the visits use, with its discount in per cent.
 VISITOR_TYPES = (("Tələbə", 30), ("Qonaq", 0), ("Əməkdaş", 50))
 
@@ -179,9 +182,9 @@ def seed_demo(
             added.append(name)
 
     catalog = TicketService(repository, secret_key, prefix=prefix)
-    for name, price in TICKET_TYPES.values():
+    for name, price, currency in TICKET_TYPES.values():
         if repository.ticket_type_by_name(name) is None:
-            catalog.create_ticket_type(manager, name, price)
+            catalog.create_ticket_type(manager, name, price, currency)
     for name, discount in VISITOR_TYPES:
         if repository.visitor_type_by_name(name) is None:
             catalog.create_visitor_type(manager, name, discount)

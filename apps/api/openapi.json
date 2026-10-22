@@ -739,7 +739,7 @@
           "catalog"
         ],
         "summary": "Create Ticket Type",
-        "description": "Add a ticket type and its price. Admins and managers.",
+        "description": "Add a ticket type, its price and the currency it is in. Admins and managers.",
         "operationId": "create_ticket_type",
         "requestBody": {
           "required": true,
@@ -819,7 +819,7 @@
           "catalog"
         ],
         "summary": "Update Ticket Type",
-        "description": "Rename a ticket type or change its price. Tickets already issued keep theirs.",
+        "description": "Rename a ticket type, or change its price or currency. Issued tickets keep theirs.",
         "operationId": "update_ticket_type",
         "parameters": [
           {
@@ -2278,6 +2278,15 @@
         ],
         "title": "CountsOut"
       },
+      "Currency": {
+        "type": "string",
+        "enum": [
+          "USD",
+          "RUB",
+          "AZN"
+        ],
+        "title": "Currency"
+      },
       "ErrorOut": {
         "properties": {
           "detail": {
@@ -2686,6 +2695,17 @@
             "title": "Price Minor",
             "description": "The base price less the discount"
           },
+          "currency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Currency"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The currency the price was in then; null without one"
+          },
           "timezone": {
             "type": "string",
             "title": "Timezone",
@@ -2712,6 +2732,7 @@
           "base_price_minor",
           "discount_percent",
           "price_minor",
+          "currency",
           "timezone"
         ],
         "title": "TicketOut"
@@ -2772,13 +2793,18 @@
             "minimum": 0.0,
             "title": "Price Minor",
             "description": "In minor units, such as cents: 1250 is 12.50"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency",
+            "description": "The currency the price is in"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "name",
-          "price_minor"
+          "price_minor",
+          "currency"
         ],
         "title": "TicketTypeIn"
       },
@@ -2797,13 +2823,18 @@
             "type": "integer",
             "title": "Price Minor",
             "description": "In minor units, such as cents"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency",
+            "description": "The currency the price is in"
           }
         },
         "type": "object",
         "required": [
           "id",
           "name",
-          "price_minor"
+          "price_minor",
+          "currency"
         ],
         "title": "TicketTypeOut"
       },
@@ -2868,12 +2899,22 @@
               }
             ],
             "title": "Price Minor"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Currency"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "TicketTypePatch",
-        "description": "Any of: a new name, a new price. Omitted fields stay as they are."
+        "description": "Any of: a new name, a new price, a new currency. Omitted fields stay as they are."
       },
       "UsageType": {
         "type": "string",

@@ -1,5 +1,6 @@
 import ChartColumn from '@lucide/svelte/icons/chart-column';
-import Tags from '@lucide/svelte/icons/tags';
+import Percent from '@lucide/svelte/icons/percent';
+import Tag from '@lucide/svelte/icons/tag';
 import Ticket from '@lucide/svelte/icons/ticket';
 import UsersRound from '@lucide/svelte/icons/users-round';
 import type { Component } from 'svelte';
@@ -22,13 +23,15 @@ const NAV: Record<Role, NavItem[]> = {
   admin: [
     { icon: Ticket, label: 'tickets', path: '/admin' },
     { icon: UsersRound, label: 'users', path: '/admin/users' },
-    { icon: Tags, label: 'pricing', path: '/admin/pricing' },
+    { icon: Tag, label: 'ticketTypes', path: '/admin/ticket-types' },
+    { icon: Percent, label: 'visitorTypes', path: '/admin/visitor-types' },
     { icon: ChartColumn, label: 'overview', path: '/admin/overview' },
   ],
   manager: [
     { icon: Ticket, label: 'tickets', path: '/manager' },
     { icon: UsersRound, label: 'accounts', path: '/manager/accounts' },
-    { icon: Tags, label: 'pricing', path: '/manager/pricing' },
+    { icon: Tag, label: 'ticketTypes', path: '/manager/ticket-types' },
+    { icon: Percent, label: 'visitorTypes', path: '/manager/visitor-types' },
     { icon: ChartColumn, label: 'overview', path: '/manager/overview' },
   ],
   operator: [{ icon: Ticket, label: 'tickets', path: '/operator' }],

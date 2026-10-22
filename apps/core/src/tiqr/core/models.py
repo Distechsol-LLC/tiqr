@@ -27,6 +27,12 @@ class Role(StrEnum):
     OPERATOR = "operator"
 
 
+class Currency(StrEnum):
+    USD = "USD"
+    RUB = "RUB"
+    AZN = "AZN"
+
+
 class UsageType(StrEnum):
     ONE_TIME = "one_time"
     MULTI_USE = "multi_use"
@@ -64,6 +70,7 @@ class TicketType:
     id: UUID
     name: str
     price: int
+    currency: Currency
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -110,6 +117,7 @@ class Ticket:
     ticket_type: str | None = None
     base_price: int | None = None
     discount_percent: int = 0
+    currency: Currency | None = None
 
     def __post_init__(self) -> None:
         for name in ("valid_from", "valid_until", "created_at", "passed_at"):

@@ -1,6 +1,12 @@
 import { describe, expect, test as it } from 'bun:test';
 
-import { discountedMinor, formatMinor, parseMinor, toPriceInput } from '%/money.ts';
+import {
+  CURRENCY_LABELS,
+  discountedMinor,
+  formatMinor,
+  parseMinor,
+  toPriceInput,
+} from '%/money.ts';
 import { i18n } from '%/useLocale.svelte.ts';
 
 // biome-ignore-start lint/style/noMagicNumbers: the cases are the point
@@ -56,8 +62,20 @@ describe('money', () => {
   it('shows two decimals in the language showing', () => {
     i18n.set('en');
 
-    expect(formatMinor(TWELVE_FIFTY)).toBe('12.50');
-    expect(formatMinor(BIG)).toBe('1,234.56');
+    expect(formatMinor(TWELVE_FIFTY, 'USD')).toBe('$12.50');
+    expect(formatMinor(BIG, 'USD')).toBe('$1,234.56');
+  });
+
+  it('puts the dollar sign before the amount and the others after it', () => {
+    i18n.set('en');
+
+    expect(formatMinor(TWELVE_FIFTY, 'RUB')).toBe('12.50\u00A0₽');
+    expect(formatMinor(TWELVE_FIFTY, 'AZN')).toBe('12.50\u00A0₼');
+    expect(formatMinor(BIG, 'AZN')).toBe('1,234.56\u00A0₼');
+  });
+
+  it('labels each currency with its code and sign', () => {
+    expect(CURRENCY_LABELS).toEqual({ AZN: 'AZN ₼', RUB: 'RUB ₽', USD: 'USD $' });
   });
 
   it('takes a discount off, rounding half up, like the server', () => {

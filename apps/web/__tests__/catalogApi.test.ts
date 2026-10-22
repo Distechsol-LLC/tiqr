@@ -16,7 +16,7 @@ import { mockFetch, session } from '../__mocks__/api.ts';
 
 const ID = '1f6a2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f';
 const OTHER_ID = '2f6a2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f';
-const day = { id: ID, name: 'Day', price_minor: 1250 };
+const day = { currency: 'USD' as const, id: ID, name: 'Day', price_minor: 1250 };
 const student = { discount_percent: 30, id: ID, name: 'Student' };
 const MAX_SIZE = 100;
 const TWO = 2;
@@ -75,7 +75,7 @@ describe('catalog api', () => {
 
   it('creates and updates a ticket type with the CSRF token', async () => {
     const fetchMock = mockFetch(Response.json(day, { status: 201 }), Response.json(day));
-    const fields = { name: 'Day', price_minor: 1250 };
+    const fields = { currency: 'USD' as const, name: 'Day', price_minor: 1250 };
 
     expect(await createTicketType(CSRF, fields)).toEqual({ data: day, ok: true });
     expect(await updateTicketType(CSRF, ID, { price_minor: 1250 })).toEqual({
@@ -144,7 +144,7 @@ describe('catalog api', () => {
       )
     );
 
-    expect(await createTicketType(CSRF, { name: 'Day', price_minor: 1 })).toEqual({
+    expect(await createTicketType(CSRF, { currency: 'USD', name: 'Day', price_minor: 1 })).toEqual({
       error: {
         code: 'invalid',
         detail: 'A ticket type with this name already exists',

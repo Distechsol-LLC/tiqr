@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { i18n } from '%/useLocale.svelte.ts';
+import { currencySchema } from '$/catalog.ts';
 
 // Same bound as _Name in apps/api/src/tiqr/api/schemas.py
 const NAME_MAX = 200;
@@ -21,6 +22,8 @@ const ticketSchema = z.object({
   base_price_minor: z.number().int().nonnegative().nullable(),
   created_at: offsetDatetime,
   created_by: z.uuid(),
+  // The currency that price was in; null with it
+  currency: currencySchema.nullable(),
   discount_percent: z.number().int().min(0).max(DISCOUNT_MAX),
   id: z.uuid(),
   passed_at: offsetDatetime.nullable(),

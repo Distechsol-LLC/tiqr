@@ -10,6 +10,7 @@ from tiqr.core.localtime import zone
 from tiqr.core.models import (
     MAX_DISCOUNT,
     MAX_PRICE,
+    Currency,
     Role,
     Ticket,
     TicketState,
@@ -85,13 +86,15 @@ class TicketIn(_Request):
 class TicketTypeIn(_Request):
     name: _Name
     price_minor: _Price
+    currency: Annotated[Currency, Field(description="The currency the price is in")]
 
 
 class TicketTypePatch(_Request):
-    """Any of: a new name, a new price. Omitted fields stay as they are."""
+    """Any of: a new name, a new price, a new currency. Omitted fields stay as they are."""
 
     name: _Name | None = None
     price_minor: _Price | None = None
+    currency: Currency | None = None
 
 
 class VisitorTypeIn(_Request):
@@ -125,10 +128,16 @@ class TicketTypeOut(BaseModel):
     id: UUID
     name: str
     price_minor: Annotated[int, Field(description="In minor units, such as cents")]
+    currency: Annotated[Currency, Field(description="The currency the price is in")]
 
     @classmethod
     def of(cls, ticket_type: TicketType) -> TicketTypeOut:
-        return cls(id=ticket_type.id, name=ticket_type.name, price_minor=ticket_type.price)
+        return cls(
+            id=ticket_type.id,
+            name=ticket_type.name,
+            price_minor=ticket_type.price,
+            currency=ticket_type.currency,
+        )
 
 
 class VisitorTypeOut(BaseModel):
@@ -180,6 +189,9 @@ class TicketOut(BaseModel):
     base_price_minor: Annotated[int | None, Field(description="The ticket type's price then")]
     discount_percent: Annotated[int, Field(description="The visitor type's discount then")]
     price_minor: Annotated[int | None, Field(description="The base price less the discount")]
+    currency: Annotated[
+        Currency | None, Field(description="The currency the price was in then; null without one")
+    ]
     timezone: Annotated[str, Field(description="The zone every datetime here is shown in")]
 
     @classmethod
@@ -204,6 +216,7 @@ class TicketOut(BaseModel):
             base_price_minor=ticket.base_price,
             discount_percent=ticket.discount_percent,
             price_minor=ticket.price,
+            currency=ticket.currency,
             timezone=timezone,
         )
 

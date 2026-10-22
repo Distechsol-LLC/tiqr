@@ -30,6 +30,7 @@ from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
 from tiqr.core.localtime import day_start
 from tiqr.core.models import (
     AccessEvent,
+    Currency,
     Outcome,
     RawEvent,
     Role,
@@ -375,10 +376,12 @@ class TicketService:
         self._actor(actor)
         return self.repository.list_ticket_types()
 
-    def create_ticket_type(self, actor: User, name: str, price: int) -> TicketType:
-        """Add a ticket type costing `price` minor units. Admins and managers."""
+    def create_ticket_type(
+        self, actor: User, name: str, price: int, currency: Currency
+    ) -> TicketType:
+        """Add a ticket type costing `price` minor units of `currency`. Admins and managers."""
         self._require(self._actor(actor), _STAFF)
-        ticket_type = TicketType(uuid4(), _clean_name(name), price)
+        ticket_type = TicketType(uuid4(), _clean_name(name), price, currency)
         with self.repository.transaction():
             if self.repository.ticket_type_by_name(ticket_type.name):
                 raise ValueError("A ticket type with this name already exists")
@@ -386,11 +389,17 @@ class TicketService:
         return ticket_type
 
     def edit_ticket_type(
-        self, actor: User, type_id: UUID, *, name: str | None = None, price: int | None = None
+        self,
+        actor: User,
+        type_id: UUID,
+        *,
+        name: str | None = None,
+        price: int | None = None,
+        currency: Currency | None = None,
     ) -> TicketType:
-        """Rename a ticket type or change its price. Tickets already issued keep theirs."""
+        """Rename a ticket type, or change its price or currency. Issued tickets keep theirs."""
         self._require(self._actor(actor), _STAFF)
-        if name is None and price is None:
+        if name is None and price is None and currency is None:
             raise ValueError("Nothing to change")
         with self.repository.transaction():
             current = self.repository.get_ticket_type(type_id)
@@ -400,6 +409,7 @@ class TicketService:
                 current.id,
                 current.name if name is None else _clean_name(name),
                 current.price if price is None else price,
+                current.currency if currency is None else currency,
             )
             clash = self.repository.ticket_type_by_name(updated.name)
             if clash is not None and clash.id != current.id:
@@ -514,6 +524,7 @@ class TicketService:
             ticket_type=priced.name if priced else None,
             base_price=priced.price if priced else None,
             discount_percent=known.discount_percent if known else 0,
+            currency=priced.currency if priced else None,
         )
         external_id = self.registrar.register(ticket)
         if not external_id:

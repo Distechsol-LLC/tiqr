@@ -81,7 +81,7 @@
       ? i18n.t.errors.ticketTypeRequired
       : undefined
   );
-  const basePrice = $derived(ticketTypes.find((type) => type.name === ticketType)?.price_minor);
+  const priced = $derived(ticketTypes.find((type) => type.name === ticketType));
   const discount = $derived(
     visitorTypes.find((type) => type.name === visitorType)?.discount_percent ?? 0
   );
@@ -185,20 +185,22 @@
     />
   {/if}
 
-  {#if basePrice !== undefined}
+  {#if priced}
     <!-- What the API will charge: the type's price, less the visitor type's discount -->
     <dl
       aria-live="polite"
-      class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 rounded-container bg-surface-100-900 px-4 py-3 text-sm tabular-nums"
+      class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 rounded-container border border-surface-200-800 bg-surface-100-900 px-4 py-3 text-sm tabular-nums"
     >
       <dt class="text-surface-700-300">{i18n.t.ticketForm.price}</dt>
-      <dd class="text-right">{formatMinor(basePrice)}</dd>
+      <dd class="text-right">{formatMinor(priced.price_minor, priced.currency)}</dd>
       {#if discount > 0}
         <dt class="text-surface-700-300">{i18n.t.ticketForm.discount}</dt>
         <dd class="text-right">−{discount}%</dd>
       {/if}
       <dt class="font-semibold">{i18n.t.ticketForm.total}</dt>
-      <dd class="text-right font-semibold">{formatMinor(discountedMinor(basePrice, discount))}</dd>
+      <dd class="text-right font-semibold">
+        {formatMinor(discountedMinor(priced.price_minor, discount), priced.currency)}
+      </dd>
     </dl>
   {/if}
 

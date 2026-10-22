@@ -37,6 +37,7 @@ const az: Messages = {
   },
   errors: {
     assigneeRequired: 'Hesab seçin.',
+    currencyRequired: 'Valyuta seçin.',
     discountInvalid: '0-dan 100-ə qədər tam ədəd daxil edin.',
     invalidCredentials: 'İstifadəçi adı və ya şifrə yanlışdır.',
     minutes: (count: number): string => `${count} dəqiqə`,
@@ -83,10 +84,11 @@ const az: Messages = {
     expand: 'Aç',
     label: 'Əsas',
     overview: 'İcmal',
-    pricing: 'Qiymətlər',
     signOut: 'Çıxış',
     tickets: 'Biletlər',
+    ticketTypes: 'Bilet növləri',
     users: 'İstifadəçilər',
+    visitorTypes: 'Ziyarətçi növləri',
   },
   notFound: {
     back: 'TiQR-a qayıt',
@@ -161,11 +163,6 @@ const az: Messages = {
     submit: 'Sıfırla',
     title: (username: string): string => `${username} üçün şifrəni sıfırla`,
   },
-  pricing: {
-    description: 'Bilet növləri və qiymətləri, ziyarətçi növlərinin endirimləri',
-    tabs: 'Bölmə',
-    title: 'Qiymətlər',
-  },
   roles: {
     admin: 'Administrator',
     manager: 'Menecer',
@@ -236,6 +233,7 @@ const az: Messages = {
   },
   ticketTypeForm: {
     created: 'Bilet növü yaradıldı',
+    currency: 'Valyuta',
     name: 'Ad',
     notCreated: 'Bilet növü yaradılmadı',
     notUpdated: 'Bilet növü yenilənmədi',
@@ -253,13 +251,13 @@ const az: Messages = {
     deleted: 'Bilet növü silindi',
     deleteFor: (name: string): string => `${name} sil`,
     deleteTitle: 'Bilet növünü sil',
+    description: 'Bilet növləri və qiymətləri',
     edit: 'Redaktə et',
     editFor: (name: string): string => `${name} redaktə et`,
     empty: 'Hələ bilet növü yoxdur',
     new: 'Yeni bilet növü',
     notDeleted: 'Bilet növü silinmədi',
     notLoaded: 'Bilet növləri yüklənmədi',
-    tab: 'Bilet növləri',
   },
   usage: {
     multi_use: 'Çoxdəfəlik',
@@ -332,6 +330,7 @@ const az: Messages = {
     deleted: 'Ziyarətçi növü silindi',
     deleteFor: (name: string): string => `${name} sil`,
     deleteTitle: 'Ziyarətçi növünü sil',
+    description: 'Ziyarətçi növləri və onların endirimləri',
     discount: (percent: number): string => `${percent}%`,
     edit: 'Redaktə et',
     editFor: (name: string): string => `${name} redaktə et`,
@@ -339,7 +338,6 @@ const az: Messages = {
     new: 'Yeni ziyarətçi növü',
     notDeleted: 'Ziyarətçi növü silinmədi',
     notLoaded: 'Ziyarətçi növləri yüklənmədi',
-    tab: 'Ziyarətçi növləri',
   },
 };
 

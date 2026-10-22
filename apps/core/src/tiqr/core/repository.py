@@ -11,6 +11,7 @@ from uuid import UUID
 
 from tiqr.core.models import (
     AccessEvent,
+    Currency,
     Outcome,
     Registration,
     Role,
@@ -87,6 +88,13 @@ ALTER TABLE tickets ADD COLUMN base_price INTEGER CHECK(base_price >= 0);
 ALTER TABLE tickets ADD COLUMN discount_percent INTEGER NOT NULL DEFAULT 0
     CHECK(discount_percent BETWEEN 0 AND 100);
 """
+# Prices made before currencies existed were all in US dollars, so they are backfilled as such.
+_CURRENCY = """
+ALTER TABLE ticket_types ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'
+    CHECK(currency IN ('USD','RUB','AZN'));
+ALTER TABLE tickets ADD COLUMN currency TEXT CHECK(currency IN ('USD','RUB','AZN'));
+UPDATE tickets SET currency='USD' WHERE base_price IS NOT NULL;
+"""
 
 
 def _statements(script: str) -> tuple[str, ...]:
@@ -97,7 +105,7 @@ def _statements(script: str) -> tuple[str, ...]:
 # Step N upgrades schema version N to N + 1. Steps are append-only, and each runs once, in one
 # transaction with its version bump.
 _MIGRATIONS = tuple(
-    _statements(script) for script in (_SCHEMA, _WEB_SESSIONS, _USER_ACTIVE, _CATALOG)
+    _statements(script) for script in (_SCHEMA, _WEB_SESSIONS, _USER_ACTIVE, _CATALOG, _CURRENCY)
 )
 SCHEMA_VERSION = len(_MIGRATIONS)
 
@@ -157,11 +165,12 @@ def _ticket(row: sqlite3.Row) -> Ticket:
         ticket_type=row["ticket_type"],
         base_price=row["base_price"],
         discount_percent=row["discount_percent"],
+        currency=Currency(row["currency"]) if row["currency"] else None,
     )
 
 
 def _ticket_type(row: sqlite3.Row) -> TicketType:
-    return TicketType(UUID(row["id"]), row["name"], row["price"])
+    return TicketType(UUID(row["id"]), row["name"], row["price"], Currency(row["currency"]))
 
 
 def _visitor_type(row: sqlite3.Row) -> VisitorType:
@@ -334,14 +343,14 @@ class SQLiteRepository(Repository):
 
     def add_ticket_type(self, ticket_type: TicketType) -> None:
         self._execute(
-            "INSERT INTO ticket_types (id, name, price) VALUES (?,?,?)",
-            (str(ticket_type.id), ticket_type.name, ticket_type.price),
+            "INSERT INTO ticket_types (id, name, price, currency) VALUES (?,?,?,?)",
+            (str(ticket_type.id), ticket_type.name, ticket_type.price, ticket_type.currency),
         )
 
     def save_ticket_type(self, ticket_type: TicketType) -> None:
         self._execute(
-            "UPDATE ticket_types SET name=?, price=? WHERE id=?",
-            (ticket_type.name, ticket_type.price, str(ticket_type.id)),
+            "UPDATE ticket_types SET name=?, price=?, currency=? WHERE id=?",
+            (ticket_type.name, ticket_type.price, ticket_type.currency, str(ticket_type.id)),
         )
 
     def get_ticket_type(self, type_id: UUID) -> TicketType | None:

@@ -278,6 +278,46 @@
   white-space: nowrap;
 }
 
+/* A tab of the table under it: open at the bottom so the selected one melts into the table, and
+   its orange rule marks the pick. Its parent hangs over the header's bottom edge to meet it */
+@utility filter-tab {
+  display: inline-flex;
+  align-items: center;
+  height: --spacing(9);
+  padding: 0 --spacing(4);
+  border: 1px solid light-dark(var(--color-surface-200), var(--color-surface-800));
+  border-bottom-width: 0;
+  border-radius: 0;
+  background-color: light-dark(var(--color-surface-200), var(--color-surface-800));
+  color: light-dark(var(--color-surface-700), var(--color-surface-300));
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+
+  /* Each tab draws its own border; the next one pulls back over it so the divider is one line */
+  & + & {
+    margin-inline-start: -1px;
+  }
+
+  /* The table header's shade, so the picked tab reads as part of the table */
+  &[aria-pressed='true'] {
+    background-color: light-dark(var(--color-surface-100), var(--color-surface-900));
+    box-shadow: inset 0 2px 0 var(--color-primary-500);
+    color: light-dark(var(--color-surface-900), var(--color-surface-50));
+  }
+
+  /* The orange wash the other controls take on hover, over the tab's own shade */
+  &[aria-pressed='false']:hover {
+    background-color: color-mix(
+      in oklab,
+      var(--color-primary-500) 15%,
+      light-dark(var(--color-surface-200), var(--color-surface-800))
+    );
+    color: light-dark(var(--color-primary-700), var(--color-primary-300));
+  }
+}
+
 /* Menus: highlight the item under the pointer or keyboard in orange too. Layered so an item's
    own text color utility (a red sign-out) still wins */
 @layer components {
