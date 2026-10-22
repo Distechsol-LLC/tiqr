@@ -3,14 +3,15 @@ import os
 import shutil
 import sqlite3
 import sys
+import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import typer
@@ -24,6 +25,7 @@ from tiqr.cli.installer import (
 )
 from tiqr.core.auth import AuthenticationError, Session
 from tiqr.core.biostar import ACCESS_GROUP_NAME, BioStarClient, BioStarError, BioStarXProvisioner
+from tiqr.core.license import REQUEST_TYPES, build_request_code
 from tiqr.core.localtime import parse_input_datetime
 from tiqr.core.models import Role, Ticket, TicketState, UsageType, User
 from tiqr.core.printer import send_to_printer
@@ -72,7 +74,9 @@ user_app = typer.Typer(no_args_is_help=True, help="Local, trusted-account user m
 ticket_app = typer.Typer(
     no_args_is_help=True, help="Create, inspect, assign, save and print tickets."
 )
+license_app = typer.Typer(no_args_is_help=True, help="Request and activate this install's license.")
 app.add_typer(user_app, name="user")
+app.add_typer(license_app, name="license")
 app.add_typer(ticket_app, name="ticket")
 
 Actor = Annotated[str, typer.Option("--as", "-a")]
@@ -83,7 +87,14 @@ class _Runtime:
     settings: Settings
     service: TicketService
 
-    def authenticate(self, username: str) -> User:
+    def authenticate(self, username: str, *, licensed: bool = True) -> User:
+        user = self._sign_in(username)
+        if licensed:
+            # After the password, so only a signed-in account learns the license state.
+            self.service.require_license()
+        return user
+
+    def _sign_in(self, username: str) -> User:
         cached = _read_session()
         if cached is not None and cached.username == username:
             with suppress(AuthenticationError):
@@ -232,6 +243,39 @@ def reset(
 
 
 @app.command()
+def selftest() -> None:
+    """Render a sample badge in a temporary folder, to prove the program's assets are intact.
+
+    Touches no ticket, account or setting, and needs neither setup nor a license.
+    """
+    # ReportLab is slow to import and only this command and printing need it.
+    from tiqr.core.pdf import render_pdf  # noqa: PLC0415
+
+    with _errors(), tempfile.TemporaryDirectory() as folder:
+        start = datetime(2030, 1, 1, 8, tzinfo=UTC)
+        owner = uuid4()
+        sample = Ticket(
+            id=uuid4(),
+            external_id=None,
+            qr_payload="TQR:300101-00001:ABCDEFGHIJKLMNO",
+            readable_serial="TQR-300101-00001",
+            visitor_name="Sample Visitor",
+            visitor_type="Visitor",
+            valid_from=start,
+            valid_until=start + timedelta(hours=2),
+            usage_type=UsageType.MULTI_USE,
+            state=TicketState.ISSUED,
+            created_by=owner,
+            assigned_operator=owner,
+            created_at=start,
+        )
+        pdf = render_pdf(sample, Path(folder), "UTC")
+        if not pdf.read_bytes().startswith(b"%PDF-"):
+            raise RuntimeError("The sample badge is not a PDF")
+    typer.echo("Self-test passed: the badge renders")
+
+
+@app.command()
 def install(
     *,
     source: Annotated[
@@ -297,6 +341,24 @@ def install(
             typer.echo(register_service(Path(sys.executable), home, origin_folder))
             wait_until_healthy(host, port)
             typer.echo(f"TiQR is answering on {host}:{port}")
+        _license_next_steps(host, port)
+
+
+def _license_next_steps(host: str, port: int) -> None:
+    """Say what is left after install: the program does nothing until a license is activated."""
+    with _session() as runtime:
+        if runtime.service.license_status().is_valid:
+            return
+    typer.echo("")
+    typer.echo("Last step: activate a license. Send this request code to your vendor:")
+    typer.echo(f"  {build_request_code('trial')}")
+    typer.echo(
+        f"Then paste the key they send back at http://{host}:{port} (License), or run:"
+        "\n  tiqr license activate --as <admin> <key>"
+    )
+    typer.echo(
+        "For a paid license rather than a trial, run: tiqr license request-code --type standard"
+    )
 
 
 def _ask[T](text: str, default: T) -> T:
@@ -323,6 +385,53 @@ def create_first_admin() -> None:
 def _executable_folder() -> Path:
     # A frozen build runs from its own folder; a source checkout uses the working directory.
     return Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path.cwd()
+
+
+@license_app.command("request-code")
+def license_request_code(
+    request_type: Annotated[
+        str, typer.Option("--type", help="trial (30 days) or standard.")
+    ] = "trial",
+) -> None:
+    """Print this machine's request code; send it to the vendor to get a license key."""
+    if request_type not in REQUEST_TYPES:
+        raise typer.BadParameter(f"use one of: {', '.join(REQUEST_TYPES)}", param_hint="--type")
+    typer.echo(build_request_code(request_type))
+
+
+@license_app.command("status")
+def license_status() -> None:
+    """Show the license state, holder and expiry."""
+    with _session() as runtime:
+        status = runtime.service.license_status()
+        _json(
+            {
+                "state": status.state.value,
+                "type": status.type.value if status.type else None,
+                "licensed_to": status.licensed_to,
+                "expires_at": status.expires_at.isoformat() if status.expires_at else None,
+                "days_remaining": status.days_remaining,
+                "machine_id": status.machine_id,
+            }
+        )
+
+
+@license_app.command("activate")
+def license_activate(
+    actor: Actor,
+    key: Annotated[str | None, typer.Argument(help="The key; or use --file.")] = None,
+    file: Annotated[Path | None, typer.Option(help="A file holding the key.")] = None,
+) -> None:
+    """Store the vendor's license key (admin). A refused key leaves the current license in place."""
+    with _errors():
+        if (key is None) == (file is None):
+            raise ValueError("Give the key as an argument, or --file, but not both")
+        license_key = key if key is not None else (file or Path()).read_text(encoding="utf-8")
+    with _session() as runtime:
+        user = runtime.authenticate(actor, licensed=False)
+        status = runtime.service.activate_license(user, license_key)
+        expires = status.expires_at.date().isoformat() if status.expires_at else "?"
+        typer.echo(f"License active for {status.licensed_to}, until {expires}")
 
 
 @user_app.command("add")

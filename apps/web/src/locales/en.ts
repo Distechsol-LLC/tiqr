@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noExcessiveLinesPerFile: one flat table that must mirror en.ts
 // The source locale: every other one in config/locales.ts must match this shape
 const en = {
   assign: {

@@ -8,12 +8,14 @@ from uuid import UUID, uuid4
 import pytest
 from typer.testing import CliRunner
 
+from tests.conftest import _vendor
 from tiqr.api import server as api_server
 from tiqr.cli import commands as cli
 from tiqr.core import runtime as core_runtime
 from tiqr.core.biostar import BioStarError
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
-from tiqr.core.models import RawEvent, Role
+from tiqr.core.license import build_request_code, parse_request_code
+from tiqr.core.models import LicenseRecord, RawEvent, Role
 from tiqr.core.repository import _MIGRATIONS, SQLiteRepository
 from tiqr.core.service import TicketService
 
@@ -22,8 +24,21 @@ PASSWORD = "correct horse battery staple"
 runner = CliRunner()
 
 
+def vendor_key(license_pair, kind="standard", days=365):
+    """A key for this machine, signed as the vendor tool does, issued at the suite's clock."""
+    vendor = _vendor()
+    request = parse_request_code(build_request_code("trial" if kind == "trial" else "standard"))
+    payload = vendor.build_payload(request, kind=kind, licensed_to="Acme", days=days, now=NOW)
+    return vendor.sign_license(payload, license_pair[0])
+
+
 @pytest.fixture
-def cli_env(tmp_path, monkeypatch):
+def unlicensed(monkeypatch):
+    monkeypatch.setenv("TIQR_TEST_UNLICENSED", "1")
+
+
+@pytest.fixture
+def cli_env(tmp_path, monkeypatch, license_pair):
     for name in tuple(os.environ):
         if name.startswith("TIQR_"):
             monkeypatch.delenv(name)
@@ -35,8 +50,18 @@ def cli_env(tmp_path, monkeypatch):
     events = InMemoryEventSource()
 
     def service(repository, secret_key, **kwargs):
+        # Every command is gated, so the suite starts licensed unless a test asks otherwise.
+        if not os.environ.get("TIQR_TEST_UNLICENSED") and repository.active_license() is None:
+            repository.activate_license(
+                LicenseRecord(vendor_key(license_pair), NOW, NOW + timedelta(days=365), "Acme")
+            )
         return TicketService(
-            repository, secret_key, registrar=registrar, event_source=events, clock=lambda: NOW
+            repository,
+            secret_key,
+            registrar=registrar,
+            event_source=events,
+            clock=lambda: NOW,
+            license_public_key=license_pair[1],
         )
 
     monkeypatch.setattr(core_runtime, "TicketService", service)
@@ -768,3 +793,50 @@ def test_user_commands_keep_the_last_admin_and_name_unknown_users(cli_env):
     missing = invoke(["user", "deactivate", "nobody"])
     assert missing.exit_code == 1
     assert "User not found" in missing.output
+
+
+def test_unlicensed_commands_are_refused_until_activated(cli_env, unlicensed, license_pair):
+    assert invoke(["setup"]).exit_code == 0
+    add_user("admin", "admin")
+    refused = create_ticket()
+    assert refused.exit_code == 1
+    assert "A valid license is required (none)" in refused.output
+    assert output_json(invoke(["license", "status"]))["state"] == "none"
+
+    key = vendor_key(license_pair)
+    activated = invoke(["license", "activate", key, "--as", "admin"])
+    assert activated.exit_code == 0, activated.output
+    assert "License active for Acme" in activated.output
+    status = output_json(invoke(["license", "status"]))
+    assert status["state"] == "active"
+    assert create_ticket().exit_code == 0
+
+
+def test_license_activate_takes_a_file_and_refuses_bad_keys(cli_env, unlicensed, license_pair):
+    directory = cli_env[0]
+    assert invoke(["setup"]).exit_code == 0
+    add_user("admin", "admin")
+    key_file = directory / "license.key"
+    key_file.write_text(vendor_key(license_pair) + "\n")
+    assert invoke(["license", "activate", "--file", str(key_file), "--as", "admin"]).exit_code == 0
+    bad = invoke(["license", "activate", "not-a-key", "--as", "admin"])
+    assert bad.exit_code == 1
+    assert "not valid for this product" in bad.output
+    both = invoke(["license", "activate", "key", "--file", str(key_file), "--as", "admin"])
+    assert both.exit_code == 1
+    # A refused key left the active license in place
+    assert output_json(invoke(["license", "status"]))["state"] == "active"
+
+
+def test_license_request_code_needs_no_account(cli_env, unlicensed):
+    result = runner.invoke(cli.app, ["license", "request-code", "--type", "standard"])
+    assert result.exit_code == 0
+    request = parse_request_code(result.output.strip())
+    assert request.request_type == "standard"
+    assert runner.invoke(cli.app, ["license", "request-code", "--type", "x"]).exit_code == 2
+
+
+def test_selftest_renders_a_badge_without_setup_or_license(cli_env, unlicensed):
+    result = runner.invoke(cli.app, ["selftest"])
+    assert result.exit_code == 0, result.output
+    assert "Self-test passed" in result.output

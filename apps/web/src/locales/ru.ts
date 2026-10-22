@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noExcessiveLinesPerFile: one flat table that must mirror en.ts
 import type { Messages } from '@/locales/en.ts';
 import { plural } from '%/plural.ts';
 

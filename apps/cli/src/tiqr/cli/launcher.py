@@ -18,7 +18,7 @@ from tiqr.core.repository import SQLiteRepository
 from tiqr.core.settings import Settings, database_path
 
 # Commands that must not create the signing key or database as a side effect.
-_SETUP_SKIPPED = frozenset({"setup", "reset", "-h", "--help"})
+_SETUP_SKIPPED = frozenset({"setup", "reset", "selftest", "-h", "--help"})
 # Linux terminals in preference order, with the arguments before the command.
 _LINUX_TERMINALS = (
     ("x-terminal-emulator", ("-e",)),

@@ -56,14 +56,18 @@ jobs:
           ./"$exe" --help > /dev/null
           ./"$exe" user list
           test -f .env.local
+          # Renders a badge, so the fonts, logos and ReportLab are known to be bundled.
+          ./"$exe" selftest
           # getpass ignores piped input on Windows, so only the POSIX runners script a password.
           if [ "$RUNNER_OS" != "Windows" ]; then
             printf 'smoke-password\nsmoke-password\n' | ./"$exe" user add root --role admin > /dev/null
-            printf 'smoke-password\n' | ./"$exe" ticket create --as root -n "Smoke Visitor" -t Visitor -f 2030-01-01T08:00 -u 2030-01-01T18:00 --usage one_time --tz Asia/Baku > ticket.json
-            id=$(sed -n 's/^ *"id": "\(.*\)",\{0,1\}$/\1/p' ticket.json | head -1)
-            printf 'smoke-password\n' | ./"$exe" ticket save "$id" --as root
-            test -s out/*.pdf
-            head -c 4 out/*.pdf | grep -q '%PDF'
+            # Without a license the program must refuse work (CI cannot hold the vendor's key).
+            if printf 'smoke-password\n' | ./"$exe" ticket create --as root -n "Smoke Visitor" -t Visitor -f 2030-01-01T08:00 -u 2030-01-01T18:00 --usage one_time --tz Asia/Baku > refused.txt 2>&1; then
+              echo "A ticket was created without a license"; exit 1
+            fi
+            grep -q "A valid license is required" refused.txt
+            ./"$exe" license status | grep -q '"state": "none"'
+            ./"$exe" license request-code | head -c 8 | grep -q '^ey'
             # The server, as installs run it: up, healthy, and signing in the admin above.
             ./"$exe" serve --dev --port 8765 > serve.log 2>&1 &
             server=$!
@@ -76,13 +80,55 @@ jobs:
               http://127.0.0.1:8765/api/auth/login | grep -q csrf_token || { cat serve.log; exit 1; }
             kill "$server"
           fi
-      - name: Name the executable after its platform
+      - name: Fetch WinSW, the Windows service wrapper
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          WINSW_VERSION: v2.12.0
+          # The hash of WinSW-x64.exe as first downloaded; a changed file fails the build.
+          WINSW_SHA256: 05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da
+        run: |
+          curl -fsSL -o WinSW-x64.exe "https://github.com/winsw/winsw/releases/download/$WINSW_VERSION/WinSW-x64.exe"
+          echo "$WINSW_SHA256  WinSW-x64.exe" | sha256sum --check
+      - name: Assemble the install bundle
         shell: bash
         run: |
-          mkdir release
+          name="tiqr-$RUNNER_OS-$RUNNER_ARCH"
           exe=$(basename dist/tiqr*)
-          # Keeps the three platforms' files apart once they are merged into one folder.
-          cp "dist/$exe" "release/tiqr-$RUNNER_OS-$RUNNER_ARCH${exe#tiqr}"
+          mkdir -p "bundle/$name" release
+          # Plain names inside, so the install scripts need not know the platform.
+          cp "dist/$exe" "bundle/$name/$exe"
+          cp tiqr_branding.jsonc packaging/bundle/INSTALL.txt "bundle/$name/"
+          uv run python packaging/notices.py "bundle/$name/THIRD-PARTY-NOTICES.txt" --web apps/web
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp packaging/bundle/install.cmd "bundle/$name/"
+            cp WinSW-x64.exe "bundle/$name/tiqr-service.exe"
+            (cd bundle && 7z a -tzip "../release/$name.zip" "$name" > /dev/null)
+          else
+            cp packaging/bundle/install.sh "bundle/$name/"
+            chmod +x "bundle/$name/install.sh" "bundle/$name/$exe"
+            tar -C bundle -czf "release/$name.tar.gz" "$name"
+          fi
+      - name: Smoke test the bundle as a customer unpacks it
+        shell: bash
+        run: |
+          name="tiqr-$RUNNER_OS-$RUNNER_ARCH"
+          customer="$RUNNER_TEMP/customer"
+          mkdir "$customer"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            7z x -o"$customer" "release/$name.zip" > /dev/null
+          else
+            tar -C "$customer" -xzf "release/$name.tar.gz"
+          fi
+          cd "$customer/$name"
+          for file in INSTALL.txt THIRD-PARTY-NOTICES.txt tiqr_branding.jsonc; do test -s "$file"; done
+          if [ "$RUNNER_OS" = "Windows" ]; then test -f install.cmd; test -f tiqr-service.exe; else test -x install.sh; fi
+          exe=$(ls tiqr tiqr.exe 2>/dev/null | head -1)
+          # The service and firewall steps need a real host; everything else runs as installed.
+          ./"$exe" install --no-service --no-firewall --host 127.0.0.1 --port 8766 > install.log
+          cat install.log
+          grep -q "activate a license" install.log
+          grep -q "tiqr license activate" install.log
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/prod'
         with:

@@ -326,6 +326,14 @@ class TicketService:
             days_remaining=days_between(now, payload.expires_at),
         )
 
+    def require_license(self) -> None:
+        """Refuse unless a license is live; the API and the CLI both gate on this."""
+        status = self.license_status()
+        if not status.is_valid:
+            raise LicenseError(
+                403, "license_required", f"A valid license is required ({status.state})"
+            )
+
     def license_request_code(self, actor: User, request_type: RequestType) -> str:
         """A code for the vendor, for any signed-in role: a viewer at the wall can pass it on."""
         self._actor(actor)

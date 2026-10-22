@@ -12,7 +12,6 @@ from tiqr.api.maintenance import Maintenance
 from tiqr.api.runtime import Runtime
 from tiqr.api.security import CSRF_HEADER, SAFE_METHODS, LoginThrottle, cookie_name
 from tiqr.core.auth import SIGNED_OUT, AuthenticationError
-from tiqr.core.license import LicenseError
 from tiqr.core.models import User, WebSession
 from tiqr.core.service import TicketService
 
@@ -87,6 +86,4 @@ def require_license(request: Request, server: Server) -> None:
     route = request.scope.get("route")
     if getattr(route, "name", None) in LICENSE_EXEMPT:
         return
-    status = server.service.license_status()
-    if not status.is_valid:
-        raise LicenseError(403, "license_required", f"A valid license is required ({status.state})")
+    server.service.require_license()

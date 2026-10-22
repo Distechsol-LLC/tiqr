@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 from tiqr.cli import commands, installer
 from tiqr.cli.commands import app
 from tiqr.core import settings
+from tiqr.core.license import parse_request_code
 from tiqr.core.settings import BRANDING_FILE
 
 BRANDING = (
@@ -44,6 +45,18 @@ def test_install_copies_branding_into_tiqr_home(home, release):
     assert result.exit_code == 0, result.output
     assert (home / BRANDING_FILE).read_text() == (release / BRANDING_FILE).read_text()
     assert "Copied" in result.output
+
+
+def test_install_ends_with_the_license_request_code(home, release):
+    result = CliRunner().invoke(
+        app, ["install", "--source", str(release), "--host", "10.0.0.5", "--port", "7200", *QUIET]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "activate a license" in result.output
+    assert "tiqr license activate" in result.output
+    code = next(line.strip() for line in result.output.splitlines() if line.startswith("  ey"))
+    assert parse_request_code(code).request_type == "trial"
 
 
 def test_install_rejects_a_broken_file_and_keeps_the_existing_one(home, tmp_path):
