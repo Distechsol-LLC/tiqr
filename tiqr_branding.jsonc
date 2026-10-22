@@ -1,0 +1,41 @@
+// Read on every start from TIQR_HOME (beside the executable when unset). `tiqr install` copies it there.
+// Restart to apply changes.
+// Precedence: .env < .env.local < this file < environment. Null keeps the lower layer.
+// Never put TIQR_SECRET_KEY or the BioStar password here; they belong in .env.local.
+{
+  // Branding (required)
+  "app_name": "TiQR", // default: TiQR
+  "logo_path": null, // default: none
+  // "default" is vintage; or any Skeleton theme name (e.g. "cerberus", "dracula").
+  "theme": "default", // default: default (vintage)
+  // The first language is the default.
+  "languages": ["en-US", "ru-RU", "az-AZ"], // default: en-US, ru-RU, az-AZ
+
+  // Data and tickets
+  "db": "tiqr.db", // default: tiqr.db
+  "out": "out", // default: out
+  "prefix": "TQR", // default: TQR
+  "default_tz": null, // default: this machine's time zone, else UTC
+
+  // Web server (`tiqr serve`)
+  "host": null, // default: 127.0.0.1
+  "port": null, // default: 7102
+  "tls_cert": null, // default: none (plain HTTP)
+  "tls_key": null, // default: none (plain HTTP)
+  "server_printing": null, // default: false
+  "sync_interval": null, // default: 60 seconds; 0 turns it off
+  "cleanup_interval": null, // default: 3600 seconds; 0 turns it off
+
+  // BioStar (leave all null for local mode; a partly filled block is an error)
+  "biostar": {
+    "base_url": null, // default: none; required with the block
+    "username": null, // default: none; required with the block
+    "device_ids": null, // default: none; required with the block
+    "access_group_id": null, // default: blank, TiQR manages its own group
+    "verify_tls": null, // default: false
+    "timeout": null, // default: 30 seconds
+    "user_id_base": null, // default: 1000000
+    "door_open_duration": null, // default: 3 seconds
+    "door_open_timeout": null // default: 10 seconds
+  }
+}

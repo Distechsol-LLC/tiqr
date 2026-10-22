@@ -221,6 +221,8 @@ print(json.dumps({"package": str(pathlib.Path(tiqr.core.__file__).resolve()),
     environment = {key: value for key, value in os.environ.items() if not key.startswith("TIQR_")}
     environment.pop("PYTHONPATH", None)
     environment["TIQR_HOME"] = str(tmp_path / "home")
+    (tmp_path / "home").mkdir()
+    shutil.copy(PROJECT / "tiqr_branding.jsonc", tmp_path / "home")
     environment["TIQR_SECRET_KEY"] = "installed-wheel-signing-key"
     result = subprocess.run(
         [sys.executable, "-I", "-c", script, str(installation), str(PROJECT)],

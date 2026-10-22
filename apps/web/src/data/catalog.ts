@@ -11,7 +11,7 @@ const DISCOUNT_MAX = 100;
 const DISCOUNT_TEXT = /^\d{1,3}$/;
 
 // The currencies the API takes, by the codes it sends
-const CURRENCIES = ['USD', 'RUB', 'AZN'] as const;
+const CURRENCIES = ['USD', 'RUB', 'AZN', 'KZT'] as const;
 const currencySchema = z.enum(CURRENCIES);
 
 const ticketTypeSchema = z.object({

@@ -1,5 +1,6 @@
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import NAMESPACE_DNS, uuid5
 
 import pytest
@@ -10,6 +11,11 @@ from tiqr.core.models import Role
 from tiqr.core.repository import SQLiteRepository
 from tiqr.core.service import TicketService
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MINIMAL_BRANDING = (
+    '{"app_name": "TiQR", "logo_path": null, "theme": "default",'
+    ' "languages": ["en-US", "ru-RU", "az-AZ"]}'
+)
 SECRET = "development-only-64e2d7e02b9f49828c52d840565de390"
 
 
@@ -17,6 +23,8 @@ SECRET = "development-only-64e2d7e02b9f49828c52d840565de390"
 def project_root(tmp_path, monkeypatch):
     # Config lives under each test's own directory, never the real checkout's.
     monkeypatch.setattr(settings, "PROJECT_ROOT", tmp_path)
+    # The program does not run without its branding file, so each test gets a minimal one.
+    (tmp_path / settings.BRANDING_FILE).write_text(MINIMAL_BRANDING)
     return tmp_path
 
 

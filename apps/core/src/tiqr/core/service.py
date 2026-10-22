@@ -139,6 +139,8 @@ class TicketService:
         with self.repository.transaction():
             if self.repository.user_by_name(user.username):
                 raise ValueError("Username already exists")
+            if user.role == Role.ADMIN and self._admin_exists():
+                raise StateError("Only one admin account can exist")
             self.repository.add_user(user)
         return user
 
@@ -179,7 +181,8 @@ class TicketService:
 
         Deactivating or resetting a password ends the user's sessions; a new role applies from
         their next request. The last active admin can be neither demoted nor deactivated, so
-        somebody can always manage accounts.
+        somebody can always manage accounts. Only one admin account can exist, so promoting
+        someone demotes the current admin to manager.
         """
         if role is None and active is None and password is None:
             raise ValueError("Nothing to change")
@@ -195,6 +198,15 @@ class TicketService:
                 active=user.active if active is None else active,
                 password_hash=password_hash or user.password_hash,
             )
+            if updated.role == Role.ADMIN and user.role != Role.ADMIN:
+                admins = [
+                    other for other in self.repository.list_users() if other.role == Role.ADMIN
+                ]
+                if admins and not updated.active:
+                    raise StateError("A deactivated account cannot replace the admin")
+                # Only one admin exists, so the one being replaced becomes a manager.
+                for admin in admins:
+                    self.repository.save_user(replace(admin, role=Role.MANAGER))
             if self._is_active_admin(user) and not self._is_active_admin(updated):
                 admins = [
                     other for other in self.repository.list_users() if self._is_active_admin(other)
@@ -258,6 +270,9 @@ class TicketService:
     @staticmethod
     def _is_active_admin(user: User) -> bool:
         return user.active and user.role == Role.ADMIN
+
+    def _admin_exists(self) -> bool:
+        return any(user.role == Role.ADMIN for user in self.repository.list_users())
 
     def authenticate(self, username: str, password: str) -> User:
         user = self.repository.user_by_name(username)

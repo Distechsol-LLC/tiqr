@@ -11,7 +11,7 @@ from tiqr.api.runtime import Runtime
 from tiqr.core.settings import Settings
 
 # Plain HTTP, as installs default to, with the scheduler off so tests drive sync themselves.
-PLAIN = ServerConfig(sync_interval=0, cleanup_interval=0)
+PLAIN = ServerConfig(sync_interval=0, cleanup_interval=0, server_printing=False)
 # The paths are never opened: TLS is the server's job, and TestClient talks ASGI directly.
 TLS = {"tls_cert": Path("cert.pem"), "tls_key": Path("key.pem")}
 

@@ -7,10 +7,11 @@
   import { Menu, Portal } from '@skeletonlabs/skeleton-svelte';
 
   import Flag from '@/components/Flag.svelte';
-  import { LOCALES, LOCALE_CODES, isLocale } from '@/config/locales.ts';
+  import { LOCALES, isLocale } from '@/config/locales.ts';
   import { navigate } from '@/router.ts';
   import { initialsOf } from '%/initials.ts';
   import { auth } from '%/useAuth.svelte.ts';
+  import { branding } from '%/useBranding.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { theme } from '%/useTheme.svelte.ts';
 
@@ -91,19 +92,21 @@
             <Menu.Separator />
           {/if}
 
-          <Menu.ItemGroup aria-label={i18n.t.language.label}>
-            {#each LOCALE_CODES as code (code)}
-              <Menu.OptionItem checked={i18n.code === code} type="radio" value={code}>
-                <Flag {code} />
-                <Menu.ItemText class="flex-1" lang={code}>{LOCALES[code].label}</Menu.ItemText>
-                <Menu.ItemIndicator class="text-primary-600-400">
-                  <Check aria-hidden="true" size={ICON_SIZE} />
-                </Menu.ItemIndicator>
-              </Menu.OptionItem>
-            {/each}
-          </Menu.ItemGroup>
+          {#if branding.locales.length > 1}
+            <Menu.ItemGroup aria-label={i18n.t.language.label}>
+              {#each branding.locales as code (code)}
+                <Menu.OptionItem checked={i18n.code === code} type="radio" value={code}>
+                  <Flag {code} />
+                  <Menu.ItemText class="flex-1" lang={code}>{LOCALES[code].label}</Menu.ItemText>
+                  <Menu.ItemIndicator class="text-primary-600-400">
+                    <Check aria-hidden="true" size={ICON_SIZE} />
+                  </Menu.ItemIndicator>
+                </Menu.OptionItem>
+              {/each}
+            </Menu.ItemGroup>
 
-          <Menu.Separator />
+            <Menu.Separator />
+          {/if}
 
           <!-- Stays open so the switch can be seen, and undone, in place -->
           <!-- Icon first, in a slot as wide as the flags', so every label above and below starts

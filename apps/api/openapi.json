@@ -47,6 +47,76 @@
         }
       }
     },
+    "/api/branding": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Branding",
+        "description": "Name, theme, languages and currencies, without signing in: the login page needs them.",
+        "operationId": "branding",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandingOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logo": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Logo",
+        "description": "The configured logo; without one the app uses its built-in logo.",
+        "operationId": "logo",
+        "responses": {
+          "200": {
+            "description": "logo_path, as it is on disk",
+            "content": {
+              "image/*": {}
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No logo is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/config": {
       "get": {
         "tags": [
@@ -739,7 +809,7 @@
           "catalog"
         ],
         "summary": "Create Ticket Type",
-        "description": "Add a ticket type, its price and the currency it is in. Admins and managers.",
+        "description": "Add a ticket type, its price and the currency it is in. Admins and managers.\n\nThe currency must be one of the languages' regions' (languages in tiqr_branding.jsonc).",
         "operationId": "create_ticket_type",
         "requestBody": {
           "required": true,
@@ -2207,6 +2277,50 @@
         ],
         "title": "AssignIn"
       },
+      "BrandingOut": {
+        "properties": {
+          "app_name": {
+            "type": "string",
+            "title": "App Name",
+            "description": "app_name, for titles and the header"
+          },
+          "theme": {
+            "type": "string",
+            "title": "Theme",
+            "description": "theme: default, light, dark or a Skeleton theme name"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Languages",
+            "description": "languages, such as en-US: what the switcher offers, first is default"
+          },
+          "currencies": {
+            "items": {
+              "$ref": "#/components/schemas/Currency"
+            },
+            "type": "array",
+            "title": "Currencies",
+            "description": "The currencies of the languages' regions"
+          },
+          "has_logo": {
+            "type": "boolean",
+            "title": "Has Logo",
+            "description": "Whether /api/logo serves logo_path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_name",
+          "theme",
+          "languages",
+          "currencies",
+          "has_logo"
+        ],
+        "title": "BrandingOut"
+      },
       "ConfigOut": {
         "properties": {
           "timezone": {
@@ -2283,7 +2397,8 @@
         "enum": [
           "USD",
           "RUB",
-          "AZN"
+          "AZN",
+          "KZT"
         ],
         "title": "Currency"
       },

@@ -309,7 +309,7 @@ def test_user_management(client):
     login(client, "newcomer", "newcomer-password")
 
 
-def test_server_printing_is_off_by_default(client, printed):
+def test_server_printing_is_off_when_disabled(client, printed):
     login(client)
     ticket_id = create_ticket(client)["id"]
     response = client.post(f"/api/tickets/{ticket_id}/print")
@@ -641,3 +641,13 @@ def test_a_ticket_is_priced_from_its_types(client):
     unknown = client.post("/api/tickets", json=ticket_body(ticket_type="Nope"))
     assert unknown.status_code == 422
     assert unknown.json()["detail"] == "Unknown ticket type"
+
+
+def test_branding_is_public_and_follows_the_languages(client):
+    body = client.get("/api/branding").json()
+
+    assert body["app_name"] == "TiQR"
+    assert body["languages"] == ["en-US", "ru-RU", "az-AZ"]
+    assert body["currencies"] == ["USD", "RUB", "AZN"]
+    assert body["has_logo"] is False
+    assert client.get("/api/logo").status_code == 404

@@ -1,16 +1,22 @@
 import json
 import logging
 import threading
+from contextlib import nullcontext
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from tiqr.api import openapi
+from tiqr.api.app import create_app
 from tiqr.api.config import ServerConfig
 from tiqr.api.maintenance import Maintenance
+from tiqr.api.runtime import Runtime
 from tiqr.api.security import LoginThrottle
 from tiqr.core.models import RawEvent, UsageType
+from tiqr.core.settings import Settings
 
 PROJECT = Path(__file__).resolve().parents[2]
 TLS = {"TIQR_TLS_CERT": "tls/cert.pem", "TIQR_TLS_KEY": "tls/key.pem"}
@@ -283,3 +289,25 @@ def test_openapi_export_writes_the_schema(tmp_path):
     assert "/api/tickets/{ticket_id}/pdf" in schema["paths"]
     with pytest.raises(SystemExit, match="usage"):
         openapi.main([])
+
+
+def test_web_page_and_manifest_carry_the_install_name(make_client, web_root, service, tmp_path):
+
+    (web_root / "site.webmanifest").write_text(
+        '{"name": "TiQR", "short_name": "TiQR", "icons": []}', encoding="utf-8"
+    )
+    logo = tmp_path / "logo.svg"
+    logo.write_text("<svg/>", encoding="utf-8")
+    settings = Settings(
+        secret_key="web-suite-unique-signing-key", app_name="Expo <Pass>", logo_path=logo
+    )
+    app = create_app(
+        replace(ServerConfig(), sync_interval=0, cleanup_interval=0),
+        runtime=lambda: nullcontext(Runtime(settings, service)),
+        web_root=web_root,
+    )
+    with TestClient(app, base_url="http://testserver") as client:
+        assert "<title>Expo &lt;Pass&gt;</title>" in client.get("/tiqr/").text
+        manifest = client.get("/tiqr/site.webmanifest").json()
+        assert manifest["name"] == manifest["short_name"] == "Expo <Pass>"
+        assert manifest["icons"][0]["src"] == "/api/logo"

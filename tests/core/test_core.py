@@ -1,6 +1,8 @@
+import shutil
 import sqlite3
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -10,9 +12,15 @@ from tiqr.core.auth import SESSION_LIFETIME, AuthenticationError, verify_passwor
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
 from tiqr.core.models import AccessEvent, Outcome, Registration, Role, SyncCursor, UsageType, utc
 from tiqr.core.qr import build_payload, make_serial, signature, validate_prefix, verify_payload
-from tiqr.core.repository import SQLiteRepository
+from tiqr.core.repository import _MIGRATIONS, SCHEMA_VERSION, SQLiteRepository
 from tiqr.core.service import TicketService
-from tiqr.core.settings import BioStarSettings, Settings
+from tiqr.core.settings import (
+    BRANDING_FILE,
+    BioStarSettings,
+    Settings,
+    load_branding,
+    load_environment,
+)
 
 VECTORS = [
     (1, date(2026, 9, 17), "TQR-260917-00001", "TQR:260917-00001:NNFFGTUWhpXcZ0E"),
@@ -168,12 +176,12 @@ def test_session_rejects_forged_and_retargeted_tokens(service, accounts):
 
 
 def test_add_individual_account_and_reject_duplicate(service):
-    user = service.add_user(" new-admin ", "a-long-password", Role.ADMIN)
-    assert user.username == "new-admin"
+    user = service.add_user(" new-manager ", "a-long-password", Role.MANAGER)
+    assert user.username == "new-manager"
     verify_password(user, "a-long-password")
     assert user in service.list_users()
     with pytest.raises(ValueError, match="exists"):
-        service.add_user("new-admin", "different-password", Role.MANAGER)
+        service.add_user("new-manager", "different-password", Role.OPERATOR)
 
 
 @pytest.mark.parametrize(
@@ -361,10 +369,92 @@ def test_dotenv_files_override_in_order_and_process_environment_wins(monkeypatch
     )
     (tmp_path / ".env.local").write_text("TIQR_SECRET_KEY=local-file-key-0123456789abcdef\n")
     monkeypatch.setenv("TIQR_OUT", "from-process")
+    (tmp_path / BRANDING_FILE).write_text(
+        '{"app_name": "A", "theme": "default", "languages": ["en-US"]}'
+    )
     settings = Settings.from_env()
     assert settings.secret_key == "local-file-key-0123456789abcdef"
     assert settings.database_path == tmp_path / "from-env.db"
     assert settings.output_dir == tmp_path / "from-process"
+
+
+def test_branding_file_is_required_and_read_as_jsonc(tmp_path):
+    (tmp_path / BRANDING_FILE).unlink()
+    with pytest.raises(ValueError, match="missing"):
+        load_branding()
+    (tmp_path / BRANDING_FILE).write_text(
+        '// note\n{"app_name": "A // B", /* c */ "theme": "dracula",\n'
+        ' "languages": ["az-az", "en-US",], "logo_path": null,}\n'
+    )
+    assert load_branding() == {
+        "app_name": "A // B",
+        "theme": "dracula",
+        "languages": ["az-az", "en-US"],
+        "logo_path": None,
+    }
+
+
+def test_shipped_branding_file_is_valid(monkeypatch, tmp_path):
+    shutil.copy(Path(__file__).resolve().parents[2] / BRANDING_FILE, tmp_path)
+    monkeypatch.setenv("TIQR_SECRET_KEY", "d23bfaf431a349fea87c38ddcb62ff10")
+    settings = Settings.from_env()
+    assert (settings.app_name, settings.theme, settings.prefix) == ("TiQR", "default", "TQR")
+    assert settings.languages == ("en-US", "ru-RU", "az-AZ")
+    assert settings.biostar is None
+
+
+def test_settings_take_branding_from_the_file_only(monkeypatch, tmp_path):
+    monkeypatch.setenv("TIQR_SECRET_KEY", "d23bfaf431a349fea87c38ddcb62ff10")
+    monkeypatch.setenv("TIQR_THEME", "mint")
+    (tmp_path / BRANDING_FILE).write_text(
+        '{"app_name": "Acme", "theme": "Dracula", "languages": ["az-az", "en-US"]}'
+    )
+    settings = Settings.from_env()
+    assert (settings.app_name, settings.theme) == ("Acme", "dracula")
+    assert settings.languages == ("az-AZ", "en-US")
+
+
+def test_file_settings_override_env_files_but_not_the_environment(monkeypatch, tmp_path):
+    for key in tuple(__import__("os").environ):
+        if key.startswith("TIQR_"):
+            monkeypatch.delenv(key)
+    (tmp_path / ".env").write_text("TIQR_PREFIX=ENV\nTIQR_PORT=1111\nTIQR_HOST=10.0.0.1\n")
+    (tmp_path / BRANDING_FILE).write_text(
+        '{"app_name": "A", "theme": "default", "languages": ["en-US"], "prefix": "JSN",'
+        ' "port": 2222, "host": null, "server_printing": true,'
+        ' "biostar": {"device_ids": ["1", "2"], "verify_tls": false}}'
+    )
+    monkeypatch.setenv("TIQR_PORT", "3333")
+    environment = load_environment()
+    assert environment["TIQR_PREFIX"] == "JSN"
+    assert environment["TIQR_PORT"] == "3333"
+    assert environment["TIQR_HOST"] == "10.0.0.1"
+    assert environment["TIQR_SERVER_PRINTING"] == "true"
+    assert environment["TIQR_BIOSTAR_DEVICE_IDS"] == "1,2"
+    assert environment["TIQR_BIOSTAR_VERIFY_TLS"] == "false"
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        ("[1]", "JSON object"),
+        ("{oops", "not valid"),
+        ('{"app_name": "A", "theme": "x", "languages": ["en-US"], "color": 1}', "unknown keys"),
+        ('{"app_name": "A", "languages": ["en-US"]}', "missing theme"),
+        (
+            '{"app_name": "A", "theme": "x", "languages": ["en-US"], "biostar": {"password": "p"}}',
+            "biostar.password",
+        ),
+        (
+            '{"app_name": "A", "theme": "x", "languages": ["en-US"], "secret_key": "k"}',
+            "secret_key",
+        ),
+    ],
+)
+def test_invalid_branding_file_is_reported(tmp_path, content, message):
+    (tmp_path / BRANDING_FILE).write_text(content)
+    with pytest.raises(ValueError, match=message):
+        load_branding()
 
 
 @pytest.mark.parametrize(
@@ -474,6 +564,50 @@ def test_old_database_is_not_migrated_or_modified(tmp_path):
         with pytest.raises(ValueError, match="Reference"):
             repo.initialize()
         assert repo._connection.execute("SELECT name FROM sqlite_master").fetchone()[0] == "guests"
+    finally:
+        repo.close()
+
+
+def test_upgrade_keeps_tickets_and_their_events_and_accepts_tenge(tmp_path):
+    path = tmp_path / "before_tenge.db"
+    with sqlite3.connect(path) as connection:
+        for statements in _MIGRATIONS[:-1]:
+            for statement in statements:
+                connection.execute(statement)
+        connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION - 1}")
+        connection.execute(
+            "INSERT INTO users (id, username, password_hash, role)"
+            " VALUES ('u1','admin','x','admin')"
+        )
+        connection.execute(
+            "INSERT INTO tickets (id, qr_payload, readable_serial, visitor_name, visitor_type,"
+            " valid_from, valid_until, usage_type, state, created_by, assigned_operator,"
+            " created_at, print_count, use_count, base_price, currency)"
+            " VALUES ('t1','p','TQR-1','Ann','Guest','a','b','one_time','issued','u1','u1',"
+            " 'c', 0, 0, 1500, 'AZN')"
+        )
+        connection.execute(
+            "INSERT INTO access_events (event_id, ticket_id, occurred_at, granted, outcome,"
+            " processed_at) VALUES ('e1','t1','c',1,'granted','c')"
+        )
+        connection.execute(
+            "INSERT INTO ticket_types (id, name, price, currency) VALUES ('k1','Pass',1500,'AZN')"
+        )
+    repo = SQLiteRepository(path)
+    try:
+        repo.initialize(upgrade=True)
+        connection = repo._connection
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+        assert connection.execute("SELECT currency FROM tickets").fetchone()[0] == "AZN"
+        assert connection.execute("SELECT COUNT(*) FROM access_events").fetchone()[0] == 1
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        connection.execute(
+            "INSERT INTO ticket_types (id, name, price, currency) VALUES ('k2','Tenge',900,'KZT')"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO ticket_types (id, name, price, currency) VALUES ('k3','Bad',900,'EUR')"
+            )
     finally:
         repo.close()
 

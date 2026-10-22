@@ -1,15 +1,20 @@
+import json
 import os
+import re
 import secrets
 import sys
 from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import dotenv_values
 
+from tiqr.core.languages import DEFAULT_LANGUAGES, currencies_for, parse_languages
+from tiqr.core.models import Currency
 from tiqr.core.qr import DEFAULT_PREFIX, validate_prefix
 
 
@@ -31,6 +36,8 @@ PROJECT_ROOT = _project_root()
 # Later files override earlier ones; real environment variables override both.
 LOCAL_ENV_FILE = ".env.local"
 ENV_FILES = (".env", LOCAL_ENV_FILE)
+# Name, logo, theme and languages. Required beside the executable: the program does not run without.
+BRANDING_FILE = "tiqr_branding.jsonc"
 SESSION_FILE = ".tiqr-session.json"
 
 _PLACEHOLDER_SECRETS = frozenset(
@@ -49,6 +56,10 @@ _PLACEHOLDER_SECRETS = frozenset(
     }
 )
 _PLACEHOLDER_FRAGMENTS = ("placeholder", "do-not-use", "change-me")
+DEFAULT_APP_NAME = "TiQR"
+DEFAULT_THEME = "default"
+LOGO_SUFFIXES = frozenset({".png", ".svg", ".jpg", ".jpeg"})
+_THEME_NAME = re.compile(r"[a-z][a-z0-9-]*")
 _BIOSTAR_REQUIRED = ("BASE_URL", "USERNAME", "PASSWORD", "DEVICE_IDS")
 _BIOSTAR_OPTIONAL = (
     "ACCESS_GROUP_ID",
@@ -60,8 +71,111 @@ _BIOSTAR_OPTIONAL = (
 )
 
 
+_JSONC_TOKEN = re.compile(r'("(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/', re.DOTALL)
+_TRAILING_COMMA = re.compile(r'("(?:\\.|[^"\\])*")|,(?=\s*[}\]])')
+_BRANDING_KEYS = frozenset({"app_name", "logo_path", "theme", "languages"})
+# The rest of the file's keys are the TIQR_* settings of the same name. The signing key and the
+# BioStar password are not among them: those stay in .env.local, out of a file that gets shared.
+_SETTING_KEYS = frozenset(
+    {
+        "db",
+        "out",
+        "prefix",
+        "default_tz",
+        "host",
+        "port",
+        "tls_cert",
+        "tls_key",
+        "server_printing",
+        "sync_interval",
+        "cleanup_interval",
+    }
+)
+_BIOSTAR_KEYS = frozenset(
+    {
+        "base_url",
+        "username",
+        "device_ids",
+        "access_group_id",
+        "verify_tls",
+        "timeout",
+        "user_id_base",
+        "door_open_duration",
+        "door_open_timeout",
+    }
+)
+
+
+def _jsonc_loads(text: str) -> object:
+    """Parse JSON that may carry // and /* */ comments and trailing commas."""
+    text = _JSONC_TOKEN.sub(lambda match: match[1] or " ", text)
+    return json.loads(_TRAILING_COMMA.sub(lambda match: match[1] or "", text))
+
+
+def load_branding(path: Path | None = None) -> dict[str, object]:
+    """Read tiqr_branding.jsonc, which must sit under the project root."""
+    path = path or PROJECT_ROOT / BRANDING_FILE
+    if not path.is_file():
+        raise ValueError(f"{BRANDING_FILE} is missing; place it beside the program ({path})")
+    try:
+        data = _jsonc_loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ValueError(f"{BRANDING_FILE} is not valid JSONC: {error}") from error
+    if not isinstance(data, dict):
+        raise ValueError(f"{BRANDING_FILE} must hold a JSON object")  # noqa: TRY004 - ValueErrors
+    data = cast("dict[str, object]", data)
+    biostar = data.get("biostar")
+    if biostar is not None and not isinstance(biostar, dict):
+        raise ValueError(f"{BRANDING_FILE}: biostar must be an object")
+    biostar_keys = cast("dict[str, object]", biostar or {})
+    unknown = sorted(
+        {*data, *(f"biostar.{key}" for key in biostar_keys)}
+        - _BRANDING_KEYS
+        - _SETTING_KEYS
+        - {"biostar"}
+        - {f"biostar.{key}" for key in _BIOSTAR_KEYS}
+    )
+    missing = sorted(_BRANDING_KEYS - {"logo_path"} - set(data))
+    if unknown or missing:
+        raise ValueError(
+            f"{BRANDING_FILE} "
+            + "; ".join(
+                part
+                for part in (
+                    f"has unknown keys {', '.join(unknown)}" if unknown else "",
+                    f"is missing {', '.join(missing)}" if missing else "",
+                )
+                if part
+            )
+        )
+    return data
+
+
+def _setting_text(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, list):
+        return ",".join(str(item) for item in cast("list[object]", value))
+    return str(value)
+
+
+def _file_settings(data: Mapping[str, object]) -> dict[str, str]:
+    """The non-branding keys of tiqr_branding.jsonc as TIQR_* values; null leaves one unset."""
+    biostar = data.get("biostar")
+    block: Mapping[str, object] = (
+        cast("Mapping[str, object]", biostar) if isinstance(biostar, dict) else {}
+    )
+    keys = {
+        **{f"TIQR_{key.upper()}": data.get(key) for key in _SETTING_KEYS},
+        **{f"TIQR_BIOSTAR_{key.upper()}": block.get(key) for key in _BIOSTAR_KEYS},
+    }
+    return {key: text for key, value in keys.items() if (text := _setting_text(value)) is not None}
+
+
 def load_environment() -> dict[str, str]:
-    """The .env files under the project root, overridden by the real environment."""
+    """The .env files, then tiqr_branding.jsonc, overridden by the real environment."""
     values: dict[str, str] = {}
     for name in ENV_FILES:
         values.update(
@@ -69,6 +183,7 @@ def load_environment() -> dict[str, str]:
             for key, value in dotenv_values(PROJECT_ROOT / name).items()
             if value is not None
         )
+    values.update(_file_settings(load_branding()))
     return values | dict(os.environ)
 
 
@@ -144,6 +259,24 @@ def discard_secret(path: Path | None = None) -> bool:
     )
 
 
+def write_local_settings(values: Mapping[str, str], path: Path | None = None) -> bool:
+    """Set each KEY=value in the local env file, adding keys it lacks; report whether it changed."""
+    path = path or PROJECT_ROOT / LOCAL_ENV_FILE
+
+    def edit(lines: list[str]) -> list[str]:
+        header = "# Private values. Git-ignored; overrides .env. Real environment variables win."
+        updated = list(lines or [header])
+        for key, value in values.items():
+            entry = f"{key}={value}"
+            if any(line.startswith(f"{key}=") for line in updated):
+                updated = [entry if line.startswith(f"{key}=") else line for line in updated]
+            else:
+                updated.append(entry)
+        return updated
+
+    return _edit_local_file(path, edit)
+
+
 def discard_access_group_id(path: Path | None = None) -> bool:
     """Blank the pinned BioStar access group so setup manages it again."""
     path = path or PROJECT_ROOT / LOCAL_ENV_FILE
@@ -162,6 +295,11 @@ def database_path(environment: Mapping[str, str] | None = None) -> Path:
 def session_path() -> Path:
     """Where the CLI keeps its recent login."""
     return PROJECT_ROOT / SESSION_FILE
+
+
+def branding_path() -> Path:
+    """Where the server reads tiqr_branding.jsonc: TIQR_HOME when it is set."""
+    return PROJECT_ROOT / BRANDING_FILE
 
 
 def _detected_timezone(
@@ -185,6 +323,31 @@ def _detected_timezone(
 def _default_timezone(environment: Mapping[str, str]) -> str:
     configured = environment.get("TIQR_DEFAULT_TZ", "").strip()
     return configured or _detected_timezone() or "UTC"
+
+
+def _branding_text(branding: Mapping[str, object], key: str) -> str:
+    value = branding.get(key)
+    if not isinstance(value, str):
+        raise ValueError(f"{BRANDING_FILE}: {key} must be text")  # noqa: TRY004
+    return value.strip()
+
+
+def _logo_path(branding: Mapping[str, object]) -> Path | None:
+    value = branding.get("logo_path")
+    if value is None or value == "":
+        return None
+    # Relative paths follow TIQR_DB and TIQR_OUT: against the project root.
+    return PROJECT_ROOT / _branding_text(branding, "logo_path")
+
+
+def _branding_languages(branding: Mapping[str, object]) -> tuple[str, ...]:
+    value = branding.get("languages")
+    if not isinstance(value, list):
+        raise ValueError(f"{BRANDING_FILE}: languages must be a list of codes such as en-US")  # noqa: TRY004
+    codes = cast("list[object]", value)
+    if not all(isinstance(code, str) for code in codes):
+        raise ValueError(f"{BRANDING_FILE}: languages must be a list of codes such as en-US")
+    return parse_languages(cast("list[str]", codes))
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,11 +414,31 @@ class Settings:
     default_tz: str = "UTC"
     prefix: str = DEFAULT_PREFIX
     biostar: BioStarSettings | None = None
+    app_name: str = DEFAULT_APP_NAME
+    logo_path: Path | None = None
+    theme: str = DEFAULT_THEME
+    languages: tuple[str, ...] = DEFAULT_LANGUAGES
 
     def __post_init__(self) -> None:
         validate_secret(self.secret_key)
         validate_prefix(self.prefix)
         ZoneInfo(self.default_tz)
+        if not self.app_name.strip():
+            raise ValueError("app_name must not be blank")
+        if _THEME_NAME.fullmatch(self.theme) is None:
+            raise ValueError("theme must be lowercase letters, digits and dashes")
+        if not self.languages or self.languages != parse_languages(self.languages):
+            raise ValueError("languages must list each language once, such as en-US, az-AZ")
+        if self.logo_path is not None:
+            if self.logo_path.suffix.lower() not in LOGO_SUFFIXES:
+                raise ValueError("logo_path must be a PNG, SVG or JPG image")
+            if not self.logo_path.is_file():
+                raise ValueError(f"logo_path does not exist: {self.logo_path}")
+
+    @property
+    def currencies(self) -> tuple[Currency, ...]:
+        """What prices may be in: the currency of each language's region."""
+        return currencies_for(self.languages)
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -264,6 +447,7 @@ class Settings:
         # Production sets this so a missing BioStar block fails loudly.
         if _biostar_flag(environment, "REQUIRED", default=False) and biostar is None:
             raise ValueError("TIQR_BIOSTAR_REQUIRED is true but BioStar is not configured")
+        branding = load_branding()
         return cls(
             secret_key=environment.get("TIQR_SECRET_KEY", ""),
             database_path=database_path(environment),
@@ -271,4 +455,8 @@ class Settings:
             default_tz=_default_timezone(environment),
             prefix=_prefix(environment),
             biostar=biostar,
+            app_name=_branding_text(branding, "app_name"),
+            logo_path=_logo_path(branding),
+            theme=_branding_text(branding, "theme").lower(),
+            languages=_branding_languages(branding),
         )

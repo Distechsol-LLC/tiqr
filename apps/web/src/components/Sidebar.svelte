@@ -8,6 +8,7 @@
   import { NAV } from '@/config/nav.ts';
   import { isActive, p } from '@/router.ts';
   import { auth } from '%/useAuth.svelte.ts';
+  import { branding } from '%/useBranding.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { sidebar } from '%/useSidebar.svelte.ts';
 
@@ -67,7 +68,7 @@
         sidebar.isCollapsed && 'md:opacity-0',
       ]}
     >
-      TiQR
+      {branding.appName}
     </span>
     <button
       aria-expanded="true"

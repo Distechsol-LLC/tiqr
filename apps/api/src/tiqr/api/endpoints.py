@@ -6,18 +6,21 @@ and its repository and BioStar client serialize their own access.
 
 from dataclasses import dataclass
 from datetime import date
+from functools import partial
 from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.responses import FileResponse
 
 from tiqr.api import __version__
 from tiqr.api.deps import AppState, Server, Signed
 from tiqr.api.errors import ApiError
 from tiqr.api.schemas import (
     AssignIn,
+    BrandingOut,
     ConfigOut,
     CountOut,
     ErrorOut,
@@ -45,7 +48,7 @@ from tiqr.api.schemas import (
 from tiqr.api.security import clear_session_cookie, cookie_name, set_session_cookie
 from tiqr.core.auth import WEB_SESSION_IDLE, AuthenticationError
 from tiqr.core.localtime import parse_input_datetime
-from tiqr.core.models import Ticket, TicketState
+from tiqr.core.models import Currency, Ticket, TicketState
 
 router = APIRouter(
     prefix="/api",
@@ -102,6 +105,12 @@ def _ticket(server: AppState, ticket: Ticket) -> TicketOut:
     return TicketOut.of(ticket, server.timezone)
 
 
+def _require_offered(server: AppState, currency: Currency) -> None:
+    if currency not in server.runtime.settings.currencies:
+        offered = ", ".join(server.runtime.settings.currencies)
+        raise ApiError(422, "invalid", f"Currency {currency} is not offered; use {offered}")
+
+
 @router.get(
     "/health",
     tags=["meta"],
@@ -118,6 +127,36 @@ def health(server: Server, response: Response) -> HealthOut:
     if not ready:
         response.status_code = HTTPStatus.SERVICE_UNAVAILABLE
     return HealthOut(status="ok" if ready else "unavailable", version=__version__)
+
+
+@router.get("/branding", tags=["meta"])
+def branding(server: Server) -> BrandingOut:
+    """Name, theme, languages and currencies, without signing in: the login page needs them."""
+    settings = server.runtime.settings
+    return BrandingOut(
+        app_name=settings.app_name,
+        theme=settings.theme,
+        languages=list(settings.languages),
+        currencies=list(settings.currencies),
+        has_logo=settings.logo_path is not None,
+    )
+
+
+@router.get(
+    "/logo",
+    tags=["meta"],
+    response_class=FileResponse,
+    responses={
+        200: {"content": {"image/*": {}}, "description": "logo_path, as it is on disk"},
+        404: {"model": ErrorOut, "description": "No logo is configured"},
+    },
+)
+def logo(server: Server) -> FileResponse:
+    """The configured logo; without one the app uses its built-in logo."""
+    path = server.runtime.settings.logo_path
+    if path is None:
+        raise ApiError(404, "not_found", "No logo is configured")
+    return FileResponse(path, headers={"Cache-Control": "no-cache"})
 
 
 @router.get("/config", tags=["meta"], responses=_refusals(401))
@@ -221,7 +260,11 @@ def list_ticket_types(me: Signed, server: Server, paging: Paging) -> TicketTypeP
 
 @router.post("/ticket-types", tags=["catalog"], status_code=201, responses=_refusals(401, 403, 422))
 def create_ticket_type(body: TicketTypeIn, me: Signed, server: Server) -> TicketTypeOut:
-    """Add a ticket type, its price and the currency it is in. Admins and managers."""
+    """Add a ticket type, its price and the currency it is in. Admins and managers.
+
+    The currency must be one of the languages' regions' (languages in tiqr_branding.jsonc).
+    """
+    _require_offered(server, body.currency)
     return TicketTypeOut.of(
         server.service.create_ticket_type(me.user, body.name, body.price_minor, body.currency)
     )
@@ -232,6 +275,18 @@ def update_ticket_type(
     type_id: UUID, body: TicketTypePatch, me: Signed, server: Server
 ) -> TicketTypeOut:
     """Rename a ticket type, or change its price or currency. Issued tickets keep theirs."""
+    if body.currency is not None:
+        current = next(
+            (
+                item.currency
+                for item in server.service.list_ticket_types(me.user)
+                if item.id == type_id
+            ),
+            None,
+        )
+        # A type may keep a currency that is no longer offered, but not move to one.
+        if body.currency != current:
+            _require_offered(server, body.currency)
     return TicketTypeOut.of(
         server.service.edit_ticket_type(
             me.user, type_id, name=body.name, price=body.price_minor, currency=body.currency
@@ -348,9 +403,15 @@ def ticket_pdf(ticket_id: UUID, me: Signed, server: Server) -> Response:
 
     The PDF is also kept in TIQR_OUT, as `tiqr ticket save` does.
     """
+    from tiqr.core.pdf import render_pdf  # noqa: PLC0415 - ReportLab is slow to import
+
     settings = server.runtime.settings
     path = server.service.print_ticket(
-        me.user, ticket_id, output_dir=settings.output_dir, timezone=settings.default_tz
+        me.user,
+        ticket_id,
+        output_dir=settings.output_dir,
+        timezone=settings.default_tz,
+        renderer=partial(render_pdf, title=settings.app_name),
     )
     return Response(
         path.read_bytes(),
@@ -375,12 +436,13 @@ def ticket_print(ticket_id: UUID, me: Signed, server: Server) -> TicketOut:
         )
     from tiqr.core.pdf import render_pdf  # noqa: PLC0415 - ReportLab is slow to import
 
+    settings = server.runtime.settings
+
     def render_and_print(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
-        path = render_pdf(ticket, output_dir, timezone)
+        path = render_pdf(ticket, output_dir, timezone, title=settings.app_name)
         server.runtime.printer(path)
         return path
 
-    settings = server.runtime.settings
     server.service.print_ticket(
         me.user,
         ticket_id,

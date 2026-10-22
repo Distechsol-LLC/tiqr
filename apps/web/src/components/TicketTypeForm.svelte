@@ -10,8 +10,9 @@
   import { notifyFailure } from '%/notifyFailure.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
+  import { branding } from '%/useBranding.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
-  import { type TicketType, currencySchema, ticketTypeInputSchema } from '$/catalog.ts';
+  import { type TicketType, ticketTypeInputSchema } from '$/catalog.ts';
 
   type TicketTypeFormProps = {
     // The type being changed; null makes a new one
@@ -29,6 +30,12 @@
   let isPending = $state(false);
   let isSubmitted = $state(false);
 
+  // The currencies of the languages on offer, and the one being edited if it has fallen off them
+  const currencies = $derived(
+    editing && !branding.currencies.includes(editing.currency)
+      ? [...branding.currencies, editing.currency]
+      : branding.currencies
+  );
   const validation = $derived(ticketTypeInputSchema.safeParse({ currency, name, price }));
   const fieldErrors = $derived(
     isSubmitted && !validation.success ? z.flattenError(validation.error).fieldErrors : {}
@@ -108,7 +115,7 @@
         id="ticket-type-currency"
         label={i18n.t.ticketTypeForm.currency}
         labels={CURRENCY_LABELS}
-        options={currencySchema.options}
+        options={currencies}
         bind:value={currency}
       />
     </div>

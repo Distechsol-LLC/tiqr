@@ -1,5 +1,6 @@
 import { az } from '@/locales/az.ts';
 import { type Messages, en } from '@/locales/en.ts';
+import { kk } from '@/locales/kk.ts';
 import { ru } from '@/locales/ru.ts';
 
 type LocaleEntry = {
@@ -12,6 +13,7 @@ type LocaleEntry = {
 const LOCALES = {
   az: { label: 'Azərbaycanca', messages: az },
   en: { label: 'English', messages: en },
+  kk: { label: 'Қазақша', messages: kk },
   ru: { label: 'Русский', messages: ru },
 } satisfies Record<string, LocaleEntry>;
 
@@ -20,7 +22,7 @@ type Locale = keyof typeof LOCALES;
 const DEFAULT_LOCALE: Locale = 'en';
 
 // Menu order, kept apart from LOCALES because the linter keeps that object's keys alphabetical
-const LOCALE_CODES: Locale[] = ['en', 'ru', 'az'];
+const LOCALE_CODES: Locale[] = ['en', 'ru', 'az', 'kk'];
 
 const isLocale = (value: string): value is Locale => Object.hasOwn(LOCALES, value);
 

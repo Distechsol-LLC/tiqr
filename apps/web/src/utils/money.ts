@@ -23,10 +23,11 @@ const parseMinor = (text: string): number | null => {
 // Back into an input's text: 1250 is 12.50
 const toPriceInput = (minor: number): string => (minor / MINOR_PER_UNIT).toFixed(MINOR_DIGITS);
 
-// The sign of each currency, and whether it goes before the amount: dollars do, roubles and manats
-// come after it
+// The sign of each currency, and whether it goes before the amount: dollars do, roubles, manats
+// and tenge come after it
 const CURRENCY_MARKS: Record<Currency, { before: boolean; mark: string }> = {
   AZN: { before: false, mark: '₼' },
+  KZT: { before: false, mark: '₸' },
   RUB: { before: false, mark: '₽' },
   USD: { before: true, mark: '$' },
 };
@@ -34,6 +35,7 @@ const CURRENCY_MARKS: Record<Currency, { before: boolean; mark: string }> = {
 // Code and sign together, as the currency is picked
 const CURRENCY_LABELS: Record<Currency, string> = {
   AZN: `AZN ${CURRENCY_MARKS.AZN.mark}`,
+  KZT: `KZT ${CURRENCY_MARKS.KZT.mark}`,
   RUB: `RUB ${CURRENCY_MARKS.RUB.mark}`,
   USD: `USD ${CURRENCY_MARKS.USD.mark}`,
 };

@@ -45,7 +45,7 @@ export default defineConfig({
     VitePWA({
       filename: 'sw.ts',
       injectManifest: {
-        globPatterns: ['**/*.{html,css,js,png,webp,ttf,woff2,webmanifest}'],
+        globPatterns: ['**/*.{html,css,js,png,webp,ttf,woff2}'],
       },
       injectRegister: null,
       manifest: false,

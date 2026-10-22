@@ -1,13 +1,20 @@
+import { THEMES } from '$/themes.ts';
+
 type Mode = 'light' | 'dark';
 
 type ThemeController = {
   readonly mode: Mode;
+  // theme: light or dark set the mode until the user picks one, default follows the OS, and
+  // the name of any Skeleton theme selects it; an unknown name keeps the built-in one
+  configure: (name: string) => void;
   toggle: () => void;
 };
 
 // Also read by the inline script in index.html, which applies the mode before first paint
 const STORAGE_KEY = 'tiqr-mode';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
+// What the stylesheet calls the built-in theme
+const BUILT_IN_THEME = 'vintage';
 
 const readStored = (): Mode | null => {
   try {
@@ -24,7 +31,10 @@ const createTheme = (): ThemeController => {
   const media = matchMedia(DARK_QUERY);
   const stored = readStored();
   let isChosen = stored !== null;
+  let preferred: Mode | null = null;
   let mode = $state<Mode>(stored ?? (media.matches ? 'dark' : 'light'));
+
+  const initial = (): Mode => preferred ?? (media.matches ? 'dark' : 'light');
 
   const apply = (next: Mode): void => {
     mode = next;
@@ -34,10 +44,18 @@ const createTheme = (): ThemeController => {
   apply(mode);
 
   media.addEventListener('change', (event) => {
-    if (!isChosen) apply(event.matches ? 'dark' : 'light');
+    if (!(isChosen || preferred)) apply(event.matches ? 'dark' : 'light');
   });
 
   return {
+    configure: (name: string): void => {
+      preferred = name === 'light' || name === 'dark' ? name : null;
+
+      document.documentElement.dataset.theme =
+        preferred || !THEMES.has(name) ? BUILT_IN_THEME : name;
+
+      if (!isChosen) apply(initial());
+    },
     get mode(): Mode {
       return mode;
     },

@@ -88,7 +88,7 @@ const en = {
     visitorTypes: 'Visitor types',
   },
   notFound: {
-    back: 'Back to TiQR',
+    back: 'Back home',
     description: "The page you're looking for doesn't exist",
     title: 'Page not found',
   },

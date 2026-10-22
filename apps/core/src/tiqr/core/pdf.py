@@ -58,10 +58,11 @@ _PANEL = colors.HexColor("#e8e9ea")
 _GUIDE = colors.HexColor("#babcbf")
 
 # Labels are English because visitors include foreigners.
-_EVENT_LABEL = "TiQR"
+DEFAULT_TITLE = "TiQR"
 _TECH_LINE = "Suprema BioStar X"
 # Geist ships one weight; bold adds a stroke of this many ems.
 _BOLD_STROKE = 0.035
+_TITLE_SIZES = (3.6, 3.0, 2.5)
 _NAME_SIZES = (8, 7, 6, 5, 4.2)
 _TYPE_SIZES = (3.0, 2.6, 2.2)
 
@@ -289,7 +290,7 @@ def _draw_qr(canvas: Canvas, payload: str, x: float, y: float, size: float) -> N
                 canvas.rect(x + column * cell, bottom, cell, cell, stroke=0, fill=1)
 
 
-def _draw_header(surface: _Surface, logos: list[ImageReader]) -> float:
+def _draw_header(surface: _Surface, logos: list[ImageReader], title: str) -> float:
     """Draw the event band, stripes and logos; return how far down the header reaches."""
     width, _ = _BADGE_MM
     left, right = _MARGIN, width - _MARGIN
@@ -297,8 +298,9 @@ def _draw_header(surface: _Surface, logos: list[ImageReader]) -> float:
 
     band_height = 10
     surface.rect(left, _EDGE_MARGIN, text_width, band_height, _NAVY)
+    size, label = _fit_line(title, _TITLE_SIZES, text_width - 2, 1.1)
     surface.centered(
-        width / 2, _EDGE_MARGIN + 2.3, _EVENT_LABEL, 3.6, colors.white, bold=True, tracking=1.1
+        width / 2, _EDGE_MARGIN + 2.3, label, size, colors.white, bold=True, tracking=1.1
     )
     stripe = 1.5
     top = _EDGE_MARGIN + band_height
@@ -315,7 +317,13 @@ def _draw_header(surface: _Surface, logos: list[ImageReader]) -> float:
 
 
 def _draw_face(
-    surface: _Surface, ticket: Ticket, logos: list[ImageReader], window: str, *, back: bool
+    surface: _Surface,
+    ticket: Ticket,
+    logos: list[ImageReader],
+    window: str,
+    title: str,
+    *,
+    back: bool,
 ) -> None:
     """Draw one side of the badge: holes at the top, fold at the bottom.
 
@@ -330,7 +338,7 @@ def _draw_face(
         for x in (width / 2 - _HOLE_SPACING / 2, width / 2 + _HOLE_SPACING / 2):
             surface.circle(x, _HOLE_OFFSET, _HOLE_RADIUS, _GUIDE, 0.25)
 
-    header_bottom = _draw_header(surface, logos)
+    header_bottom = _draw_header(surface, logos, title)
 
     bar_height = 7
     bar_top = height - _FOLD_MARGIN - bar_height
@@ -380,19 +388,21 @@ def _draw_face(
     )
 
 
-def _draw_sheet(canvas: Canvas, ticket: Ticket, logos: list[ImageReader], zone: ZoneInfo) -> None:
+def _draw_sheet(
+    canvas: Canvas, ticket: Ticket, logos: list[ImageReader], zone: ZoneInfo, title: str
+) -> None:
     badge_width, badge_height = _BADGE_MM
     window = _window(ticket, zone)
     face = _Surface(canvas, badge_height)
 
     canvas.saveState()
     canvas.translate(0, badge_height * mm)
-    _draw_face(face, ticket, logos, window, back=False)
+    _draw_face(face, ticket, logos, window, title, back=False)
     canvas.restoreState()
     canvas.saveState()
     canvas.translate(badge_width * mm, badge_height * mm)
     canvas.rotate(180)
-    _draw_face(face, ticket, logos, window, back=True)
+    _draw_face(face, ticket, logos, window, title, back=True)
     canvas.restoreState()
 
     page = _Surface(canvas, _PAGE_MM[1])
@@ -414,11 +424,12 @@ def _draw_sheet(canvas: Canvas, ticket: Ticket, logos: list[ImageReader], zone: 
         page.text(hint_x, top, hint, 3.4, _MUTED)
 
 
-def render_pdf(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
+def render_pdf(ticket: Ticket, output_dir: Path, timezone: str, title: str = DEFAULT_TITLE) -> Path:
+    """Render the badge; `title` is the name in its header band (TIQR_APP_NAME)."""
     zone = ZoneInfo(timezone)
     logos = [ImageReader(BytesIO(_asset("images", name))) for name in _LOGOS]
     # Validate before creating any file, so a failure leaves no debris.
-    _require_glyphs(ticket.visitor_name + ticket.visitor_type)
+    _require_glyphs(ticket.visitor_name + ticket.visitor_type + title)
     output_dir.mkdir(parents=True, exist_ok=True)
     destination = output_dir / f"{ticket.id}.pdf"
     descriptor, temporary_name = tempfile.mkstemp(
@@ -429,7 +440,7 @@ def render_pdf(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
     try:
         canvas = Canvas(str(temporary), pagesize=A4, pageCompression=0)
         canvas.setTitle(ticket.readable_serial)
-        _draw_sheet(canvas, ticket, logos, zone)
+        _draw_sheet(canvas, ticket, logos, zone, title)
         canvas.save()
         temporary.replace(destination)
     finally:
