@@ -28,6 +28,7 @@
   import { pageCount } from '%/pagination.ts';
   import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
   import { toaster } from '%/toaster.ts';
+  import { tooltipIfTruncated } from '%/tooltipIfTruncated.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
@@ -397,7 +398,7 @@
   {#each rows as ticket (ticket.id)}
     <tr>
       <td>
-        <div class="flex items-center gap-2 font-mono">
+        <div class="flex items-center gap-2 font-mono" {@attach tooltipIfTruncated}>
           <!-- The usage as an icon, so the column stays narrow; the tooltip names it -->
           <span
             aria-label={i18n.t.usage[ticket.usage_type]}
@@ -415,12 +416,14 @@
         </div>
       </td>
       <td>
-        <p class="font-semibold">{ticket.visitor_name}</p>
-        <p class="text-surface-600-400 text-xs">{ticket.visitor_type}</p>
+        <p class="font-semibold" {@attach tooltipIfTruncated}>{ticket.visitor_name}</p>
+        <p class="text-surface-600-400 text-xs" {@attach tooltipIfTruncated}>
+          {ticket.visitor_type}
+        </p>
       </td>
       <td>
-        <p>{formatDatetime(ticket.valid_from, ticket.timezone)}</p>
-        <p class="text-surface-600-400 text-xs">
+        <p {@attach tooltipIfTruncated}>{formatDatetime(ticket.valid_from, ticket.timezone)}</p>
+        <p class="text-surface-600-400 text-xs" {@attach tooltipIfTruncated}>
           {formatDatetime(ticket.valid_until, ticket.timezone)}
         </p>
       </td>
@@ -433,15 +436,15 @@
         {/if}
       </td>
       <td class="text-right">
-        <p class="tabular-nums">
+        <p class="tabular-nums" {@attach tooltipIfTruncated}>
           {ticket.price_minor === null || ticket.currency === null
             ? '—'
             : formatMinor(ticket.price_minor, ticket.currency)}
         </p>
         {#if ticket.price_minor !== null}
           <!-- The type and discount it was priced with, as they were when it was made -->
-          <p class="text-surface-600-400 text-xs">
-            {[ticket.ticket_type, ticket.discount_percent > 0 && `−${ticket.discount_percent}%`]
+          <p class="text-surface-600-400 text-xs" {@attach tooltipIfTruncated}>
+            {[ticket.discount_percent > 0 && `−${ticket.discount_percent}%`, ticket.ticket_type]
               .filter(Boolean)
               .join(' · ')}
           </p>
@@ -461,7 +464,7 @@
         </p>
       </td>
       {#if isStaff}
-        <td>{usernames.get(ticket.assigned_operator) ?? '—'}</td>
+        <td {@attach tooltipIfTruncated}>{usernames.get(ticket.assigned_operator) ?? '—'}</td>
       {/if}
       <td>
         <div class="flex justify-start gap-1">
