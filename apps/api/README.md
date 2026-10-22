@@ -107,7 +107,7 @@ All paths are relative to `/api`. Times are ISO 8601 with an offset. Input witho
 
 ### Pagination
 
-`GET /users` and `GET /tickets` answer one page: `{items, total, page, size}`, where `total` counts every match. Ask with `?page=` (from 1, default 1) and `?size=` (1 to 100, default 20); anything else is a `422`. A page past the end has no `items`.
+`GET /users`, `GET /tickets`, `GET /ticket-types` and `GET /visitor-types` answer one page: `{items, total, page, size}`, where `total` counts every match. Ask with `?page=` (from 1, default 1) and `?size=` (1 to 100, default 20); anything else is a `422`. A page past the end has no `items`.
 
 ### Meta
 
@@ -141,8 +141,16 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
+| GET | `/ticket-types` | session | List ticket types, by name, as a page (see Pagination). Every role may read them. |
+| POST | `/ticket-types` | session + CSRF | Add a ticket type. Body `{name, price_minor}`; `price_minor` is whole minor units (1250 is 12.50), 0 to 1000000000. Admins and managers. Returns `201`; `422` for a blank or taken name (case-insensitive). |
+| PATCH | `/ticket-types/{type_id}` | session + CSRF | Change `name` or `price_minor`; omitted fields are unchanged. Admins and managers. Issued tickets keep their price. |
+| DELETE | `/ticket-types/{type_id}` | session + CSRF | Remove a ticket type. Admins and managers. Returns `204`; issued tickets keep their price. |
+| GET | `/visitor-types` | session | List visitor types, by name, as a page (see Pagination). Every role may read them. |
+| POST | `/visitor-types` | session + CSRF | Add a visitor type. Body `{name, discount_percent}`; the discount is a whole number from 0 (the default) to 100. Admins and managers. Returns `201`. |
+| PATCH | `/visitor-types/{type_id}` | session + CSRF | Change `name` or `discount_percent`; omitted fields are unchanged. Admins and managers. Issued tickets keep their discount. |
+| DELETE | `/visitor-types/{type_id}` | session + CSRF | Remove a visitor type. Admins and managers. Returns `204`; issued tickets keep their discount. |
 | GET | `/tickets` | session | List tickets, newest first (by readable serial), as a page (see Pagination). Optional `?state=issued\|passed\|expired`. |
-| POST | `/tickets` | session + CSRF | Issue a ticket. Returns `201`. |
+| POST | `/tickets` | session + CSRF | Issue a ticket. Returns `201`. An optional `ticket_type` (a catalog name) prices it; a `visitor_type` from the catalog takes its discount off that price. The ticket shows `ticket_type`, `base_price_minor`, `discount_percent` and `price_minor` (null without a ticket type). `422` for an unknown `ticket_type`. |
 | GET | `/tickets/{ticket_id}` | session | One ticket. |
 | POST | `/tickets/{ticket_id}/assign` | session + CSRF | Body `{assignee}`: the username of any existing account to assign the ticket to. Managers only. |
 | POST | `/tickets/{ticket_id}/pdf` | session + CSRF | Render the one-page A4 badge and return it as `application/pdf`. Counts as a print, and the file is also saved to `TIQR_OUT`. Issued tickets only. |
@@ -184,7 +192,7 @@ Sync and cleanup share a lock with the scheduled jobs, so runs never overlap.
 | Role | Can |
 | --- | --- |
 | `admin` | Manage users (create, change role, deactivate, reset passwords, delete), plus everything a manager can do |
-| `manager` | Assign tickets, run sync, cleanup and stats, list users, and create, deactivate or reactivate operators |
+| `manager` | Assign tickets, run sync, cleanup and stats, list users, create, deactivate or reactivate operators, and manage ticket types and visitor types |
 | `operator` | Issue tickets, and view and print only the tickets assigned to them |
 
 Anyone active can issue tickets. Permissions are enforced in `tiqr-core`'s service layer, and this table summarizes them.

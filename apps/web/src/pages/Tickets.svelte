@@ -1,7 +1,6 @@
 <script lang="ts">
   import FileDown from '@lucide/svelte/icons/file-down';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-  import Plus from '@lucide/svelte/icons/plus';
   import Printer from '@lucide/svelte/icons/printer';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import Search from '@lucide/svelte/icons/search';
@@ -21,6 +20,7 @@
   import TicketForm from '@/components/TicketForm.svelte';
   import { fetchAllUsers, fetchTicket, fetchTickets, printTicket, renderTicketPdf } from '%/api.ts';
   import { formatDatetime } from '%/formatters.ts';
+  import { formatMinor } from '%/money.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { pageCount } from '%/pagination.ts';
   import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
@@ -37,6 +37,7 @@
   type SortKey =
     | 'assignee'
     | 'prints'
+    | 'price'
     | 'serial'
     | 'state'
     | 'usage'
@@ -45,7 +46,7 @@
     | 'visitor';
 
   const ICON_SIZE = 18;
-  const BASE_COLUMNS = 8;
+  const BASE_COLUMNS = 9;
   const FILTERS: Filter[] = ['all', ...ticketStateSchema.options];
   // Long enough for the browser to start the download before the URL goes
   const REVOKE_DELAY = 60_000;
@@ -80,6 +81,7 @@
 
   const sortValues: SortValues<Ticket, SortKey> = {
     assignee: (ticket) => usernames.get(ticket.assigned_operator) ?? '',
+    price: (ticket) => ticket.price_minor ?? -1,
     prints: (ticket) => ticket.print_count,
     serial: (ticket) => ticket.readable_serial,
     state: (ticket) => STATE_ORDER.get(ticket.state) ?? 0,
@@ -95,9 +97,12 @@
     const needle = query.trim().toLocaleLowerCase();
     const matches = needle
       ? tickets.filter((ticket) =>
-          [ticket.readable_serial, ticket.visitor_name, ticket.visitor_type].some((field) =>
-            field.toLocaleLowerCase().includes(needle)
-          )
+          [
+            ticket.readable_serial,
+            ticket.visitor_name,
+            ticket.visitor_type,
+            ticket.ticket_type ?? '',
+          ].some((field) => field.toLocaleLowerCase().includes(needle))
         )
       : tickets;
 
@@ -305,7 +310,7 @@
       }}
       type="button"
     >
-      <Plus aria-hidden="true" size={ICON_SIZE} />
+      <TicketIcon aria-hidden="true" size={ICON_SIZE} />
       {i18n.t.tickets.new}
     </button>
   {/snippet}
@@ -356,7 +361,7 @@
   emptyMessage={query ? i18n.t.tickets.emptySearch : i18n.t.tickets.empty}
   isEmpty={rows.length === 0}
   {isLoading}
-  minWidth="72rem"
+  minWidth="88rem"
 >
   {#snippet head()}
     <SortHeader
@@ -387,6 +392,13 @@
       direction={directionOf('state')}
       label={i18n.t.tickets.columns.state}
       onSort={(): void => sortBy('state')}
+    />
+    <SortHeader
+      class="w-44"
+      direction={directionOf('price')}
+      isEnd
+      label={i18n.t.tickets.columns.price}
+      onSort={(): void => sortBy('price')}
     />
     {#if isStaff}
       <SortHeader
@@ -432,6 +444,19 @@
         {#if ticket.passed_at}
           <p class="mt-1 text-surface-600-400 text-xs" title={i18n.t.tickets.firstPassage}>
             {formatDatetime(ticket.passed_at, ticket.timezone)}
+          </p>
+        {/if}
+      </td>
+      <td class="text-right tabular-nums">
+        {#if ticket.price_minor === null}
+          —
+        {:else}
+          <p>{formatMinor(ticket.price_minor)}</p>
+          <!-- The type and discount it was priced with, as they were when it was made -->
+          <p class="text-surface-600-400 text-xs">
+            {[ticket.ticket_type, ticket.discount_percent > 0 && `−${ticket.discount_percent}%`]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         {/if}
       </td>

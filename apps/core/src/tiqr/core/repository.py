@@ -17,8 +17,10 @@ from tiqr.core.models import (
     SyncCursor,
     Ticket,
     TicketState,
+    TicketType,
     UsageType,
     User,
+    VisitorType,
     WebSession,
     utc,
 )
@@ -69,6 +71,22 @@ CREATE INDEX IF NOT EXISTS web_sessions_user ON web_sessions(user_id);
 _USER_ACTIVE = """
 ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1));
 """
+# Names are unique whatever their case, so "Guest" and "guest" cannot both exist. A ticket keeps
+# the name, price and discount it was made with, so nothing here references it.
+_CATALOG = """
+CREATE TABLE IF NOT EXISTS ticket_types (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    price INTEGER NOT NULL CHECK(price >= 0)
+);
+CREATE TABLE IF NOT EXISTS visitor_types (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    discount_percent INTEGER NOT NULL CHECK(discount_percent BETWEEN 0 AND 100)
+);
+ALTER TABLE tickets ADD COLUMN ticket_type TEXT;
+ALTER TABLE tickets ADD COLUMN base_price INTEGER CHECK(base_price >= 0);
+ALTER TABLE tickets ADD COLUMN discount_percent INTEGER NOT NULL DEFAULT 0
+    CHECK(discount_percent BETWEEN 0 AND 100);
+"""
 
 
 def _statements(script: str) -> tuple[str, ...]:
@@ -78,7 +96,9 @@ def _statements(script: str) -> tuple[str, ...]:
 
 # Step N upgrades schema version N to N + 1. Steps are append-only, and each runs once, in one
 # transaction with its version bump.
-_MIGRATIONS = tuple(_statements(script) for script in (_SCHEMA, _WEB_SESSIONS, _USER_ACTIVE))
+_MIGRATIONS = tuple(
+    _statements(script) for script in (_SCHEMA, _WEB_SESSIONS, _USER_ACTIVE, _CATALOG)
+)
 SCHEMA_VERSION = len(_MIGRATIONS)
 
 _TICKET_COLUMNS = tuple(field.name for field in fields(Ticket))
@@ -134,7 +154,18 @@ def _ticket(row: sqlite3.Row) -> Ticket:
         passed_at=_optional_datetime(row["passed_at"]),
         print_count=row["print_count"],
         use_count=row["use_count"],
+        ticket_type=row["ticket_type"],
+        base_price=row["base_price"],
+        discount_percent=row["discount_percent"],
     )
+
+
+def _ticket_type(row: sqlite3.Row) -> TicketType:
+    return TicketType(UUID(row["id"]), row["name"], row["price"])
+
+
+def _visitor_type(row: sqlite3.Row) -> VisitorType:
+    return VisitorType(UUID(row["id"]), row["name"], row["discount_percent"])
 
 
 def _event(row: sqlite3.Row) -> AccessEvent:
@@ -300,6 +331,58 @@ class SQLiteRepository(Repository):
     def delete_user(self, user_id: UUID) -> None:
         """Delete an account; its web sessions go with it."""
         self._execute("DELETE FROM users WHERE id=?", (str(user_id),))
+
+    def add_ticket_type(self, ticket_type: TicketType) -> None:
+        self._execute(
+            "INSERT INTO ticket_types (id, name, price) VALUES (?,?,?)",
+            (str(ticket_type.id), ticket_type.name, ticket_type.price),
+        )
+
+    def save_ticket_type(self, ticket_type: TicketType) -> None:
+        self._execute(
+            "UPDATE ticket_types SET name=?, price=? WHERE id=?",
+            (ticket_type.name, ticket_type.price, str(ticket_type.id)),
+        )
+
+    def get_ticket_type(self, type_id: UUID) -> TicketType | None:
+        return self._fetch_one(
+            _ticket_type, "SELECT * FROM ticket_types WHERE id=?", (str(type_id),)
+        )
+
+    def ticket_type_by_name(self, name: str) -> TicketType | None:
+        return self._fetch_one(_ticket_type, "SELECT * FROM ticket_types WHERE name=?", (name,))
+
+    def list_ticket_types(self) -> list[TicketType]:
+        return self._fetch_all(_ticket_type, "SELECT * FROM ticket_types ORDER BY name, id")
+
+    def delete_ticket_type(self, type_id: UUID) -> None:
+        self._execute("DELETE FROM ticket_types WHERE id=?", (str(type_id),))
+
+    def add_visitor_type(self, visitor_type: VisitorType) -> None:
+        self._execute(
+            "INSERT INTO visitor_types (id, name, discount_percent) VALUES (?,?,?)",
+            (str(visitor_type.id), visitor_type.name, visitor_type.discount_percent),
+        )
+
+    def save_visitor_type(self, visitor_type: VisitorType) -> None:
+        self._execute(
+            "UPDATE visitor_types SET name=?, discount_percent=? WHERE id=?",
+            (visitor_type.name, visitor_type.discount_percent, str(visitor_type.id)),
+        )
+
+    def get_visitor_type(self, type_id: UUID) -> VisitorType | None:
+        return self._fetch_one(
+            _visitor_type, "SELECT * FROM visitor_types WHERE id=?", (str(type_id),)
+        )
+
+    def visitor_type_by_name(self, name: str) -> VisitorType | None:
+        return self._fetch_one(_visitor_type, "SELECT * FROM visitor_types WHERE name=?", (name,))
+
+    def list_visitor_types(self) -> list[VisitorType]:
+        return self._fetch_all(_visitor_type, "SELECT * FROM visitor_types ORDER BY name, id")
+
+    def delete_visitor_type(self, type_id: UUID) -> None:
+        self._execute("DELETE FROM visitor_types WHERE id=?", (str(type_id),))
 
     def save_ticket(self, ticket: Ticket) -> None:
         self._execute(

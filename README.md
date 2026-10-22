@@ -179,6 +179,8 @@ output directory are kept.
 | Add users, deactivate, reactivate (web) | Yes, except their own active state | Operators only | No |
 | Change roles, reset passwords, delete deactivated users (web) | Yes, except their own role | No | No |
 | List users (web) | Yes | Yes, to pick assignees | No |
+| Create, edit, delete ticket types and visitor types (web) | Yes | Yes | No |
+| Read ticket types and visitor types (web) | Yes | Yes | Yes, to issue tickets |
 
 A deactivated account keeps its tickets and history but cannot sign in, act, or be assigned
 tickets; a manager can reassign its tickets. Only a deactivated account can be deleted, and only
@@ -263,11 +265,20 @@ Run one server process per database: scheduling, login limits and the sync lock 
 | `GET /api/users`, `POST /api/users` | `user list`, `user add` | See [Permissions](#permissions) |
 | `PATCH /api/users/{id}` with any of `role`, `active`, `password` | `user role`, `user deactivate`, `user activate`, `user password` | Admins; managers change `active` for operators |
 | `DELETE /api/users/{id}` | `user delete` | Admins; deactivated users without tickets |
-| `GET /api/tickets?state=`, `POST /api/tickets`, `GET /api/tickets/{id}` | `ticket list`, `ticket create` | As the CLI |
+| `GET /api/ticket-types`, `GET /api/visitor-types` | — | Any signed-in role |
+| `POST /api/ticket-types`, `PATCH`/`DELETE /api/ticket-types/{id}` | — | Admins and managers; a ticket type has a price |
+| `POST /api/visitor-types`, `PATCH`/`DELETE /api/visitor-types/{id}` | — | Admins and managers; a visitor type has a discount |
+| `GET /api/tickets?state=`, `POST /api/tickets`, `GET /api/tickets/{id}` | `ticket list`, `ticket create` | As the CLI; `POST` also takes an optional `ticket_type` |
 | `POST /api/tickets/{id}/assign` | `ticket assign` | Managers |
 | `POST /api/tickets/{id}/pdf` | `ticket save` | Returns the PDF and keeps it in `TIQR_OUT` |
 | `POST /api/tickets/{id}/print` | `ticket print` | Server printer; `409` unless `TIQR_SERVER_PRINTING` |
 | `POST /api/sync`, `POST /api/cleanup`, `GET /api/stats` | `sync`, `cleanup`, `stats` | Admins and managers |
+
+Prices are whole minor units (cents): `price_minor` 1250 is 12.50. Naming a `ticket_type` when
+creating a ticket prices it, and a `visitor_type` that matches one defined in the catalog takes its
+`discount_percent` off that price, rounding half up; any other visitor type is kept as written, at
+no discount. The ticket keeps the name, base price and discount it was made with, so editing or
+deleting a type later never changes issued tickets. Names are unique whatever their case.
 
 Rendering a PDF is a `POST` because every render counts as a print. Ticket bodies take the CLI's
 datetime rules: an ISO datetime with an offset, or without one in `timezone` (default

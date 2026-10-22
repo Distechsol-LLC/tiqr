@@ -8,19 +8,21 @@
   import FloatingInput from '@/components/FloatingInput.svelte';
   import FloatingSelect from '@/components/FloatingSelect.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
-  import { createTicket } from '%/api.ts';
+  import { createTicket, fetchAllTicketTypes, fetchAllVisitorTypes } from '%/api.ts';
   import { nextMinute, toLocalInput } from '%/formatters.ts';
+  import { discountedMinor, formatMinor } from '%/money.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
+  import type { TicketType, VisitorType } from '$/catalog.ts';
   import {
     type Ticket,
     type UsageType,
+    fallbackVisitorTypes,
     ticketInputSchema,
     usageTypeSchema,
-    visitorTypeOptions,
   } from '$/tickets.ts';
 
   type TicketFormProps = {
@@ -44,6 +46,9 @@
 
   let visitorName = $state('');
   let visitorType = $state('');
+  let ticketType = $state('');
+  let ticketTypes = $state<TicketType[]>([]);
+  let visitorTypes = $state<VisitorType[]>([]);
   let validFrom = $state('');
   let validUntil = $state('');
   let usageType = $state<UsageType>('one_time');
@@ -52,6 +57,7 @@
 
   const validation = $derived(
     ticketInputSchema.safeParse({
+      ticket_type: ticketType,
       usage_type: usageType,
       valid_from: validFrom,
       valid_until: validUntil,
@@ -64,6 +70,35 @@
     isSubmitted && !validation.success ? z.flattenError(validation.error).fieldErrors : {}
   );
 
+  // Defined visitor types are the only choices; with none defined, the usual ones stand in
+  const visitorOptions = $derived(
+    visitorTypes.length > 0 ? visitorTypes.map((type) => type.name) : fallbackVisitorTypes
+  );
+  const ticketTypeOptions = $derived(ticketTypes.map((type) => type.name));
+  // With ticket types defined a ticket needs one, since that is what prices it
+  const ticketTypeError = $derived(
+    isSubmitted && ticketTypes.length > 0 && !ticketType
+      ? i18n.t.errors.ticketTypeRequired
+      : undefined
+  );
+  const basePrice = $derived(ticketTypes.find((type) => type.name === ticketType)?.price_minor);
+  const discount = $derived(
+    visitorTypes.find((type) => type.name === visitorType)?.discount_percent ?? 0
+  );
+
+  const loadCatalog = async (): Promise<void> => {
+    const [ticketResult, visitorResult] = await Promise.all([
+      fetchAllTicketTypes(),
+      fetchAllVisitorTypes(),
+    ]);
+
+    if (ticketResult.ok) ticketTypes = ticketResult.data;
+    else await notifyFailure(i18n.t.ticketForm.catalogNotLoaded, ticketResult.error);
+
+    if (visitorResult.ok) visitorTypes = visitorResult.data;
+    else await notifyFailure(i18n.t.ticketForm.catalogNotLoaded, visitorResult.error);
+  };
+
   // Each opening starts fresh: from the next minute until the end of that day, on the server's clock
   $effect(() => {
     if (!isOpen) return;
@@ -75,10 +110,13 @@
 
       visitorName = '';
       visitorType = '';
+      ticketType = '';
       validFrom = start;
       validUntil = `${start.slice(0, start.indexOf('T'))}${DAY_END}`;
       usageType = 'one_time';
       isSubmitted = false;
+      // Prices change between openings, so each one reads them again
+      void loadCatalog();
     });
   });
 
@@ -87,7 +125,7 @@
 
     const csrfToken = auth.session?.csrf_token;
 
-    if (!(validation.success && csrfToken)) return;
+    if (!(validation.success && csrfToken) || ticketTypeError) return;
 
     isPending = true;
 
@@ -133,9 +171,36 @@
     error={fieldErrors.visitor_type?.[0]}
     id="visitor-type"
     label={i18n.t.ticketForm.visitorType}
-    options={visitorTypeOptions}
+    options={visitorOptions}
     bind:value={visitorType}
   />
+
+  {#if ticketTypeOptions.length > 0}
+    <FloatingSelect
+      error={ticketTypeError ?? fieldErrors.ticket_type?.[0]}
+      id="ticket-type"
+      label={i18n.t.ticketForm.ticketType}
+      options={ticketTypeOptions}
+      bind:value={ticketType}
+    />
+  {/if}
+
+  {#if basePrice !== undefined}
+    <!-- What the API will charge: the type's price, less the visitor type's discount -->
+    <dl
+      aria-live="polite"
+      class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 rounded-container bg-surface-100-900 px-4 py-3 text-sm tabular-nums"
+    >
+      <dt class="text-surface-700-300">{i18n.t.ticketForm.price}</dt>
+      <dd class="text-right">{formatMinor(basePrice)}</dd>
+      {#if discount > 0}
+        <dt class="text-surface-700-300">{i18n.t.ticketForm.discount}</dt>
+        <dd class="text-right">−{discount}%</dd>
+      {/if}
+      <dt class="font-semibold">{i18n.t.ticketForm.total}</dt>
+      <dd class="text-right font-semibold">{formatMinor(discountedMinor(basePrice, discount))}</dd>
+    </dl>
+  {/if}
 
   <div class="grid gap-4">
     <DateTimeField

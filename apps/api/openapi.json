@@ -513,7 +513,7 @@
             }
           },
           "404": {
-            "description": "Ticket or user not found",
+            "description": "Ticket, user, ticket type or visitor type not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -606,7 +606,7 @@
             }
           },
           "404": {
-            "description": "Ticket or user not found",
+            "description": "Ticket, user, ticket type or visitor type not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -639,6 +639,710 @@
                     }
                   ],
                   "title": "Response 422 Delete User"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ticket-types": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "List Ticket Types",
+        "description": "One page of ticket types, by name. Every signed-in role may read them.",
+        "operationId": "list_ticket_types",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The page to return, from 1",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "The page to return, from 1"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Most items on a page",
+              "default": 20,
+              "title": "Size"
+            },
+            "description": "Most items on a page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketTypePage"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 List Ticket Types"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Create Ticket Type",
+        "description": "Add a ticket type and its price. Admins and managers.",
+        "operationId": "create_ticket_type",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketTypeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketTypeOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Ticket Type"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ticket-types/{type_id}": {
+      "patch": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Update Ticket Type",
+        "description": "Rename a ticket type or change its price. Tickets already issued keep theirs.",
+        "operationId": "update_ticket_type",
+        "parameters": [
+          {
+            "name": "type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Type Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketTypePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketTypeOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Update Ticket Type"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Delete Ticket Type",
+        "description": "Remove a ticket type. Tickets already issued keep their name and price.",
+        "operationId": "delete_ticket_type",
+        "parameters": [
+          {
+            "name": "type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Type Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Delete Ticket Type"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visitor-types": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "List Visitor Types",
+        "description": "One page of visitor types, by name. Every signed-in role may read them.",
+        "operationId": "list_visitor_types",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The page to return, from 1",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "The page to return, from 1"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Most items on a page",
+              "default": 20,
+              "title": "Size"
+            },
+            "description": "Most items on a page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorTypePage"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 List Visitor Types"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Create Visitor Type",
+        "description": "Add a visitor type and the discount its tickets get. Admins and managers.",
+        "operationId": "create_visitor_type",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorTypeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorTypeOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Visitor Type"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visitor-types/{type_id}": {
+      "patch": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Update Visitor Type",
+        "description": "Rename a visitor type or change its discount. Tickets already issued keep theirs.",
+        "operationId": "update_visitor_type",
+        "parameters": [
+          {
+            "name": "type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Type Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorTypePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorTypeOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Update Visitor Type"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Delete Visitor Type",
+        "description": "Remove a visitor type. Tickets already issued keep their name and discount.",
+        "operationId": "delete_visitor_type",
+        "parameters": [
+          {
+            "name": "type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Type Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Delete Visitor Type"
                 }
               }
             }
@@ -899,7 +1603,7 @@
             }
           },
           "404": {
-            "description": "Ticket or user not found",
+            "description": "Ticket, user, ticket type or visitor type not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -1000,7 +1704,7 @@
             }
           },
           "404": {
-            "description": "Ticket or user not found",
+            "description": "Ticket, user, ticket type or visitor type not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -1098,7 +1802,7 @@
             }
           },
           "404": {
-            "description": "Ticket or user not found",
+            "description": "Ticket, user, ticket type or visitor type not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -1200,7 +1904,7 @@
             }
           },
           "404": {
-            "description": "Ticket or user not found",
+            "description": "Ticket, user, ticket type or visitor type not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -1833,6 +2537,19 @@
           "usage_type": {
             "$ref": "#/components/schemas/UsageType"
           },
+          "ticket_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket Type",
+            "description": "Name of a ticket type; prices the ticket, less the visitor discount"
+          },
           "timezone": {
             "anyOf": [
               {
@@ -1928,6 +2645,47 @@
             "type": "integer",
             "title": "Use Count"
           },
+          "ticket_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket Type",
+            "description": "Null for a ticket made without one"
+          },
+          "base_price_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Price Minor",
+            "description": "The ticket type's price then"
+          },
+          "discount_percent": {
+            "type": "integer",
+            "title": "Discount Percent",
+            "description": "The visitor type's discount then"
+          },
+          "price_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Minor",
+            "description": "The base price less the discount"
+          },
           "timezone": {
             "type": "string",
             "title": "Timezone",
@@ -1950,6 +2708,10 @@
           "passed_at",
           "print_count",
           "use_count",
+          "ticket_type",
+          "base_price_minor",
+          "discount_percent",
+          "price_minor",
           "timezone"
         ],
         "title": "TicketOut"
@@ -1996,6 +2758,122 @@
           "expired"
         ],
         "title": "TicketState"
+      },
+      "TicketTypeIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "price_minor": {
+            "type": "integer",
+            "maximum": 1000000000.0,
+            "minimum": 0.0,
+            "title": "Price Minor",
+            "description": "In minor units, such as cents: 1250 is 12.50"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "price_minor"
+        ],
+        "title": "TicketTypeIn"
+      },
+      "TicketTypeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "price_minor": {
+            "type": "integer",
+            "title": "Price Minor",
+            "description": "In minor units, such as cents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "price_minor"
+        ],
+        "title": "TicketTypeOut"
+      },
+      "TicketTypePage": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Every match, across all pages"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "description": "The page shown, from 1"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "description": "Most items on a page"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TicketTypeOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "page",
+          "size",
+          "items"
+        ],
+        "title": "TicketTypePage"
+      },
+      "TicketTypePatch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "price_minor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000000.0,
+                "minimum": 0.0,
+                "description": "In minor units, such as cents: 1250 is 12.50"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Minor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TicketTypePatch",
+        "description": "Any of: a new name, a new price. Omitted fields stay as they are."
       },
       "UsageType": {
         "type": "string",
@@ -2134,6 +3012,122 @@
         "type": "object",
         "title": "UserPatch",
         "description": "Any of: a new role, an active state, a new password. Omitted fields stay as they are."
+      },
+      "VisitorTypeIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "discount_percent": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Discount Percent",
+            "description": "Per cent taken off a ticket's price",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "VisitorTypeIn"
+      },
+      "VisitorTypeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "discount_percent": {
+            "type": "integer",
+            "title": "Discount Percent",
+            "description": "Per cent taken off a ticket's price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "discount_percent"
+        ],
+        "title": "VisitorTypeOut"
+      },
+      "VisitorTypePage": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Every match, across all pages"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "description": "The page shown, from 1"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "description": "Most items on a page"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VisitorTypeOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "page",
+          "size",
+          "items"
+        ],
+        "title": "VisitorTypePage"
+      },
+      "VisitorTypePatch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "discount_percent": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "description": "Per cent taken off a ticket's price"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Percent"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "VisitorTypePatch",
+        "description": "Any of: a new name, a new discount. Omitted fields stay as they are."
       }
     }
   }

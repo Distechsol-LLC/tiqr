@@ -35,8 +35,10 @@ from tiqr.core.models import (
     Role,
     Ticket,
     TicketState,
+    TicketType,
     UsageType,
     User,
+    VisitorType,
     WebSession,
     utc,
 )
@@ -54,6 +56,13 @@ _TRANSITIONS = frozenset(
         (TicketState.PASSED, TicketState.EXPIRED),
     }
 )
+
+
+def _clean_name(name: str) -> str:
+    name = name.strip()
+    if not name:
+        raise ValueError("A name is required")
+    return name
 
 
 def _can_view(actor: User, ticket: Ticket) -> bool:
@@ -361,6 +370,101 @@ class TicketService:
         with self.repository.transaction():
             return [self._expire(ticket) for ticket in self.repository.list_tickets()]
 
+    def list_ticket_types(self, actor: User) -> list[TicketType]:
+        """Every ticket type; operators read them too, to see what a ticket costs."""
+        self._actor(actor)
+        return self.repository.list_ticket_types()
+
+    def create_ticket_type(self, actor: User, name: str, price: int) -> TicketType:
+        """Add a ticket type costing `price` minor units. Admins and managers."""
+        self._require(self._actor(actor), _STAFF)
+        ticket_type = TicketType(uuid4(), _clean_name(name), price)
+        with self.repository.transaction():
+            if self.repository.ticket_type_by_name(ticket_type.name):
+                raise ValueError("A ticket type with this name already exists")
+            self.repository.add_ticket_type(ticket_type)
+        return ticket_type
+
+    def edit_ticket_type(
+        self, actor: User, type_id: UUID, *, name: str | None = None, price: int | None = None
+    ) -> TicketType:
+        """Rename a ticket type or change its price. Tickets already issued keep theirs."""
+        self._require(self._actor(actor), _STAFF)
+        if name is None and price is None:
+            raise ValueError("Nothing to change")
+        with self.repository.transaction():
+            current = self.repository.get_ticket_type(type_id)
+            if current is None:
+                raise NotFoundError("Ticket type not found")
+            updated = TicketType(
+                current.id,
+                current.name if name is None else _clean_name(name),
+                current.price if price is None else price,
+            )
+            clash = self.repository.ticket_type_by_name(updated.name)
+            if clash is not None and clash.id != current.id:
+                raise ValueError("A ticket type with this name already exists")
+            self.repository.save_ticket_type(updated)
+        return updated
+
+    def delete_ticket_type(self, actor: User, type_id: UUID) -> None:
+        """Remove a ticket type. Tickets already issued keep their name and price."""
+        self._require(self._actor(actor), _STAFF)
+        with self.repository.transaction():
+            if self.repository.get_ticket_type(type_id) is None:
+                raise NotFoundError("Ticket type not found")
+            self.repository.delete_ticket_type(type_id)
+
+    def list_visitor_types(self, actor: User) -> list[VisitorType]:
+        """Every visitor type; operators read them too, to pick one when issuing a ticket."""
+        self._actor(actor)
+        return self.repository.list_visitor_types()
+
+    def create_visitor_type(self, actor: User, name: str, discount_percent: int = 0) -> VisitorType:
+        """Add a visitor type whose tickets cost `discount_percent` per cent less."""
+        self._require(self._actor(actor), _STAFF)
+        visitor_type = VisitorType(uuid4(), _clean_name(name), discount_percent)
+        with self.repository.transaction():
+            if self.repository.visitor_type_by_name(visitor_type.name):
+                raise ValueError("A visitor type with this name already exists")
+            self.repository.add_visitor_type(visitor_type)
+        return visitor_type
+
+    def edit_visitor_type(
+        self,
+        actor: User,
+        type_id: UUID,
+        *,
+        name: str | None = None,
+        discount_percent: int | None = None,
+    ) -> VisitorType:
+        """Rename a visitor type or change its discount. Tickets already issued keep theirs."""
+        self._require(self._actor(actor), _STAFF)
+        if name is None and discount_percent is None:
+            raise ValueError("Nothing to change")
+        with self.repository.transaction():
+            current = self.repository.get_visitor_type(type_id)
+            if current is None:
+                raise NotFoundError("Visitor type not found")
+            updated = VisitorType(
+                current.id,
+                current.name if name is None else _clean_name(name),
+                current.discount_percent if discount_percent is None else discount_percent,
+            )
+            clash = self.repository.visitor_type_by_name(updated.name)
+            if clash is not None and clash.id != current.id:
+                raise ValueError("A visitor type with this name already exists")
+            self.repository.save_visitor_type(updated)
+        return updated
+
+    def delete_visitor_type(self, actor: User, type_id: UUID) -> None:
+        """Remove a visitor type. Tickets already issued keep their name and discount."""
+        self._require(self._actor(actor), _STAFF)
+        with self.repository.transaction():
+            if self.repository.get_visitor_type(type_id) is None:
+                raise NotFoundError("Visitor type not found")
+            self.repository.delete_visitor_type(type_id)
+
     def create_ticket(
         self,
         actor: User,
@@ -370,7 +474,12 @@ class TicketService:
         valid_from: datetime,
         valid_until: datetime,
         usage_type: UsageType,
+        ticket_type: str | None = None,
     ) -> Ticket:
+        """Issue a ticket. Naming a catalog `ticket_type` prices it, and a `visitor_type` from
+        the catalog takes its discount off that price; any other visitor type is kept as written,
+        at no discount.
+        """
         actor = self._actor(actor)
         start, end, now = utc(valid_from), utc(valid_until), self._now()
         if not visitor_name.strip() or not visitor_type.strip():
@@ -379,6 +488,12 @@ class TicketService:
             raise ValueError("Access window is reversed or already expired")
         if start.microsecond or end.microsecond:
             raise ValueError("Access windows require whole-second precision for BioStar alignment")
+        priced = None
+        if ticket_type is not None:
+            priced = self.repository.ticket_type_by_name(ticket_type.strip())
+            if priced is None:
+                raise ValueError("Unknown ticket type")
+        known = self.repository.visitor_type_by_name(visitor_type.strip())
         serial = make_serial(
             self.repository.allocate(f"serial:{now:%Y%m%d}"), now.date(), self.prefix
         )
@@ -388,7 +503,7 @@ class TicketService:
             qr_payload=build_payload(serial, self.secret_key, self.prefix),
             readable_serial=serial,
             visitor_name=visitor_name.strip(),
-            visitor_type=visitor_type.strip(),
+            visitor_type=known.name if known else visitor_type.strip(),
             valid_from=start,
             valid_until=end,
             usage_type=UsageType(usage_type),
@@ -396,6 +511,9 @@ class TicketService:
             created_by=actor.id,
             assigned_operator=actor.id,
             created_at=now,
+            ticket_type=priced.name if priced else None,
+            base_price=priced.price if priced else None,
+            discount_percent=known.discount_percent if known else 0,
         )
         external_id = self.registrar.register(ticket)
         if not external_id:

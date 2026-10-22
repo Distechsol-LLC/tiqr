@@ -154,3 +154,17 @@ def test_main_seeds_the_configured_database(monkeypatch, tmp_path, capsys):
         repository.initialize()
         assert len(repository.list_tickets()) == len(seed.VISITS)
         assert repository.user_by_name("leyla").active
+
+
+def test_seed_adds_the_catalog_and_prices_the_visits(seeded, repository, reader, accounts):
+    assert {item.name: item.price for item in repository.list_ticket_types()} == dict(
+        seed.TICKET_TYPES.values()
+    )
+    assert {item.name: item.discount_percent for item in repository.list_visitor_types()} == dict(
+        seed.VISITOR_TYPES
+    )
+    tickets = by_visitor(reader.list_tickets(accounts["manager"]))
+    # A one-time ticket at 15.00 for a student, who gets 30% off
+    assert tickets["Adam Tələbə"].price == 1050
+    assert tickets["Günel Məmmədova"].price == 6000
+    assert tickets["Rəşad Əliyev"].price == 750

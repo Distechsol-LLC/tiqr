@@ -4,6 +4,7 @@ import Dashboard from '@/layouts/Dashboard.svelte';
 import Login from '@/pages/Login.svelte';
 import NotFound from '@/pages/NotFound.svelte';
 import Overview from '@/pages/Overview.svelte';
+import Pricing from '@/pages/Pricing.svelte';
 import Tickets from '@/pages/Tickets.svelte';
 import Users from '@/pages/Users.svelte';
 import { auth } from '%/useAuth.svelte.ts';
@@ -51,6 +52,7 @@ const routes = {
   '/admin': {
     '/': Tickets,
     '/overview': Overview,
+    '/pricing': Pricing,
     '/users': Users,
     hooks: roleArea('admin'),
     layout: Dashboard,
@@ -63,6 +65,7 @@ const routes = {
     '/': Tickets,
     '/accounts': Users,
     '/overview': Overview,
+    '/pricing': Pricing,
     hooks: roleArea('manager'),
     layout: Dashboard,
   },

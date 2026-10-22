@@ -9,6 +9,14 @@ import {
   sessionSchema,
   userSchema,
 } from '$/auth.ts';
+import {
+  type TicketType,
+  type TicketTypeFields,
+  type VisitorType,
+  type VisitorTypeFields,
+  ticketTypeSchema,
+  visitorTypeSchema,
+} from '$/catalog.ts';
 import { type Config, type Stats, configSchema, countSchema, statsSchema } from '$/operations.ts';
 import { MAX_SIZE, type Page, type PageRequest, pageSchema } from '$/pagination.ts';
 import {
@@ -140,22 +148,27 @@ const pageQuery = ({ page, size }: PageRequest): URLSearchParams =>
 const fetchUsers = (paging: PageRequest): Promise<ApiResult<Page<User>>> =>
   request(`/users?${pageQuery(paging)}`, pageSchema(userSchema));
 
-// Every account, a page at a time, for the screens that need the whole list
-const fetchAllUsers = async (): Promise<ApiResult<User[]>> => {
-  const users: User[] = [];
+// Every item, a page at a time, for the screens that need the whole list
+const fetchEvery = async <Item>(
+  fetchPage: (paging: PageRequest) => Promise<ApiResult<Page<Item>>>
+): Promise<ApiResult<Item[]>> => {
+  const items: Item[] = [];
 
   for (let page = 1; ; page += 1) {
     // Pages are read in turn: the next one is only asked for if this one wasn't the last
-    const result = await fetchUsers({ page, size: MAX_SIZE });
+    // biome-ignore lint/performance/noAwaitInLoops: each page depends on whether the last was final
+    const result = await fetchPage({ page, size: MAX_SIZE });
 
     if (!result.ok) return result;
 
-    users.push(...result.data.items);
+    items.push(...result.data.items);
 
-    if (result.data.items.length === 0 || users.length >= result.data.total)
-      return { data: users, ok: true };
+    if (result.data.items.length === 0 || items.length >= result.data.total)
+      return { data: items, ok: true };
   }
 };
+
+const fetchAllUsers = (): Promise<ApiResult<User[]>> => fetchEvery(fetchUsers);
 
 const createUser = (csrfToken: string, input: UserInput): Promise<ApiResult<User>> =>
   request('/users', userSchema, write('POST', csrfToken, input));
@@ -166,6 +179,50 @@ const updateUser = (csrfToken: string, id: string, patch: UserPatch): Promise<Ap
 // Only deactivated accounts without tickets; the API refuses the rest
 const deleteUser = (csrfToken: string, id: string): Promise<ApiResult<null>> =>
   request(`/users/${id}`, z.null(), write('DELETE', csrfToken));
+
+const fetchTicketTypes = (paging: PageRequest): Promise<ApiResult<Page<TicketType>>> =>
+  request(`/ticket-types?${pageQuery(paging)}`, pageSchema(ticketTypeSchema));
+
+const fetchAllTicketTypes = (): Promise<ApiResult<TicketType[]>> => fetchEvery(fetchTicketTypes);
+
+const createTicketType = (
+  csrfToken: string,
+  fields: TicketTypeFields
+): Promise<ApiResult<TicketType>> =>
+  request('/ticket-types', ticketTypeSchema, write('POST', csrfToken, fields));
+
+const updateTicketType = (
+  csrfToken: string,
+  id: string,
+  fields: Partial<TicketTypeFields>
+): Promise<ApiResult<TicketType>> =>
+  request(`/ticket-types/${id}`, ticketTypeSchema, write('PATCH', csrfToken, fields));
+
+// Tickets already issued keep their name and price
+const deleteTicketType = (csrfToken: string, id: string): Promise<ApiResult<null>> =>
+  request(`/ticket-types/${id}`, z.null(), write('DELETE', csrfToken));
+
+const fetchVisitorTypes = (paging: PageRequest): Promise<ApiResult<Page<VisitorType>>> =>
+  request(`/visitor-types?${pageQuery(paging)}`, pageSchema(visitorTypeSchema));
+
+const fetchAllVisitorTypes = (): Promise<ApiResult<VisitorType[]>> => fetchEvery(fetchVisitorTypes);
+
+const createVisitorType = (
+  csrfToken: string,
+  fields: VisitorTypeFields
+): Promise<ApiResult<VisitorType>> =>
+  request('/visitor-types', visitorTypeSchema, write('POST', csrfToken, fields));
+
+const updateVisitorType = (
+  csrfToken: string,
+  id: string,
+  fields: Partial<VisitorTypeFields>
+): Promise<ApiResult<VisitorType>> =>
+  request(`/visitor-types/${id}`, visitorTypeSchema, write('PATCH', csrfToken, fields));
+
+// Tickets already issued keep their name and discount
+const deleteVisitorType = (csrfToken: string, id: string): Promise<ApiResult<null>> =>
+  request(`/visitor-types/${id}`, z.null(), write('DELETE', csrfToken));
 
 const fetchTickets = (
   paging: PageRequest,
@@ -232,20 +289,30 @@ export type { ApiFailure, ApiResult };
 export {
   assignTicket,
   createTicket,
+  createTicketType,
   createUser,
+  createVisitorType,
+  deleteTicketType,
   deleteUser,
+  deleteVisitorType,
+  fetchAllTicketTypes,
   fetchAllUsers,
+  fetchAllVisitorTypes,
   fetchConfig,
   fetchSession,
   fetchStats,
   fetchTicket,
+  fetchTicketTypes,
   fetchTickets,
   fetchUsers,
+  fetchVisitorTypes,
   login,
   logout,
   printTicket,
   renderTicketPdf,
   runCleanup,
   runSync,
+  updateTicketType,
   updateUser,
+  updateVisitorType,
 };

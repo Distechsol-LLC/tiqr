@@ -18,7 +18,7 @@ import { mockFetch, session, ticket } from '../__mocks__/api.ts';
 const FIRST_PAGE = { page: 1, size: 10 };
 const credentials = { password: 'secret', username: 'clerk' };
 
-describe('api', () => {
+describe('api sessions and errors', () => {
   it('login posts JSON and returns the session', async () => {
     const fetchMock = mockFetch(Response.json(session));
 
@@ -82,7 +82,9 @@ describe('api', () => {
       ok: false,
     });
   });
+});
 
+describe('api reads', () => {
   it('asks for a page of tickets, optionally of one state', async () => {
     const page = { items: [ticket], page: 2, size: 5, total: 6 };
     const fetchMock = mockFetch(Response.json(page), Response.json(page));
@@ -143,7 +145,9 @@ describe('api', () => {
       '/api/stats?since=2026-09-01&until=2026-09-30',
     ]);
   });
+});
 
+describe('api writes', () => {
   it('creates a ticket with JSON and the CSRF token', async () => {
     const fetchMock = mockFetch(Response.json(ticket, { status: 201 }));
     const input = {
