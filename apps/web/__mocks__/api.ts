@@ -17,13 +17,18 @@ const session: Session = {
 
 const ticket: Ticket = {
   assigned_operator: session.user.id,
+  base_price_minor: null,
   created_at: '2030-05-31T12:00:00.123456+04:00',
   created_by: session.user.id,
+  currency: null,
+  discount_percent: 0,
   id: '6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f',
   passed_at: null,
+  price_minor: null,
   print_count: 0,
   readable_serial: 'TiQR-300531-00001',
   state: 'issued',
+  ticket_type: null,
   timezone: 'Asia/Baku',
   usage_type: 'one_time',
   use_count: 0,

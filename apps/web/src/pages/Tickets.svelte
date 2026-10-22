@@ -1,19 +1,21 @@
 <script lang="ts">
+  import DoorOpen from '@lucide/svelte/icons/door-open';
   import FileDown from '@lucide/svelte/icons/file-down';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-  import Plus from '@lucide/svelte/icons/plus';
   import Printer from '@lucide/svelte/icons/printer';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import Search from '@lucide/svelte/icons/search';
   import SearchX from '@lucide/svelte/icons/search-x';
   import Send from '@lucide/svelte/icons/send';
   import TicketIcon from '@lucide/svelte/icons/ticket';
+  import TicketsIcon from '@lucide/svelte/icons/tickets';
   import UserRoundPen from '@lucide/svelte/icons/user-round-pen';
   import { onMount, untrack } from 'svelte';
 
   import ActionsHeader from '@/components/ActionsHeader.svelte';
   import AssignForm from '@/components/AssignForm.svelte';
   import DataTable from '@/components/DataTable.svelte';
+  import FilterTabs from '@/components/FilterTabs.svelte';
   import PageHeader from '@/components/PageHeader.svelte';
   import Pagination from '@/components/Pagination.svelte';
   import SortHeader from '@/components/SortHeader.svelte';
@@ -21,6 +23,7 @@
   import TicketForm from '@/components/TicketForm.svelte';
   import { fetchAllUsers, fetchTicket, fetchTickets, printTicket, renderTicketPdf } from '%/api.ts';
   import { formatDatetime } from '%/formatters.ts';
+  import { formatMinor } from '%/money.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { pageCount } from '%/pagination.ts';
   import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
@@ -34,18 +37,12 @@
 
   type Filter = TicketState | 'all';
   type RowAction = 'browser' | 'pdf' | 'print';
-  type SortKey =
-    | 'assignee'
-    | 'prints'
-    | 'serial'
-    | 'state'
-    | 'usage'
-    | 'uses'
-    | 'valid'
-    | 'visitor';
+  type SortKey = 'assignee' | 'price' | 'serial' | 'state' | 'valid' | 'visitor';
 
   const ICON_SIZE = 18;
-  const BASE_COLUMNS = 8;
+  const SMALL_ICON_SIZE = 14;
+  const USAGE_ICON_SIZE = 16;
+  const BASE_COLUMNS = 7;
   const FILTERS: Filter[] = ['all', ...ticketStateSchema.options];
   // Long enough for the browser to start the download before the URL goes
   const REVOKE_DELAY = 60_000;
@@ -80,11 +77,9 @@
 
   const sortValues: SortValues<Ticket, SortKey> = {
     assignee: (ticket) => usernames.get(ticket.assigned_operator) ?? '',
-    prints: (ticket) => ticket.print_count,
+    price: (ticket) => ticket.price_minor ?? -1,
     serial: (ticket) => ticket.readable_serial,
     state: (ticket) => STATE_ORDER.get(ticket.state) ?? 0,
-    usage: (ticket) => i18n.t.usage[ticket.usage_type],
-    uses: (ticket) => ticket.use_count,
     valid: (ticket) => Date.parse(ticket.valid_from),
     visitor: (ticket) => ticket.visitor_name,
   };
@@ -95,9 +90,12 @@
     const needle = query.trim().toLocaleLowerCase();
     const matches = needle
       ? tickets.filter((ticket) =>
-          [ticket.readable_serial, ticket.visitor_name, ticket.visitor_type].some((field) =>
-            field.toLocaleLowerCase().includes(needle)
-          )
+          [
+            ticket.readable_serial,
+            ticket.visitor_name,
+            ticket.visitor_type,
+            ticket.ticket_type ?? '',
+          ].some((field) => field.toLocaleLowerCase().includes(needle))
         )
       : tickets;
 
@@ -305,31 +303,25 @@
       }}
       type="button"
     >
-      <Plus aria-hidden="true" size={ICON_SIZE} />
+      <TicketIcon aria-hidden="true" size={ICON_SIZE} />
       {i18n.t.tickets.new}
     </button>
   {/snippet}
   {#snippet toolbar()}
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <fieldset class="flex flex-wrap gap-2">
-        <legend class="sr-only">{i18n.t.tickets.filter}</legend>
-        {#each FILTERS as option (option)}
-          <button
-            aria-pressed={filter === option}
-            class={['chip', filter === option ? 'preset-filled-primary-500' : 'preset-tonal']}
-            onclick={(): void => {
-              if (option === filter) return;
+      <FilterTabs
+        label={(option): string => (option === 'all' ? i18n.t.tickets.all : i18n.t.states[option])}
+        legend={i18n.t.tickets.filter}
+        onpick={(option): void => {
+          if (option === filter) return;
 
-              // The effect below loads the new filter; the old page number means nothing to it
-              pagination.goTo(1);
-              filter = option;
-            }}
-            type="button"
-          >
-            {option === 'all' ? i18n.t.tickets.all : i18n.t.states[option]}
-          </button>
-        {/each}
-      </fieldset>
+          // The effect below loads the new filter; the old page number means nothing to it
+          pagination.goTo(1);
+          filter = option;
+        }}
+        options={FILTERS}
+        selected={filter}
+      />
 
       <label class="relative w-full sm:w-72">
         <span class="sr-only">{i18n.t.tickets.search}</span>
@@ -356,7 +348,7 @@
   emptyMessage={query ? i18n.t.tickets.emptySearch : i18n.t.tickets.empty}
   isEmpty={rows.length === 0}
   {isLoading}
-  minWidth="72rem"
+  minWidth="88rem"
 >
   {#snippet head()}
     <SortHeader
@@ -366,15 +358,10 @@
       onSort={(): void => sortBy('serial')}
     />
     <SortHeader
+      class="w-48"
       direction={directionOf('visitor')}
       label={i18n.t.tickets.columns.visitor}
       onSort={(): void => sortBy('visitor')}
-    />
-    <SortHeader
-      class="w-34"
-      direction={directionOf('usage')}
-      label={i18n.t.tickets.columns.usage}
-      onSort={(): void => sortBy('usage')}
     />
     <SortHeader
       class="w-36"
@@ -388,6 +375,14 @@
       label={i18n.t.tickets.columns.state}
       onSort={(): void => sortBy('state')}
     />
+    <SortHeader
+      class="w-28"
+      direction={directionOf('price')}
+      isEnd
+      label={i18n.t.tickets.columns.price}
+      onSort={(): void => sortBy('price')}
+    />
+    <th class="w-28">{i18n.t.tickets.columns.usage}</th>
     {#if isStaff}
       <SortHeader
         class="w-30"
@@ -396,31 +391,33 @@
         onSort={(): void => sortBy('assignee')}
       />
     {/if}
-    <SortHeader
-      class="w-24"
-      direction={directionOf('prints')}
-      isEnd
-      label={i18n.t.tickets.columns.prints}
-      onSort={(): void => sortBy('prints')}
-    />
-    <SortHeader
-      class="w-24"
-      direction={directionOf('uses')}
-      isEnd
-      label={i18n.t.tickets.columns.uses}
-      onSort={(): void => sortBy('uses')}
-    />
     <ActionsHeader count={actionCount} />
   {/snippet}
 
   {#each rows as ticket (ticket.id)}
     <tr>
-      <td class="font-mono">{ticket.readable_serial}</td>
+      <td>
+        <div class="flex items-center gap-2 font-mono">
+          <!-- The usage as an icon, so the column stays narrow; the tooltip names it -->
+          <span
+            aria-label={i18n.t.usage[ticket.usage_type]}
+            class="inline-flex shrink-0 text-surface-600-400"
+            role="img"
+            title={i18n.t.usage[ticket.usage_type]}
+          >
+            {#if ticket.usage_type === 'one_time'}
+              <TicketIcon aria-hidden="true" size={USAGE_ICON_SIZE} />
+            {:else}
+              <TicketsIcon aria-hidden="true" size={USAGE_ICON_SIZE} />
+            {/if}
+          </span>
+          {ticket.readable_serial}
+        </div>
+      </td>
       <td>
         <p class="font-semibold">{ticket.visitor_name}</p>
         <p class="text-surface-600-400 text-xs">{ticket.visitor_type}</p>
       </td>
-      <td>{i18n.t.usage[ticket.usage_type]}</td>
       <td>
         <p>{formatDatetime(ticket.valid_from, ticket.timezone)}</p>
         <p class="text-surface-600-400 text-xs">
@@ -435,11 +432,37 @@
           </p>
         {/if}
       </td>
+      <td class="text-right">
+        <p class="tabular-nums">
+          {ticket.price_minor === null || ticket.currency === null
+            ? '—'
+            : formatMinor(ticket.price_minor, ticket.currency)}
+        </p>
+        {#if ticket.price_minor !== null}
+          <!-- The type and discount it was priced with, as they were when it was made -->
+          <p class="text-surface-600-400 text-xs">
+            {[ticket.ticket_type, ticket.discount_percent > 0 && `−${ticket.discount_percent}%`]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+        {/if}
+      </td>
+      <td>
+        <!-- Prints and uses, each with an icon that the tooltip names -->
+        <p class="flex items-center gap-3 text-surface-600-400 text-xs tabular-nums">
+          <span class="inline-flex items-center gap-1" title={i18n.t.tickets.columns.prints}>
+            <Printer aria-hidden="true" size={SMALL_ICON_SIZE} />
+            {ticket.print_count}
+          </span>
+          <span class="inline-flex items-center gap-1" title={i18n.t.tickets.columns.uses}>
+            <DoorOpen aria-hidden="true" size={SMALL_ICON_SIZE} />
+            {ticket.use_count}
+          </span>
+        </p>
+      </td>
       {#if isStaff}
         <td>{usernames.get(ticket.assigned_operator) ?? '—'}</td>
       {/if}
-      <td class="text-right tabular-nums">{ticket.print_count}</td>
-      <td class="text-right tabular-nums">{ticket.use_count}</td>
       <td>
         <div class="flex justify-start gap-1">
           <!-- The API prints only issued tickets, as many times as needed -->

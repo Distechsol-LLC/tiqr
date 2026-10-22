@@ -9,6 +9,7 @@
   import { onMount } from 'svelte';
 
   import DataTable from '@/components/DataTable.svelte';
+  import FilterTabs from '@/components/FilterTabs.svelte';
   import PageHeader from '@/components/PageHeader.svelte';
   import PeriodPicker from '@/components/PeriodPicker.svelte';
   import SortHeader from '@/components/SortHeader.svelte';
@@ -261,19 +262,13 @@
   {#snippet toolbar()}
     <!-- As tall as the period controls, so the bar keeps its height when they come and go -->
     <div class="flex min-h-9 flex-wrap items-center justify-between gap-3">
-      <fieldset class="flex flex-wrap gap-2">
-        <legend class="sr-only">{i18n.t.overview.range}</legend>
-        {#each RANGES as option (option)}
-          <button
-            aria-pressed={range === option}
-            class={['chip', range === option ? 'preset-filled-primary-500' : 'preset-tonal']}
-            onclick={(): void => pick(option)}
-            type="button"
-          >
-            {i18n.t.overview.ranges[option]}
-          </button>
-        {/each}
-      </fieldset>
+      <FilterTabs
+        label={(option): string => i18n.t.overview.ranges[option]}
+        legend={i18n.t.overview.range}
+        onpick={pick}
+        options={RANGES}
+        selected={range}
+      />
 
       {#if range !== 'all'}
         <div class="flex items-center gap-2">

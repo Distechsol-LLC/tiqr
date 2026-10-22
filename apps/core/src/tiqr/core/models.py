@@ -5,6 +5,10 @@ from uuid import UUID
 
 from tiqr.core.qr import PAYLOAD_LENGTH
 
+# Far above any real ticket, and well inside SQLite's integers and JSON's safe ones.
+MAX_PRICE = 10**9
+MAX_DISCOUNT = 100
+
 
 def utc(value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
@@ -12,10 +16,21 @@ def utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def discounted(price: int, percent: int) -> int:
+    """`price` less `percent` per cent, in the same minor units, rounding half up."""
+    return (price * (MAX_DISCOUNT - percent) + MAX_DISCOUNT // 2) // MAX_DISCOUNT
+
+
 class Role(StrEnum):
     ADMIN = "admin"
     MANAGER = "manager"
     OPERATOR = "operator"
+
+
+class Currency(StrEnum):
+    USD = "USD"
+    RUB = "RUB"
+    AZN = "AZN"
 
 
 class UsageType(StrEnum):
@@ -49,6 +64,37 @@ class User:
 
 
 @dataclass(frozen=True, slots=True)
+class TicketType:
+    """A kind of ticket and what it costs, in minor units such as cents."""
+
+    id: UUID
+    name: str
+    price: int
+    currency: Currency
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("A name is required")
+        if not 0 <= self.price <= MAX_PRICE:
+            raise ValueError(f"Price must be between 0 and {MAX_PRICE}")
+
+
+@dataclass(frozen=True, slots=True)
+class VisitorType:
+    """A kind of visitor and the share of a ticket's price taken off for them."""
+
+    id: UUID
+    name: str
+    discount_percent: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("A name is required")
+        if not 0 <= self.discount_percent <= MAX_DISCOUNT:
+            raise ValueError("Discount must be between 0 and 100 per cent")
+
+
+@dataclass(frozen=True, slots=True)
 class Ticket:
     id: UUID
     external_id: str | None
@@ -66,6 +112,12 @@ class Ticket:
     passed_at: datetime | None = None
     print_count: int = 0
     use_count: int = 0
+    # Copied from the catalog when the ticket is made, so editing or deleting a catalog entry
+    # later never changes what an issued ticket cost.
+    ticket_type: str | None = None
+    base_price: int | None = None
+    discount_percent: int = 0
+    currency: Currency | None = None
 
     def __post_init__(self) -> None:
         for name in ("valid_from", "valid_until", "created_at", "passed_at"):
@@ -78,6 +130,17 @@ class Ticket:
             raise ValueError(f"QR payload must be exactly {PAYLOAD_LENGTH} ASCII characters")
         if self.print_count < 0 or self.use_count < 0:
             raise ValueError("Ticket counters must not be negative")
+        if self.base_price is not None and not 0 <= self.base_price <= MAX_PRICE:
+            raise ValueError(f"Price must be between 0 and {MAX_PRICE}")
+        if not 0 <= self.discount_percent <= MAX_DISCOUNT:
+            raise ValueError("Discount must be between 0 and 100 per cent")
+
+    @property
+    def price(self) -> int | None:
+        """What the visitor pays: the base price less the visitor type's discount."""
+        return (
+            None if self.base_price is None else discounted(self.base_price, self.discount_percent)
+        )
 
     @property
     def is_spent(self) -> bool:

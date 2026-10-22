@@ -5,7 +5,9 @@ import Login from '@/pages/Login.svelte';
 import NotFound from '@/pages/NotFound.svelte';
 import Overview from '@/pages/Overview.svelte';
 import Tickets from '@/pages/Tickets.svelte';
+import TicketTypes from '@/pages/TicketTypes.svelte';
 import Users from '@/pages/Users.svelte';
+import VisitorTypes from '@/pages/VisitorTypes.svelte';
 import { auth } from '%/useAuth.svelte.ts';
 import type { Role } from '$/auth.ts';
 
@@ -51,7 +53,9 @@ const routes = {
   '/admin': {
     '/': Tickets,
     '/overview': Overview,
+    '/ticket-types': TicketTypes,
     '/users': Users,
+    '/visitor-types': VisitorTypes,
     hooks: roleArea('admin'),
     layout: Dashboard,
   },
@@ -63,6 +67,8 @@ const routes = {
     '/': Tickets,
     '/accounts': Users,
     '/overview': Overview,
+    '/ticket-types': TicketTypes,
+    '/visitor-types': VisitorTypes,
     hooks: roleArea('manager'),
     layout: Dashboard,
   },

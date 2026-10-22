@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from tiqr.core.fakes import InMemoryEventSource
-from tiqr.core.models import RawEvent, Role, UsageType, User
+from tiqr.core.models import Currency, RawEvent, Role, UsageType, User
 from tiqr.core.ports import Clock, Repository
 from tiqr.core.qr import DEFAULT_PREFIX
 from tiqr.core.repository import SQLiteRepository
@@ -22,6 +22,15 @@ PASSWORD_VARIABLE = "TIQR_SEED_PASSWORD"  # noqa: S105 - the name of a variable,
 OPERATORS = ("leyla", "elnur", "aynur")
 # Kept in the database so the history stays visible, but unable to sign in or act.
 DEACTIVATED_OPERATOR = "rufat"
+
+
+# Prices are in minor units, so 1500 is 15.00. Each visit is priced by its usage.
+TICKET_TYPES = {
+    UsageType.ONE_TIME: ("Birdəfəlik", 1500, Currency.AZN),
+    UsageType.MULTI_USE: ("Çoxgünlük", 6000, Currency.AZN),
+}
+# Every visitor type the visits use, with its discount in per cent.
+VISITOR_TYPES = (("Tələbə", 30), ("Qonaq", 0), ("Əməkdaş", 50))
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +181,14 @@ def seed_demo(
             )
             added.append(name)
 
+    catalog = TicketService(repository, secret_key, prefix=prefix)
+    for name, price, currency in TICKET_TYPES.values():
+        if repository.ticket_type_by_name(name) is None:
+            catalog.create_ticket_type(manager, name, price, currency)
+    for name, discount in VISITOR_TYPES:
+        if repository.visitor_type_by_name(name) is None:
+            catalog.create_visitor_type(manager, name, discount)
+
     events: list[RawEvent] = []
     for number, visit in enumerate(VISITS, start=1):
         # Each visit is created at its own offset, so backdated visits are stamped in the past.
@@ -185,6 +202,7 @@ def seed_demo(
             valid_from=now + visit.starts,
             valid_until=now + visit.ends,
             usage_type=visit.usage,
+            ticket_type=TICKET_TYPES[visit.usage][0],
         )
         service.assign_ticket(manager, ticket.id, visit.operator)
         events.extend(

@@ -1,4 +1,6 @@
 import ChartColumn from '@lucide/svelte/icons/chart-column';
+import Percent from '@lucide/svelte/icons/percent';
+import Tag from '@lucide/svelte/icons/tag';
 import Ticket from '@lucide/svelte/icons/ticket';
 import UsersRound from '@lucide/svelte/icons/users-round';
 import type { Component } from 'svelte';
@@ -16,16 +18,20 @@ type NavItem = {
 
 // Mirrors the permission matrix in apps/core/src/tiqr/core/service.py: everyone works tickets,
 // admins manage accounts, managers read them to pick assignees and manage operators, and staff
-// see operations
+// see operations and set ticket prices and visitor discounts
 const NAV: Record<Role, NavItem[]> = {
   admin: [
     { icon: Ticket, label: 'tickets', path: '/admin' },
     { icon: UsersRound, label: 'users', path: '/admin/users' },
+    { icon: Tag, label: 'ticketTypes', path: '/admin/ticket-types' },
+    { icon: Percent, label: 'visitorTypes', path: '/admin/visitor-types' },
     { icon: ChartColumn, label: 'overview', path: '/admin/overview' },
   ],
   manager: [
     { icon: Ticket, label: 'tickets', path: '/manager' },
     { icon: UsersRound, label: 'accounts', path: '/manager/accounts' },
+    { icon: Tag, label: 'ticketTypes', path: '/manager/ticket-types' },
+    { icon: Percent, label: 'visitorTypes', path: '/manager/visitor-types' },
     { icon: ChartColumn, label: 'overview', path: '/manager/overview' },
   ],
   operator: [{ icon: Ticket, label: 'tickets', path: '/operator' }],

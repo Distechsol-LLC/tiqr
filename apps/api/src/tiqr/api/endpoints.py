@@ -29,10 +29,18 @@ from tiqr.api.schemas import (
     TicketIn,
     TicketOut,
     TicketPage,
+    TicketTypeIn,
+    TicketTypeOut,
+    TicketTypePage,
+    TicketTypePatch,
     UserIn,
     UserOut,
     UserPage,
     UserPatch,
+    VisitorTypeIn,
+    VisitorTypeOut,
+    VisitorTypePage,
+    VisitorTypePatch,
 )
 from tiqr.api.security import clear_session_cookie, cookie_name, set_session_cookie
 from tiqr.core.auth import WEB_SESSION_IDLE, AuthenticationError
@@ -54,7 +62,7 @@ _IDLE_SECONDS = int(WEB_SESSION_IDLE.total_seconds())
 _REFUSALS: dict[int, str] = {
     401: "Not signed in, or sign-in was refused",
     403: "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
-    404: "Ticket or user not found",
+    404: "Ticket, user, ticket type or visitor type not found",
     409: "The ticket or account is not in a state that allows this",
     422: "Invalid input: a malformed request, or a value the server refuses",
     429: "Too many failed logins; wait the Retry-After seconds",
@@ -199,6 +207,94 @@ def delete_user(user_id: UUID, me: Signed, server: Server) -> None:
     server.service.delete_user(me.user, user_id)
 
 
+@router.get("/ticket-types", tags=["catalog"], responses=_refusals(401, 422))
+def list_ticket_types(me: Signed, server: Server, paging: Paging) -> TicketTypePage:
+    """One page of ticket types, by name. Every signed-in role may read them."""
+    types = server.service.list_ticket_types(me.user)
+    return TicketTypePage(
+        items=[TicketTypeOut.of(item) for item in paging.slice(types)],
+        total=len(types),
+        page=paging.page,
+        size=paging.size,
+    )
+
+
+@router.post("/ticket-types", tags=["catalog"], status_code=201, responses=_refusals(401, 403, 422))
+def create_ticket_type(body: TicketTypeIn, me: Signed, server: Server) -> TicketTypeOut:
+    """Add a ticket type, its price and the currency it is in. Admins and managers."""
+    return TicketTypeOut.of(
+        server.service.create_ticket_type(me.user, body.name, body.price_minor, body.currency)
+    )
+
+
+@router.patch("/ticket-types/{type_id}", tags=["catalog"], responses=_refusals(401, 403, 404, 422))
+def update_ticket_type(
+    type_id: UUID, body: TicketTypePatch, me: Signed, server: Server
+) -> TicketTypeOut:
+    """Rename a ticket type, or change its price or currency. Issued tickets keep theirs."""
+    return TicketTypeOut.of(
+        server.service.edit_ticket_type(
+            me.user, type_id, name=body.name, price=body.price_minor, currency=body.currency
+        )
+    )
+
+
+@router.delete(
+    "/ticket-types/{type_id}",
+    tags=["catalog"],
+    status_code=204,
+    responses=_refusals(401, 403, 404, 422),
+)
+def delete_ticket_type(type_id: UUID, me: Signed, server: Server) -> None:
+    """Remove a ticket type. Tickets already issued keep their name and price."""
+    server.service.delete_ticket_type(me.user, type_id)
+
+
+@router.get("/visitor-types", tags=["catalog"], responses=_refusals(401, 422))
+def list_visitor_types(me: Signed, server: Server, paging: Paging) -> VisitorTypePage:
+    """One page of visitor types, by name. Every signed-in role may read them."""
+    types = server.service.list_visitor_types(me.user)
+    return VisitorTypePage(
+        items=[VisitorTypeOut.of(item) for item in paging.slice(types)],
+        total=len(types),
+        page=paging.page,
+        size=paging.size,
+    )
+
+
+@router.post(
+    "/visitor-types", tags=["catalog"], status_code=201, responses=_refusals(401, 403, 422)
+)
+def create_visitor_type(body: VisitorTypeIn, me: Signed, server: Server) -> VisitorTypeOut:
+    """Add a visitor type and the discount its tickets get. Admins and managers."""
+    return VisitorTypeOut.of(
+        server.service.create_visitor_type(me.user, body.name, body.discount_percent)
+    )
+
+
+@router.patch("/visitor-types/{type_id}", tags=["catalog"], responses=_refusals(401, 403, 404, 422))
+def update_visitor_type(
+    type_id: UUID, body: VisitorTypePatch, me: Signed, server: Server
+) -> VisitorTypeOut:
+    """Rename a visitor type or change its discount. Tickets already issued keep theirs."""
+    return VisitorTypeOut.of(
+        server.service.edit_visitor_type(
+            me.user, type_id, name=body.name, discount_percent=body.discount_percent
+        )
+    )
+
+
+@router.delete(
+    "/visitor-types/{type_id}",
+    tags=["catalog"],
+    status_code=204,
+    responses=_refusals(401, 403, 404, 422),
+)
+def delete_visitor_type(type_id: UUID, me: Signed, server: Server) -> None:
+    """Remove a visitor type. Tickets already issued keep their name and discount."""
+    server.service.delete_visitor_type(me.user, type_id)
+
+
 @router.get("/tickets", tags=["tickets"], responses=_refusals(401, 422))
 def list_tickets(
     me: Signed, server: Server, paging: Paging, state: Annotated[TicketState | None, Query()] = None
@@ -224,6 +320,7 @@ def create_ticket(body: TicketIn, me: Signed, server: Server) -> TicketOut:
         valid_from=parse_input_datetime(body.valid_from, timezone),
         valid_until=parse_input_datetime(body.valid_until, timezone),
         usage_type=body.usage_type,
+        ticket_type=body.ticket_type,
     )
     return _ticket(server, ticket)
 

@@ -7,12 +7,30 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from tiqr.core.localtime import zone
-from tiqr.core.models import Role, Ticket, TicketState, UsageType, User, WebSession
+from tiqr.core.models import (
+    MAX_DISCOUNT,
+    MAX_PRICE,
+    Currency,
+    Role,
+    Ticket,
+    TicketState,
+    TicketType,
+    UsageType,
+    User,
+    VisitorType,
+    WebSession,
+)
 
 # Generous bounds: they stop runaway bodies, while the core decides what is valid.
 _Name = Annotated[str, StringConstraints(max_length=200)]
 _Username = Annotated[str, StringConstraints(max_length=150)]
 _Password = Annotated[str, StringConstraints(max_length=1024)]
+_Price = Annotated[
+    int, Field(ge=0, le=MAX_PRICE, description="In minor units, such as cents: 1250 is 12.50")
+]
+_Discount = Annotated[
+    int, Field(ge=0, le=MAX_DISCOUNT, description="Per cent taken off a ticket's price")
+]
 _LocalDatetime = Annotated[
     str,
     StringConstraints(max_length=64),
@@ -54,11 +72,41 @@ class TicketIn(_Request):
     valid_from: _LocalDatetime
     valid_until: _LocalDatetime
     usage_type: UsageType
+    ticket_type: Annotated[
+        _Name | None,
+        Field(description="Name of a ticket type; prices the ticket, less the visitor discount"),
+    ] = None
     timezone: Annotated[
         str | None,
         StringConstraints(max_length=64),
         Field(description="IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"),
     ] = None
+
+
+class TicketTypeIn(_Request):
+    name: _Name
+    price_minor: _Price
+    currency: Annotated[Currency, Field(description="The currency the price is in")]
+
+
+class TicketTypePatch(_Request):
+    """Any of: a new name, a new price, a new currency. Omitted fields stay as they are."""
+
+    name: _Name | None = None
+    price_minor: _Price | None = None
+    currency: Currency | None = None
+
+
+class VisitorTypeIn(_Request):
+    name: _Name
+    discount_percent: _Discount = 0
+
+
+class VisitorTypePatch(_Request):
+    """Any of: a new name, a new discount. Omitted fields stay as they are."""
+
+    name: _Name | None = None
+    discount_percent: _Discount | None = None
 
 
 class AssignIn(_Request):
@@ -74,6 +122,36 @@ class UserOut(BaseModel):
     @classmethod
     def of(cls, user: User) -> UserOut:
         return cls(id=user.id, username=user.username, role=user.role, active=user.active)
+
+
+class TicketTypeOut(BaseModel):
+    id: UUID
+    name: str
+    price_minor: Annotated[int, Field(description="In minor units, such as cents")]
+    currency: Annotated[Currency, Field(description="The currency the price is in")]
+
+    @classmethod
+    def of(cls, ticket_type: TicketType) -> TicketTypeOut:
+        return cls(
+            id=ticket_type.id,
+            name=ticket_type.name,
+            price_minor=ticket_type.price,
+            currency=ticket_type.currency,
+        )
+
+
+class VisitorTypeOut(BaseModel):
+    id: UUID
+    name: str
+    discount_percent: Annotated[int, Field(description="Per cent taken off a ticket's price")]
+
+    @classmethod
+    def of(cls, visitor_type: VisitorType) -> VisitorTypeOut:
+        return cls(
+            id=visitor_type.id,
+            name=visitor_type.name,
+            discount_percent=visitor_type.discount_percent,
+        )
 
 
 class SessionOut(BaseModel):
@@ -107,6 +185,13 @@ class TicketOut(BaseModel):
     passed_at: datetime | None
     print_count: int
     use_count: int
+    ticket_type: Annotated[str | None, Field(description="Null for a ticket made without one")]
+    base_price_minor: Annotated[int | None, Field(description="The ticket type's price then")]
+    discount_percent: Annotated[int, Field(description="The visitor type's discount then")]
+    price_minor: Annotated[int | None, Field(description="The base price less the discount")]
+    currency: Annotated[
+        Currency | None, Field(description="The currency the price was in then; null without one")
+    ]
     timezone: Annotated[str, Field(description="The zone every datetime here is shown in")]
 
     @classmethod
@@ -127,6 +212,11 @@ class TicketOut(BaseModel):
             passed_at=ticket.passed_at.astimezone(local) if ticket.passed_at else None,
             print_count=ticket.print_count,
             use_count=ticket.use_count,
+            ticket_type=ticket.ticket_type,
+            base_price_minor=ticket.base_price,
+            discount_percent=ticket.discount_percent,
+            price_minor=ticket.price,
+            currency=ticket.currency,
             timezone=timezone,
         )
 
@@ -143,6 +233,14 @@ class UserPage(_Page):
 
 class TicketPage(_Page):
     items: list[TicketOut]
+
+
+class TicketTypePage(_Page):
+    items: list[TicketTypeOut]
+
+
+class VisitorTypePage(_Page):
+    items: list[VisitorTypeOut]
 
 
 class CountOut(BaseModel):
