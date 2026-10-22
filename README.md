@@ -311,6 +311,40 @@ so timing does not reveal which accounts exist.
 `apps/api/openapi.json` is the API's OpenAPI schema for generating the web client. After changing
 the API, regenerate it with `uv run poe openapi`; a test fails while it is stale.
 
+## Web app
+
+The Svelte UI in `apps/web` talks to the API. A source checkout has no bundled build, so
+develop with two processes: the API on `:7102`, and the Vite dev server, which proxies `/api`
+to it.
+
+```text
+uv run tiqr serve                  # terminal 1: API on 127.0.0.1:7102
+cd apps/web && bun i && bun dev    # terminal 2: UI at http://localhost:5173/tiqr/
+```
+
+Sign in with an account from `tiqr user add`. Each role lands on the Tickets page at `/`
+(under `/admin`, `/manager` or `/operator`).
+
+The Tickets page:
+
+- **Header:** the title, a refresh button, and a **New ticket** button.
+- **Toolbar:** filter tabs for All and each ticket state, plus a search box that matches
+  serial, visitor name, visitor type and ticket type.
+- **Table**, newest first, with sortable headers. Columns: serial (with an icon for one-time
+  or multi-use), visitor, valid from and until, state badge with first-passage time, price with
+  discount and ticket type, print and door-use counts, assignee (staff only), and actions.
+- **Actions:** download the PDF, print the PDF in the browser, print on the server
+  (only when `TIQR_SERVER_PRINTING=true`), and assign (managers only). Download and print are
+  enabled only for `issued` tickets.
+
+Operators see only their own tickets. Managers and admins see all tickets, and managers can
+assign them. The UI has light and dark themes and is available in English, Azerbaijani,
+Kazakh and Russian.
+
+For a production-style run from the built UI, `bun bundle` in `apps/web` writes `build/`.
+Release builds copy that folder to `apps/api/src/tiqr/api/web`, which `tiqr serve` then serves
+under `/tiqr/`. The folder is git-ignored, so copy it by hand only for a local test.
+
 ## Printing
 
 `uv run tiqr ticket save` only writes a PDF file. `uv run tiqr ticket print` writes the same
@@ -503,8 +537,10 @@ uv run pyinstaller packaging/tiqr.spec --noconfirm
 ```
 
 The **Executables** workflow (`.github/workflows/executables.yml`) runs the CI tests, then builds
-the executable on Windows and Linux and smoke-tests each one from an empty folder. Builds
-from `prod` or a `v*` tag upload the executables as 7-day artifacts; a manual run on any other ref
+the executable on Windows and Linux and smoke-tests each one from an empty folder, then assembles
+the install archive (see [Installing a release](#installing-a-release)) and tests it as a customer
+unpacks it. CI holds no vendor key, so the smoke test checks that unlicensed work is refused.
+Builds from `prod` or a `v*` tag upload the archives as 7-day artifacts; a manual run on any other ref
 only builds and tests. The executable contains Python, the fonts and logos, and
 the time zone data. Its config and data live beside it, not in a temporary folder:
 `.env.local`, `tiqr.db` and `out/` appear in the folder that holds the executable. Copy
@@ -520,6 +556,28 @@ Any run with arguments, or from a terminal, first runs `setup` when the signing 
 database is missing, then runs the CLI. `setup`, `reset` and `--help` never run it. `tiqr serve`
 works the same way and serves from that folder. The executable bundles the web build, which the
 Executables workflow compiles in before PyInstaller runs.
+
+### Installing a release
+
+Each release carries one archive per OS, `tiqr-Linux-X64.tar.gz` and `tiqr-Windows-X64.zip`,
+holding the executable, `tiqr_branding.jsonc`, `INSTALL.txt`, `THIRD-PARTY-NOTICES.txt` and an
+install script (plus WinSW on Windows). Unpack it and run the script as an administrator:
+
+```text
+sudo ./install.sh          # Linux: copies to /opt/tiqr
+install.cmd                # Windows: copies to C:\Program Files\TiQR, elevates itself
+```
+
+It runs `tiqr install`: address, port, first admin, firewall and the boot-time service. A rerun from
+a newer archive upgrades the program and keeps the data, branding and license. `tiqr selftest`
+renders a sample badge to prove the bundled assets are intact.
+
+The program does nothing until a license is activated. The install ends by printing a request
+code. Send it to the vendor, who answers with a key (`tools/issue_license.py`); the admin pastes
+it into the **License** page, or runs `tiqr license activate --as <admin> <key>` (or `--file`).
+`tiqr license request-code [--type standard]` prints a new code and `tiqr license status` shows the
+holder and expiry. Every CLI command that touches tickets or the BioStar link checks the license, as
+the API does; `user`, `setup`, `reset`, `install`, `selftest` and the `license` commands do not.
 
 When a terminal run finds no users, it asks for the first admin's username and password
 before the command runs, so the database always gets an admin on first use. Scripts with
@@ -538,5 +596,5 @@ A release is a commit on `main` whose message contains `[PROD]`, such as
    start workflows by itself, so the dispatch is explicit.
 
 To publish a GitHub release, push a `v*` tag whose version matches `version` in
-`pyproject.toml`. The Executables workflow then attaches the executables
+`pyproject.toml`. The Executables workflow then attaches the archives
 and a `SHA256SUMS` file to that release.

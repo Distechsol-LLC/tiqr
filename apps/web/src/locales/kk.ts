@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noExcessiveLinesPerFile: one flat table that must mirror en.ts
 import type { Messages } from '@/locales/en.ts';
 
 // Kazakh nouns stay singular after a number, so counts need no plural forms
@@ -68,6 +69,53 @@ const kk: Messages = {
   language: {
     label: 'Тіл',
   },
+  license: {
+    activate: 'Лицензияны белсендіру',
+    activated: 'Лицензия белсендірілді',
+    alreadyExpired: 'Бұл кілттің мерзімі бұрын өткен.',
+    badSignature: 'Бұл кілт осы өнім үшін жарамсыз.',
+    banner: {
+      expired: 'Лицензияның мерзімі өтті.',
+      invalid: 'Сақталған лицензияны тексеру мүмкін болмады.',
+      none: 'Бұл орнату үшін лицензия қажет.',
+    },
+    checkFailed: 'Лицензияны тексеру мүмкін болмады',
+    checkFailedHint: 'Сервер жауап бермеді. Қайталап көріңіз.',
+    codeFailed: 'Сұраным коды жасалмады',
+    copied: 'Көшірілді',
+    copy: 'Көшіру',
+    daysLeft: (count: number): string => `${count} күн қалды`,
+    description: 'Осы орнатудың лицензиясын сұраңыз, белсендіріңіз немесе ұзартыңыз.',
+    expires: 'Жарамдылық мерзімі',
+    holder: 'Лицензия иесі',
+    keyLabel: 'Лицензия кілті',
+    keyPlaceholder: 'Жеткізушіден алған кілтті қойыңыз',
+    machineId: 'Машина ID',
+    notAdmin: 'Сұраным кодын әкімшіге жіберіңіз: кілтті тек әкімші белсендіре алады.',
+    requestCode: 'Сұраным коды',
+    requestHint: 'Осы орнатуға кілт алу үшін бұл кодты жеткізушіге жіберіңіз.',
+    requestStandard: 'Стандартты лицензия',
+    requestTrial: 'Сынақ (30 күн)',
+    requestType: 'Сұралатын лицензия',
+    retry: 'Қайталау',
+    states: {
+      active: 'Белсенді',
+      expired: 'Мерзімі өтті',
+      invalid: 'Тексерілмеген',
+      none: 'Лицензия жоқ',
+      trial: 'Сынақ',
+    },
+    status: 'Күйі',
+    title: 'Лицензия',
+    trialOverPaid: 'Сынақ лицензиясы ақылы лицензияны алмастыра алмайды.',
+    type: 'Түрі',
+    types: {
+      enterprise: 'Корпоративтік',
+      standard: 'Стандартты',
+      trial: 'Сынақ',
+    },
+    wrongMachine: 'Бұл кілт басқа машинаға берілген.',
+  },
   login: {
     failed: 'Кіру сәтсіз аяқталды',
     hidePassword: 'Құпия сөзді жасыру',
@@ -83,6 +131,7 @@ const kk: Messages = {
     collapse: 'Жию',
     expand: 'Жаю',
     label: 'Негізгі',
+    license: 'Лицензия',
     overview: 'Шолу',
     signOut: 'Шығу',
     tickets: 'Билеттер',

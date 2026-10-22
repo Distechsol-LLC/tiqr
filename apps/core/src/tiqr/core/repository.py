@@ -12,6 +12,7 @@ from uuid import UUID
 from tiqr.core.models import (
     AccessEvent,
     Currency,
+    LicenseRecord,
     Outcome,
     Registration,
     Role,
@@ -135,6 +136,14 @@ FROM tickets;
 DROP TABLE tickets;
 ALTER TABLE tickets_rebuilt RENAME TO tickets;
 """
+# Keys are never deleted: a new activation deactivates the old row, so the table is a history.
+_LICENSES = """
+CREATE TABLE licenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, license_key TEXT NOT NULL,
+    is_active INTEGER NOT NULL CHECK(is_active IN (0,1)), activated_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL, licensed_to TEXT NOT NULL
+)
+"""
 
 
 def _statements(script: str) -> tuple[str, ...]:
@@ -146,7 +155,7 @@ def _statements(script: str) -> tuple[str, ...]:
 # transaction with its version bump.
 _MIGRATIONS = tuple(
     _statements(script)
-    for script in (_SCHEMA, _WEB_SESSIONS, _USER_ACTIVE, _CATALOG, _CURRENCY, _TENGE)
+    for script in (_SCHEMA, _WEB_SESSIONS, _USER_ACTIVE, _CATALOG, _CURRENCY, _TENGE, _LICENSES)
 )
 SCHEMA_VERSION = len(_MIGRATIONS)
 
@@ -182,6 +191,17 @@ def _user(row: sqlite3.Row) -> User:
         row["password_hash"],
         Role(row["role"]),
         active=bool(row["active"]),
+    )
+
+
+def _license(row: sqlite3.Row) -> LicenseRecord:
+    return LicenseRecord(
+        row["license_key"],
+        datetime.fromisoformat(row["activated_at"]),
+        datetime.fromisoformat(row["expires_at"]),
+        row["licensed_to"],
+        is_active=bool(row["is_active"]),
+        id=row["id"],
     )
 
 
@@ -559,3 +579,29 @@ class SQLiteRepository(Repository):
             "DELETE FROM web_sessions WHERE last_seen_at<=? OR expires_at<=?",
             (_instant(utc(idle_since)), _instant(utc(now))),
         )
+
+    def activate_license(self, record: LicenseRecord) -> None:
+        """Deactivate every key and store this one as the active key, in one transaction."""
+        with self.transaction():
+            self._connection.execute("UPDATE licenses SET is_active=0")
+            self._connection.execute(
+                "INSERT INTO licenses (license_key, is_active, activated_at, expires_at,"
+                " licensed_to) VALUES (?,1,?,?,?)",
+                (
+                    record.license_key,
+                    _instant(record.activated_at),
+                    _instant(record.expires_at),
+                    record.licensed_to,
+                ),
+            )
+
+    def deactivate_licenses(self) -> None:
+        self._execute("UPDATE licenses SET is_active=0")
+
+    def active_license(self) -> LicenseRecord | None:
+        return self._fetch_one(
+            _license, "SELECT * FROM licenses WHERE is_active=1 ORDER BY id DESC LIMIT 1"
+        )
+
+    def list_licenses(self) -> list[LicenseRecord]:
+        return self._fetch_all(_license, "SELECT * FROM licenses ORDER BY id DESC")

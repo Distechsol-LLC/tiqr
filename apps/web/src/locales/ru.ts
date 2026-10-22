@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noExcessiveLinesPerFile: one flat table that must mirror en.ts
 import type { Messages } from '@/locales/en.ts';
 import { plural } from '%/plural.ts';
 
@@ -70,6 +71,54 @@ const ru: Messages = {
   language: {
     label: 'Язык',
   },
+  license: {
+    activate: 'Активировать лицензию',
+    activated: 'Лицензия активирована',
+    alreadyExpired: 'Срок действия этого ключа уже истёк.',
+    badSignature: 'Этот ключ недействителен для данного продукта.',
+    banner: {
+      expired: 'Срок действия лицензии истёк.',
+      invalid: 'Сохранённую лицензию не удалось проверить.',
+      none: 'Для этой установки нужна лицензия.',
+    },
+    checkFailed: 'Не удалось проверить лицензию',
+    checkFailedHint: 'Сервер не ответил. Попробуйте ещё раз.',
+    codeFailed: 'Не удалось создать код запроса',
+    copied: 'Скопировано',
+    copy: 'Копировать',
+    daysLeft: (count: number): string =>
+      `${plural('ru', count, { few: 'остаётся', many: 'остаётся', one: 'остался', other: 'остаётся' })} ${count} ${plural('ru', count, { few: 'дня', many: 'дней', one: 'день', other: 'дня' })}`,
+    description: 'Запросите, активируйте или продлите лицензию этой установки.',
+    expires: 'Действует до',
+    holder: 'Выдана',
+    keyLabel: 'Лицензионный ключ',
+    keyPlaceholder: 'Вставьте ключ, полученный от поставщика',
+    machineId: 'ID машины',
+    notAdmin: 'Отправьте код запроса администратору: ключ может активировать только администратор.',
+    requestCode: 'Код запроса',
+    requestHint: 'Отправьте этот код поставщику, чтобы получить ключ для этой установки.',
+    requestStandard: 'Стандартная лицензия',
+    requestTrial: 'Пробная (30 дней)',
+    requestType: 'Запрашиваемая лицензия',
+    retry: 'Повторить',
+    states: {
+      active: 'Действует',
+      expired: 'Истекла',
+      invalid: 'Не проверена',
+      none: 'Нет лицензии',
+      trial: 'Пробная',
+    },
+    status: 'Статус',
+    title: 'Лицензия',
+    trialOverPaid: 'Пробная лицензия не заменяет платную.',
+    type: 'Тип',
+    types: {
+      enterprise: 'Корпоративная',
+      standard: 'Стандартная',
+      trial: 'Пробная',
+    },
+    wrongMachine: 'Этот ключ выдан для другой машины.',
+  },
   login: {
     failed: 'Не удалось войти',
     hidePassword: 'Скрыть пароль',
@@ -85,6 +134,7 @@ const ru: Messages = {
     collapse: 'Свернуть',
     expand: 'Развернуть',
     label: 'Главное',
+    license: 'Лицензия',
     overview: 'Обзор',
     signOut: 'Выйти',
     tickets: 'Билеты',

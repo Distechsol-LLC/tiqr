@@ -63,3 +63,27 @@ def _principal(request: Request, server: Server) -> Principal:
 
 # A signed-in caller; write requests must also carry the session's CSRF token.
 Signed = Annotated[Principal, Depends(_principal)]
+
+
+# Everything else behind the router is refused without a valid license, so a route added later
+# is protected until someone lists it here. Names are the handlers', as the OpenAPI IDs are.
+LICENSE_EXEMPT = frozenset(
+    {
+        "health",
+        "branding",
+        "logo",
+        "login",
+        "logout",
+        "session",
+        "license_status",
+        "license_request_code",
+        "activate_license",
+    }
+)
+
+
+def require_license(request: Request, server: Server) -> None:
+    route = request.scope.get("route")
+    if getattr(route, "name", None) in LICENSE_EXEMPT:
+        return
+    server.service.require_license()

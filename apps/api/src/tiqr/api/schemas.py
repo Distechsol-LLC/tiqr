@@ -6,11 +6,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from tiqr.core.license import LicenseState, LicenseStatus, LicenseType
 from tiqr.core.localtime import zone
 from tiqr.core.models import (
     MAX_DISCOUNT,
     MAX_PRICE,
     Currency,
+    LicenseRecord,
     Role,
     Ticket,
     TicketState,
@@ -280,6 +282,59 @@ class BrandingOut(BaseModel):
     has_logo: Annotated[bool, Field(description="Whether /api/logo serves logo_path")]
 
 
+class LicenseStatusOut(BaseModel):
+    """Verified against the signed key on every read; only `none` and `invalid` hide the rest."""
+
+    state: LicenseState
+    is_valid: Annotated[bool, Field(description="True only for a live trial or paid license")]
+    machine_id: Annotated[str, Field(description="This install's fingerprint, in every state")]
+    type: LicenseType | None = None
+    licensed_to: str | None = None
+    expires_at: datetime | None = None
+    days_remaining: int | None = None
+
+    @classmethod
+    def of(cls, status: LicenseStatus) -> LicenseStatusOut:
+        return cls(
+            state=status.state,
+            is_valid=status.is_valid,
+            machine_id=status.machine_id,
+            type=status.type,
+            licensed_to=status.licensed_to,
+            expires_at=status.expires_at,
+            days_remaining=status.days_remaining,
+        )
+
+
+class RequestCodeOut(BaseModel):
+    code: Annotated[str, Field(description="Send this to the vendor to get a key")]
+
+
+class ActivateIn(BaseModel):
+    license_key: Annotated[str, StringConstraints(max_length=4096)]
+
+
+class LicenseRecordOut(BaseModel):
+    id: int
+    is_active: bool
+    activated_at: datetime
+    expires_at: datetime
+    licensed_to: str
+    key_hint: Annotated[str, Field(description="Both ends of the key; it is a working credential")]
+
+    @classmethod
+    def of(cls, record: LicenseRecord) -> LicenseRecordOut:
+        key = record.license_key
+        return cls(
+            id=record.id or 0,
+            is_active=record.is_active,
+            activated_at=record.activated_at,
+            expires_at=record.expires_at,
+            licensed_to=record.licensed_to,
+            key_hint=f"{key[:8]}…{key[-6:]}",
+        )
+
+
 class HealthOut(BaseModel):
     status: str
     version: str
@@ -298,6 +353,11 @@ ErrorCode = Literal[
     "rate_limited",
     "printer",
     "biostar",
+    "license_required",
+    "license_bad_signature",
+    "license_wrong_machine",
+    "license_already_expired",
+    "license_trial_over_paid",
     "internal",
 ]
 

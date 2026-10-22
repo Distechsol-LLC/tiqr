@@ -651,3 +651,54 @@ def test_branding_is_public_and_follows_the_languages(client):
     assert body["currencies"] == ["USD", "RUB", "AZN"]
     assert body["has_logo"] is False
     assert client.get("/api/logo").status_code == 404
+
+
+def test_license_gate_status_and_activation(make_client, service, accounts, issue, clock):
+    service.deactivate_license(accounts["admin"])
+    with make_client() as client:
+        assert client.get("/api/health").status_code == 200
+        login(client)
+        gated = client.get("/api/users")
+        assert gated.status_code == 403
+        assert gated.json()["code"] == "license_required"
+        status = client.get("/api/license/status").json()
+        assert status["state"] == "none"
+        assert status["is_valid"] is False
+        assert len(status["machine_id"]) == 32
+
+        code = client.get("/api/license/request-code", params={"type": "trial"}).json()["code"]
+        assert code
+        assert client.get("/api/license/request-code", params={"type": "x"}).status_code == 422
+
+        bad = client.post("/api/license/activate", json={"license_key": "a.b"})
+        assert bad.status_code == 400
+        assert bad.json()["code"] == "license_bad_signature"
+
+        done = client.post("/api/license/activate", json={"license_key": issue()})
+        assert done.status_code == 200
+        assert done.json()["state"] == "active"
+        assert client.get("/api/users").status_code == 200
+        history = client.get("/api/license/history").json()
+        assert len(history) == 2
+        assert "…" in history[0]["key_hint"]
+        assert client.post("/api/license/deactivate").status_code == 204
+        assert client.get("/api/users").status_code == 403
+
+
+def test_license_expiry_mid_session_closes_the_gate(client, clock):
+    login(client)
+    assert client.get("/api/users").status_code == 200
+    clock.now += timedelta(days=400)
+    # The jump ended the web session too, so sign in again: the 403 below is the license
+    login(client)
+    refused = client.get("/api/users")
+    assert refused.status_code == 403
+    assert refused.json()["code"] == "license_required"
+    assert client.get("/api/license/status").json()["state"] == "expired"
+
+
+def test_only_admins_activate_licenses(client, issue):
+    login(client, username="manager")
+    assert client.post("/api/license/activate", json={"license_key": issue()}).status_code == 403
+    assert client.get("/api/license/history").status_code == 403
+    assert client.get("/api/license/request-code").status_code == 200

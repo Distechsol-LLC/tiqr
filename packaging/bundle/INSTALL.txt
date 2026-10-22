@@ -1,0 +1,23 @@
+TiQR: installing
+
+Linux (needs root):    sudo ./install.sh
+Windows (needs admin): double-click install.cmd
+
+The script copies this folder to /opt/tiqr (Linux) or C:\Program Files\TiQR (Windows), then asks
+for the address operators' PCs will use, the port, and the first admin account. It opens the port
+in the firewall and installs TiQR as a service that starts at boot.
+
+Edit tiqr_branding.jsonc before installing if you need your own name, logo or languages.
+
+Activating the license
+----------------------
+TiQR refuses all work until it has a license. At the end of the install it prints a REQUEST CODE.
+1. Send that code to your vendor. (Again later: tiqr license request-code --type standard.)
+2. Open the address it printed in a browser, sign in as the admin, and paste the key the vendor
+   sends back into the License page.
+   Without a browser: tiqr license activate --as <admin> <key>   (or --file key.txt)
+   Check it with: tiqr license status
+
+A license belongs to this machine. Changing its hostname or network cards needs a new key.
+
+Upgrading: run the install script from the newer bundle. Data, settings and the license stay.

@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noExcessiveLinesPerFile: one flat table that must mirror en.ts
 // The source locale: every other one in config/locales.ts must match this shape
 const en = {
   assign: {
@@ -65,6 +66,54 @@ const en = {
   language: {
     label: 'Language',
   },
+  license: {
+    activate: 'Activate license',
+    activated: 'License activated',
+    alreadyExpired: 'This key has already expired.',
+    badSignature: 'This key is not valid for this product.',
+    banner: {
+      expired: 'The license has expired.',
+      invalid: 'The stored license could not be verified.',
+      none: 'This install needs a license.',
+    },
+    checkFailed: 'Could not check the license',
+    checkFailedHint: 'The server did not answer. Try again.',
+    codeFailed: 'Request code not created',
+    copied: 'Copied',
+    copy: 'Copy',
+    daysLeft: (count: number): string => (count === 1 ? '1 day left' : `${count} days left`),
+    description: 'Request, activate or renew the license for this install.',
+    expires: 'Expires',
+    holder: 'Licensed to',
+    keyLabel: 'License key',
+    keyPlaceholder: 'Paste the key you received from the vendor',
+    machineId: 'Machine ID',
+    notAdmin:
+      'Send the request code to your administrator: only an administrator can activate a key.',
+    requestCode: 'Request code',
+    requestHint: 'Send this code to the vendor to receive a key for this install.',
+    requestStandard: 'Standard license',
+    requestTrial: 'Trial (30 days)',
+    requestType: 'License requested',
+    retry: 'Try again',
+    states: {
+      active: 'Active',
+      expired: 'Expired',
+      invalid: 'Not verified',
+      none: 'Not licensed',
+      trial: 'Trial',
+    },
+    status: 'Status',
+    title: 'License',
+    trialOverPaid: 'A trial cannot replace a paid license.',
+    type: 'Type',
+    types: {
+      enterprise: 'Enterprise',
+      standard: 'Standard',
+      trial: 'Trial',
+    },
+    wrongMachine: 'This key was issued for another machine.',
+  },
   login: {
     failed: 'Sign-in failed',
     hidePassword: 'Hide password',
@@ -80,6 +129,7 @@ const en = {
     collapse: 'Collapse',
     expand: 'Expand',
     label: 'Main',
+    license: 'License',
     overview: 'Overview',
     signOut: 'Sign out',
     tickets: 'Tickets',

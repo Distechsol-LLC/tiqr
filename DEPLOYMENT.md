@@ -54,8 +54,8 @@ tiqr-0.10.0/
 └── THIRD-PARTY-NOTICES.txt
 ```
 
-Neither CI nor the bundle holds per-customer data or secrets. A per-customer license file, if
-used, is delivered separately (see [Security risks](#security-risks)).
+Neither CI nor the bundle holds per-customer data or secrets. A per-customer license key is
+issued separately by the vendor (see [Licensing](#licensing) and [Security risks](#security-risks)).
 
 Nuitka, like PyInstaller, cannot cross-compile: each payload is built on a runner of its OS.
 Build Linux binaries on the **oldest glibc you support** (for example in a `manylinux_2_28`
@@ -273,8 +273,8 @@ Risks specific to shipping compiled code to third parties, most important first:
    Nuitka raises the cost but does not stop a determined reader. Don't rely on obscurity for
    anything, and keep the EULA's reverse-engineering terms explicit.
 2. **The customer is root on the box.** They can read the database, config, BioStar password
-   and process memory, and they can patch out any license check. Design for that: a license file
-   signed with Ed25519 (private key only in your release pipeline, public key in the binary) is
+   and process memory, and they can patch out any license check. Design for that: a license key
+   signed with RSA-2048 (private key only on the vendor's machine, public key in the binary) is
    a deterrent, not a lock.
 3. **Never build a secret into an artifact.** No shared signing key, BioStar credentials or
    license private key in the code or bundle, and no secret that is the same across customers.
@@ -341,4 +341,29 @@ through FastAPI's TestClient, never against a live BioStar. The PyInstaller smok
    - Bundle assembly, `SHA256SUMS`, Ed25519 signing, Authenticode and `THIRD-PARTY-NOTICES` in
      the Executables workflow.
    - `--upgrade` with backup, migrations and rollback.
-   - Optionally, the license file check.
+   - The license check is built in (see [Licensing](#licensing)).
+
+## Licensing
+
+The program refuses every API request without a valid license, and the web app shows a wall
+until one is activated. There is no license server and no telemetry.
+
+1. The customer opens the app, copies the **request code** from the wall (trial or standard) and
+   sends it to the vendor. The code carries this install's machine ID and a random request ID.
+2. The vendor runs `tools/issue_license.py --request CODE --type trial`, or
+   `--licensedTo "Company" --days 365`, and sends back the key.
+3. An admin pastes the key into the wall (or **License** in the admin menu). The key is
+   `base64(payload).base64(signature)`: RSA-2048, PKCS#1 v1.5, SHA-256 over the payload bytes.
+
+The signature is verified on every status read; the database only caches it. A trial is a
+vendor-signed key with a 30-day expiry, never issued by the program.
+
+**Vendor setup.** Keep `license-private.pem`, `license-public.pem` and `issued.json` in
+`TIQR_VENDOR_DIR` (default `~/.tiqr-vendor`), never in the repository or a build. The public key
+is the `PUBLIC_KEY` constant in `apps/core/src/tiqr/core/license.py`; the tool refuses to sign if
+they differ. `issued.json` is the trial registry (one trial per machine ID) and holds working
+keys: back it up and restrict it. Rotating the key pair voids every issued key.
+
+**Not covered.** A new hostname or MAC gets a new trial, clock rollback extends a license, a
+copied install keeps working, and there is no revocation. See the accepted limitations in the
+design notes; short licenses with scheduled reissue are the cheapest mitigation.

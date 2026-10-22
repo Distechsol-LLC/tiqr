@@ -203,3 +203,19 @@ class Registration:
     card_id: str
     user_removed: bool = False
     card_removed: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class LicenseRecord:
+    """A stored key. The key is the authority; the other columns only cache what it says."""
+
+    license_key: str
+    activated_at: datetime
+    expires_at: datetime
+    licensed_to: str
+    is_active: bool = True
+    id: int | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "activated_at", utc(self.activated_at))
+        object.__setattr__(self, "expires_at", utc(self.expires_at))
