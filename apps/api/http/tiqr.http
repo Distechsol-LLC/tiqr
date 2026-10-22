@@ -236,6 +236,18 @@ X-CSRF-Token: {{csrfToken}}
   });
 %}
 
+### Stats for a date range
+# The same figures, only for tickets created on these days in TIQR_DEFAULT_TZ; both ends are
+# inclusive and either may be left out. 200.
+GET {{baseUrl}}/api/stats?since=2026-09-01&until=2026-09-30
+X-CSRF-Token: {{csrfToken}}
+
+> {%
+  client.test("Dated stats read", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
 
 ### Wrong password
 # Run these last: this one counts toward the login limit. 401.

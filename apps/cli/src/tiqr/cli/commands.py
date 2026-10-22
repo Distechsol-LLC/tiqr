@@ -376,10 +376,26 @@ def cleanup(actor: Actor) -> None:
 
 
 @app.command()
-def stats(actor: Actor) -> None:
-    """Show ticket, access and PDF rendering totals."""
+def stats(
+    actor: Actor,
+    since: Annotated[
+        datetime | None, typer.Option(formats=["%Y-%m-%d"], help="First local day, inclusive.")
+    ] = None,
+    until: Annotated[
+        datetime | None, typer.Option(formats=["%Y-%m-%d"], help="Last local day, inclusive.")
+    ] = None,
+) -> None:
+    """Show ticket, access and PDF rendering totals, for tickets created in a date range."""
     with _session() as runtime:
-        _json(runtime.service.stats(runtime.authenticate(actor)))
+        user = runtime.authenticate(actor)
+        _json(
+            runtime.service.stats(
+                user,
+                since=since.date() if since else None,
+                until=until.date() if until else None,
+                timezone=runtime.settings.default_tz,
+            )
+        )
 
 
 @app.command()

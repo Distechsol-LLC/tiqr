@@ -171,7 +171,7 @@ Admins and managers.
 | --- | --- | --- | --- |
 | POST | `/sync` | session + CSRF | Fetch and apply new access events now. Returns `{count}`. |
 | POST | `/cleanup` | session + CSRF | Remove finished tickets from BioStar now. Returns `{count}`. |
-| GET | `/stats` | session | Totals: `total`, `issued`, `passed`, `expired`, `uses`, `prints`, plus the same counts per visitor type under `visitor_types`. |
+| GET | `/stats` | session | Totals: `total`, `issued`, `passed`, `expired`, `uses`, `prints`, plus the same counts per visitor type under `visitor_types`. `?since=YYYY-MM-DD&until=YYYY-MM-DD` (either optional, both inclusive) counts only tickets created on those days in `TIQR_DEFAULT_TZ`; an end before the start is a 422. |
 
 Sync and cleanup share a lock with the scheduled jobs, so runs never overlap.
 

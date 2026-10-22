@@ -1312,7 +1312,48 @@
           "operations"
         ],
         "summary": "Stats",
+        "description": "Ticket figures, for every ticket or those created within days of TIQR_DEFAULT_TZ.",
         "operationId": "stats",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day counted, inclusive",
+              "title": "Since"
+            },
+            "description": "First day counted, inclusive"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day counted, inclusive",
+              "title": "Until"
+            },
+            "description": "Last day counted, inclusive"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1350,6 +1391,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Stats"
                 }
               }
             }

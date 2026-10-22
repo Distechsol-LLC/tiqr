@@ -99,7 +99,9 @@ const ru: Messages = {
       metric: 'Показатель',
     },
     description: 'Показатели билетов и обслуживание BioStar по запросу',
+    earlier: 'Раньше',
     empty: 'Нет статистики',
+    later: 'Позже',
     metrics: {
       expired: { description: 'Срок действия истёк', label: 'Просрочены' },
       issued: { description: 'Ожидают первого прохода', label: 'Выданы' },
@@ -111,13 +113,22 @@ const ru: Messages = {
         description: 'Пропуска сформированы или напечатаны',
         label: 'Печать',
       },
-      total: { description: 'Все когда-либо выданные билеты', label: 'Всего' },
+      total: { description: 'Все билеты, выданные за период', label: 'Всего' },
       uses: {
         description: 'Разрешённые проходы, учтённые в билетах',
         label: 'Проходы',
       },
     },
     notLoaded: 'Статистика не загружена',
+    pick: 'Выбрать даты',
+    range: 'Период',
+    ranges: {
+      all: 'За всё время',
+      day: 'День',
+      month: 'Месяц',
+      range: 'Диапазон',
+      year: 'Год',
+    },
     sync: {
       action: 'Синхронизировать',
       done: (count: number): string =>

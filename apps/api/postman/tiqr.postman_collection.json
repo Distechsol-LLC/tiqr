@@ -534,6 +534,26 @@
             "header": [],
             "url": "{{baseUrl}}/api/stats"
           }
+        },
+        {
+          "name": "Stats for a date range",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Dated stats read', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "The same figures, only for tickets created on these days in TIQR_DEFAULT_TZ; both ends are inclusive and either may be left out. **200**.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/stats?since=2026-09-01&until=2026-09-30"
+          }
         }
       ]
     },

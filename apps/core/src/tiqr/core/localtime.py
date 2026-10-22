@@ -1,7 +1,7 @@
 """Reading local wall-clock input at the edges; the rest of the core works in UTC."""
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 _ISO_DATETIME = re.compile(r"\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}")
@@ -36,3 +36,8 @@ def parse_input_datetime(text: str, timezone: str) -> datetime:
         kind = "Ambiguous" if candidates else "Nonexistent"
         raise ValueError(f"{kind} local datetime in {timezone}; supply an explicit UTC offset")
     return candidates.pop()
+
+
+def day_start(day: date, timezone: str) -> datetime:
+    """The instant `day` began in `timezone`; each midnight takes its own offset, DST or not."""
+    return datetime.combine(day, time(), tzinfo=zone(timezone)).astimezone(UTC)

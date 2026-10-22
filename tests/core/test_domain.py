@@ -1,10 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import FrozenInstanceError, replace
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
+from tiqr.core.localtime import day_start
 from tiqr.core.models import Outcome, RawEvent, TicketState, UsageType
 from tiqr.core.service import StateError
 
@@ -308,3 +309,47 @@ def test_invalid_creation(service, accounts, clock, change):
         service.create_ticket(accounts["operator"], **(draft | change))
     assert service.repository.list_tickets() == []
     assert service.registrar.tickets == {}
+
+
+@pytest.mark.parametrize(
+    ("timezone", "start"),
+    [
+        ("UTC", datetime(2026, 9, 17, tzinfo=UTC)),
+        # Baku is four hours ahead, so its day starts at 20:00 UTC the day before.
+        ("Asia/Baku", datetime(2026, 9, 16, 20, tzinfo=UTC)),
+        # Paris is on summer time in September and winter time in January.
+        ("Europe/Paris", datetime(2026, 9, 16, 22, tzinfo=UTC)),
+    ],
+)
+def test_day_starts_at_local_midnight(timezone, start):
+    assert day_start(date(2026, 9, 17), timezone) == start
+    assert day_start(date(2026, 1, 1), "Europe/Paris") == datetime(2025, 12, 31, 23, tzinfo=UTC)
+
+
+def test_stats_count_only_tickets_created_within_the_dates(service, accounts, clock):
+    for created in (
+        datetime(2025, 12, 31, 12, tzinfo=UTC),
+        datetime(2026, 8, 31, 12, tzinfo=UTC),
+        datetime(2026, 9, 16, 21, tzinfo=UTC),
+        datetime(2026, 9, 17, 9, tzinfo=UTC),
+    ):
+        clock.now = created
+        issue(service, accounts, clock)
+    admin = accounts["admin"]
+
+    def total(since=None, until=None, timezone="UTC"):
+        return service.stats(admin, since=since, until=until, timezone=timezone)["total"]
+
+    assert total() == 4
+    assert total(date(2026, 1, 1), date(2026, 12, 31)) == 3
+    assert total(date(2026, 9, 1), date(2026, 9, 30)) == 2
+    assert total(date(2026, 9, 17), date(2026, 9, 17)) == 1
+    # Either end may stay open, and both are inclusive.
+    assert total(since=date(2026, 8, 31)) == 3
+    assert total(until=date(2026, 8, 31)) == 2
+    # By Baku's clock, 21:00 UTC on the 16th was already the 17th.
+    assert total(date(2026, 9, 17), date(2026, 9, 17), "Asia/Baku") == 2
+    day = service.stats(admin, since=date(2026, 9, 17), until=date(2026, 9, 17))
+    assert day["visitor_types"]["Student"]["total"] == 1
+    with pytest.raises(ValueError, match="before the start"):
+        total(date(2026, 9, 2), date(2026, 9, 1))

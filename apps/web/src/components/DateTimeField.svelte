@@ -1,10 +1,9 @@
 <script lang="ts">
   import CalendarDays from '@lucide/svelte/icons/calendar-days';
-  import ChevronLeft from '@lucide/svelte/icons/chevron-left';
-  import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import { DatePicker, type DateValue, parseDate } from '@skeletonlabs/skeleton-svelte';
   import { untrack } from 'svelte';
 
+  import CalendarContent from '@/components/CalendarContent.svelte';
   import FieldError from '@/components/FieldError.svelte';
   import TimeField from '@/components/TimeField.svelte';
   import { i18n } from '%/useLocale.svelte.ts';
@@ -25,7 +24,6 @@
 
   const ICON_SIZE = 16;
   const MONDAY = 1;
-  const GRID_COLUMNS = 4;
   // Typed dates read day first, like the tickets table: 21.10.2026, 21/10/2026 or 21-10-2026
   const TYPED_DATE = /^(?<day>\d{1,2})[./-](?<month>\d{1,2})[./-](?<year>\d{4})$/;
 
@@ -77,20 +75,6 @@
   };
 </script>
 
-{#snippet viewControl()}
-  <DatePicker.ViewControl class="items-center">
-    <DatePicker.PrevTrigger aria-label={i18n.t.dateField.previous}>
-      <ChevronLeft aria-hidden="true" size={ICON_SIZE} />
-    </DatePicker.PrevTrigger>
-    <DatePicker.ViewTrigger>
-      <DatePicker.RangeText />
-    </DatePicker.ViewTrigger>
-    <DatePicker.NextTrigger aria-label={i18n.t.dateField.next}>
-      <ChevronRight aria-hidden="true" size={ICON_SIZE} />
-    </DatePicker.NextTrigger>
-  </DatePicker.ViewControl>
-{/snippet}
-
 <DatePicker
   closeOnSelect
   {format}
@@ -137,88 +121,6 @@
   </div>
   <FieldError {error} id={errorId} />
 
-  <!-- Not portalled: inside the dialog, so its focus trap and Escape handling keep working. The
-       z-index sits on the content: the positioner copies it into an inline style of its own -->
-  <DatePicker.Positioner>
-    <DatePicker.Content class="z-30 shadow-xl">
-      <DatePicker.View view="day">
-        <DatePicker.Context>
-          {#snippet children(
-            datePicker
-          )}
-            {@render viewControl()}
-            <DatePicker.Table>
-              <DatePicker.TableHead>
-                <DatePicker.TableRow>
-                  {#each datePicker().weekDays as weekDay, index (index)}
-                    <DatePicker.TableHeader>{weekDay.narrow}</DatePicker.TableHeader>
-                  {/each}
-                </DatePicker.TableRow>
-              </DatePicker.TableHead>
-              <DatePicker.TableBody>
-                {#each datePicker().weeks as week, index (index)}
-                  <DatePicker.TableRow>
-                    {#each week as day (day.toString())}
-                      <DatePicker.TableCell value={day}>
-                        <DatePicker.TableCellTrigger>{day.day}</DatePicker.TableCellTrigger>
-                      </DatePicker.TableCell>
-                    {/each}
-                  </DatePicker.TableRow>
-                {/each}
-              </DatePicker.TableBody>
-            </DatePicker.Table>
-          {/snippet}
-        </DatePicker.Context>
-      </DatePicker.View>
-
-      <DatePicker.View view="month">
-        <DatePicker.Context>
-          {#snippet children(
-            datePicker
-          )}
-            {@render viewControl()}
-            <DatePicker.Table>
-              <DatePicker.TableBody>
-                {#each datePicker().getMonthsGrid({
-                  columns: GRID_COLUMNS,
-                  format: 'short',
-                }) as months, index (index)}
-                  <DatePicker.TableRow>
-                    {#each months as month (month.value)}
-                      <DatePicker.TableCell value={month.value}>
-                        <DatePicker.TableCellTrigger>{month.label}</DatePicker.TableCellTrigger>
-                      </DatePicker.TableCell>
-                    {/each}
-                  </DatePicker.TableRow>
-                {/each}
-              </DatePicker.TableBody>
-            </DatePicker.Table>
-          {/snippet}
-        </DatePicker.Context>
-      </DatePicker.View>
-
-      <DatePicker.View view="year">
-        <DatePicker.Context>
-          {#snippet children(
-            datePicker
-          )}
-            {@render viewControl()}
-            <DatePicker.Table>
-              <DatePicker.TableBody>
-                {#each datePicker().getYearsGrid({ columns: GRID_COLUMNS }) as years, index (index)}
-                  <DatePicker.TableRow>
-                    {#each years as year (year.value)}
-                      <DatePicker.TableCell value={year.value}>
-                        <DatePicker.TableCellTrigger>{year.label}</DatePicker.TableCellTrigger>
-                      </DatePicker.TableCell>
-                    {/each}
-                  </DatePicker.TableRow>
-                {/each}
-              </DatePicker.TableBody>
-            </DatePicker.Table>
-          {/snippet}
-        </DatePicker.Context>
-      </DatePicker.View>
-    </DatePicker.Content>
-  </DatePicker.Positioner>
+  <!-- Not portalled: inside the dialog, so its focus trap and Escape handling keep working -->
+  <CalendarContent />
 </DatePicker>

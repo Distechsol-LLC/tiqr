@@ -3,6 +3,7 @@ import { describe, expect, test as it } from 'bun:test';
 import {
   createTicket,
   fetchSession,
+  fetchStats,
   fetchTickets,
   login,
   logout,
@@ -84,6 +85,22 @@ describe('api', () => {
 
     expect(await fetchTickets('issued')).toEqual({ data: [ticket], ok: true });
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tickets?state=issued');
+  });
+
+  it('reads the statistics for all time or for a date range', async () => {
+    const counts = { expired: 0, issued: 1, passed: 0, prints: 0, total: 1, uses: 0 };
+    const stats = { ...counts, visitor_types: { Guest: counts } };
+    const fetchMock = mockFetch(Response.json(stats), Response.json(stats));
+
+    expect(await fetchStats()).toEqual({ data: stats, ok: true });
+    expect(await fetchStats({ since: '2026-09-01', until: '2026-09-30' })).toEqual({
+      data: stats,
+      ok: true,
+    });
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      '/api/stats',
+      '/api/stats?since=2026-09-01&until=2026-09-30',
+    ]);
   });
 
   it('creates a ticket with JSON and the CSRF token', async () => {

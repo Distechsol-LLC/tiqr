@@ -2,7 +2,7 @@ import hmac
 from collections import Counter
 from collections.abc import Collection
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from functools import partial
 from pathlib import Path
 from typing import TypedDict
@@ -27,6 +27,7 @@ from tiqr.core.auth import (
     web_token_hash,
 )
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
+from tiqr.core.localtime import day_start
 from tiqr.core.models import (
     AccessEvent,
     Outcome,
@@ -538,10 +539,28 @@ class TicketService:
                 removed += 1
         return removed
 
-    def stats(self, actor: User) -> Stats:
+    def stats(
+        self,
+        actor: User,
+        since: date | None = None,
+        until: date | None = None,
+        timezone: str = "UTC",
+    ) -> Stats:
+        """Figures for the tickets created from `since` through `until`, local days in `timezone`.
+
+        Either end may be left open; with neither, every ticket counts.
+        """
         actor = self._actor(actor)
         self._require(actor, _STAFF)
+        if since is not None and until is not None and until < since:
+            raise ValueError("The end date must not be before the start date")
         tickets = self._expire_all()
+        if since is not None:
+            start = day_start(since, timezone)
+            tickets = [ticket for ticket in tickets if ticket.created_at >= start]
+        if until is not None:
+            end = day_start(until + timedelta(days=1), timezone)
+            tickets = [ticket for ticket in tickets if ticket.created_at < end]
         by_type: dict[str, list[Ticket]] = {}
         for ticket in tickets:
             by_type.setdefault(ticket.visitor_type, []).append(ticket)

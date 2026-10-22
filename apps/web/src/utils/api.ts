@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { DateRange } from '%/statsRange.ts';
 import {
   type Credentials,
   type Session,
@@ -193,7 +194,9 @@ const runCleanup = (csrfToken: string): Promise<ApiResult<number>> =>
     write('POST', csrfToken)
   );
 
-const fetchStats = (): Promise<ApiResult<Stats>> => request('/stats', statsSchema);
+// Tickets created on these days, both ends inclusive, on the server's clock; without, every one
+const fetchStats = (range?: DateRange): Promise<ApiResult<Stats>> =>
+  request(range ? `/stats?${new URLSearchParams(range)}` : '/stats', statsSchema);
 
 export type { ApiFailure, ApiResult };
 export {

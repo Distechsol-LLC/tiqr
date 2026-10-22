@@ -96,7 +96,9 @@ const az: Messages = {
       metric: 'Göstərici',
     },
     description: 'Bilet göstəriciləri və istəyə görə BioStar xidməti',
+    earlier: 'Əvvəlki',
     empty: 'Statistika yoxdur',
+    later: 'Sonrakı',
     metrics: {
       expired: {
         description: 'Etibarlılıq müddəti bitib',
@@ -111,13 +113,22 @@ const az: Messages = {
         description: 'Yaradılan və ya çap olunan vəsiqələr',
         label: 'Çaplar',
       },
-      total: { description: 'İndiyədək verilən bütün biletlər', label: 'Cəmi' },
+      total: { description: 'Dövr ərzində verilən bütün biletlər', label: 'Cəmi' },
       uses: {
         description: 'Biletlərə tətbiq olunan icazəli keçidlər',
         label: 'İstifadələr',
       },
     },
     notLoaded: 'Statistika yüklənmədi',
+    pick: 'Tarix seçin',
+    range: 'Dövr',
+    ranges: {
+      all: 'Bütün dövr',
+      day: 'Gün',
+      month: 'Ay',
+      range: 'Aralıq',
+      year: 'İl',
+    },
     sync: {
       action: 'Sinxronlaşdır',
       done: (count: number): string => `${count} yeni giriş hadisəsi tətbiq edildi.`,

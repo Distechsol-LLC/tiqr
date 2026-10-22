@@ -129,6 +129,7 @@ uv run tiqr ticket assign <ticket-uuid> operator --as manager
 uv run tiqr sync --as manager
 uv run tiqr cleanup --as admin
 uv run tiqr stats --as manager
+uv run tiqr stats --since 2026-09-01 --until 2026-09-30 --as manager
 ```
 
 Replace `<ticket-uuid>` with the ID returned by creation. `ticket save` and `ticket print`

@@ -4,6 +4,7 @@ Handlers are plain functions, so FastAPI runs them on its thread pool: the core 
 and its repository and BioStar client serialize their own access.
 """
 
+from datetime import date
 from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated, Any
@@ -274,6 +275,14 @@ def cleanup(me: Signed, server: Server) -> CountOut:
         return CountOut(count=server.service.cleanup(me.user))
 
 
-@router.get("/stats", tags=["operations"], responses=_refusals(401, 403))
-def stats(me: Signed, server: Server) -> StatsOut:
-    return StatsOut.model_validate(server.service.stats(me.user))
+@router.get("/stats", tags=["operations"], responses=_refusals(401, 403, 422))
+def stats(
+    me: Signed,
+    server: Server,
+    since: Annotated[date | None, Query(description="First day counted, inclusive")] = None,
+    until: Annotated[date | None, Query(description="Last day counted, inclusive")] = None,
+) -> StatsOut:
+    """Ticket figures, for every ticket or those created within days of TIQR_DEFAULT_TZ."""
+    return StatsOut.model_validate(
+        server.service.stats(me.user, since=since, until=until, timezone=server.timezone)
+    )

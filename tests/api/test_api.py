@@ -362,6 +362,12 @@ def test_sync_cleanup_and_stats(client, service):
     assert client.post("/api/cleanup").json() == {"count": 1}
     counts = {"total": 1, "issued": 0, "passed": 1, "expired": 0, "uses": 1, "prints": 0}
     assert client.get("/api/stats").json() == {**counts, "visitor_types": {"Visitor": counts}}
+    assert client.get("/api/stats?since=2026-09-17&until=2026-09-17").json()["total"] == 1
+    assert client.get("/api/stats?until=2026-09-16").json()["total"] == 0
+    assert client.get("/api/stats?since=2026-13-01").status_code == 422
+    backwards = client.get("/api/stats?since=2026-09-18&until=2026-09-17")
+    assert backwards.status_code == 422
+    assert backwards.json()["code"] == "invalid"
 
 
 def test_biostar_failures_are_502_with_their_codes(client, service, monkeypatch):

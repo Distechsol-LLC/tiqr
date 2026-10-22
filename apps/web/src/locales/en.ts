@@ -94,7 +94,9 @@ const en = {
       metric: 'Metric',
     },
     description: 'Ticket figures, and BioStar maintenance on demand',
+    earlier: 'Earlier',
     empty: 'No statistics',
+    later: 'Later',
     metrics: {
       expired: { description: 'Past their validity window', label: 'Expired' },
       issued: {
@@ -106,13 +108,22 @@ const en = {
         label: 'Passed',
       },
       prints: { description: 'Badges rendered or printed', label: 'Prints' },
-      total: { description: 'Every ticket ever issued', label: 'Total' },
+      total: { description: 'Every ticket issued in the period', label: 'Total' },
       uses: {
         description: 'Granted passages applied to tickets',
         label: 'Uses',
       },
     },
     notLoaded: 'Statistics not loaded',
+    pick: 'Pick dates',
+    range: 'Period',
+    ranges: {
+      all: 'All time',
+      day: 'Day',
+      month: 'Month',
+      range: 'Range',
+      year: 'Year',
+    },
     sync: {
       action: 'Sync',
       done: (count: number): string =>
