@@ -1,4 +1,5 @@
 import sqlite3
+from dataclasses import replace
 from datetime import timedelta
 from uuid import UUID
 
@@ -104,11 +105,17 @@ def test_the_last_active_admin_is_kept(service, accounts):
     for change in ({"active": False}, {"role": Role.MANAGER}):
         with pytest.raises(StateError, match="last active admin"):
             service.edit_user(admin.id, **change)
+
+
+def test_promoting_someone_demotes_the_current_admin(service, accounts):
+    admin = accounts["admin"]
     service.edit_user(accounts["manager"].id, role=Role.ADMIN)
-    service.edit_user(admin.id, active=False)
-    # The other admin is now the last one.
-    with pytest.raises(StateError, match="last active admin"):
-        service.edit_user(accounts["manager"].id, role=Role.OPERATOR)
+    assert service.repository.user_by_id(accounts["manager"].id).role == Role.ADMIN
+    assert service.repository.user_by_id(admin.id).role == Role.MANAGER
+    with pytest.raises(StateError, match="Only one admin"):
+        service.add_user("second", PASSWORD, Role.ADMIN)
+    with pytest.raises(StateError, match="deactivated"):
+        service.edit_user(accounts["operator"].id, role=Role.ADMIN, active=False)
 
 
 def test_edit_needs_a_change_and_an_existing_user(service, accounts):
@@ -173,7 +180,7 @@ def test_admins_cannot_demote_or_deactivate_themselves(service, accounts):
 
 
 def test_a_deactivated_admin_cannot_manage_users(service, accounts):
-    service.edit_user(accounts["manager"].id, role=Role.ADMIN)
-    service.edit_user(accounts["admin"].id, active=False)
+    # The sole admin can't be deactivated through the service, so set the state directly.
+    service.repository.save_user(replace(accounts["admin"], active=False))
     with pytest.raises(PermissionDeniedError, match="deactivated"):
         service.manage_user(accounts["admin"], accounts["other"].id, active=False)

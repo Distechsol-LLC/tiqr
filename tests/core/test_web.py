@@ -8,7 +8,7 @@ from tiqr.core import repository as repository_module
 from tiqr.core.auth import WEB_SESSION_IDLE, WEB_SESSION_LIFETIME, AuthenticationError, new_user
 from tiqr.core.models import RawEvent, Role, TicketState, UsageType
 from tiqr.core.repository import _MIGRATIONS, SCHEMA_VERSION, SQLiteRepository
-from tiqr.core.service import PermissionDeniedError
+from tiqr.core.service import PermissionDeniedError, StateError
 
 
 def version(path):
@@ -150,12 +150,16 @@ def test_staff_create_and_list_users(service, accounts, role):
     assert [user.username for user in service.list_accounts(actor)] == sorted(accounts)
     created = service.create_user(actor, "newcomer", "newcomer-password", Role.OPERATOR)
     assert service.repository.user_by_name("newcomer") == created
-    # Managers add operators only; admins add any role.
+    # Managers add operators only; admins add any role but a second admin.
     if role == Role.MANAGER:
         with pytest.raises(PermissionDeniedError, match="only create operators"):
             service.create_user(actor, "boss", "boss-password", Role.MANAGER)
     else:
-        assert service.create_user(actor, "boss", "boss-password", Role.ADMIN).role == Role.ADMIN
+        assert (
+            service.create_user(actor, "boss", "boss-password", Role.MANAGER).role == Role.MANAGER
+        )
+        with pytest.raises(StateError, match="Only one admin"):
+            service.create_user(actor, "boss-two", "boss-password", Role.ADMIN)
 
 
 def test_scheduled_runs_need_no_actor(service, accounts, clock):

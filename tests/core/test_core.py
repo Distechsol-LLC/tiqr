@@ -168,12 +168,12 @@ def test_session_rejects_forged_and_retargeted_tokens(service, accounts):
 
 
 def test_add_individual_account_and_reject_duplicate(service):
-    user = service.add_user(" new-admin ", "a-long-password", Role.ADMIN)
-    assert user.username == "new-admin"
+    user = service.add_user(" new-manager ", "a-long-password", Role.MANAGER)
+    assert user.username == "new-manager"
     verify_password(user, "a-long-password")
     assert user in service.list_users()
     with pytest.raises(ValueError, match="exists"):
-        service.add_user("new-admin", "different-password", Role.MANAGER)
+        service.add_user("new-manager", "different-password", Role.OPERATOR)
 
 
 @pytest.mark.parametrize(
