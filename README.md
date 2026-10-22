@@ -311,6 +311,40 @@ so timing does not reveal which accounts exist.
 `apps/api/openapi.json` is the API's OpenAPI schema for generating the web client. After changing
 the API, regenerate it with `uv run poe openapi`; a test fails while it is stale.
 
+## Web app
+
+The Svelte UI in `apps/web` talks to the API. A source checkout has no bundled build, so
+develop with two processes: the API on `:7102`, and the Vite dev server, which proxies `/api`
+to it.
+
+```text
+uv run tiqr serve                  # terminal 1: API on 127.0.0.1:7102
+cd apps/web && bun i && bun dev    # terminal 2: UI at http://localhost:5173/tiqr/
+```
+
+Sign in with an account from `tiqr user add`. Each role lands on the Tickets page at `/`
+(under `/admin`, `/manager` or `/operator`).
+
+The Tickets page:
+
+- **Header:** the title, a refresh button, and a **New ticket** button.
+- **Toolbar:** filter tabs for All and each ticket state, plus a search box that matches
+  serial, visitor name, visitor type and ticket type.
+- **Table**, newest first, with sortable headers. Columns: serial (with an icon for one-time
+  or multi-use), visitor, valid from and until, state badge with first-passage time, price with
+  discount and ticket type, print and door-use counts, assignee (staff only), and actions.
+- **Actions:** download the PDF, print the PDF in the browser, print on the server
+  (only when `TIQR_SERVER_PRINTING=true`), and assign (managers only). Download and print are
+  enabled only for `issued` tickets.
+
+Operators see only their own tickets. Managers and admins see all tickets, and managers can
+assign them. The UI has light and dark themes and is available in English, Azerbaijani,
+Kazakh and Russian.
+
+For a production-style run from the built UI, `bun bundle` in `apps/web` writes `build/`.
+Release builds copy that folder to `apps/api/src/tiqr/api/web`, which `tiqr serve` then serves
+under `/tiqr/`. The folder is git-ignored, so copy it by hand only for a local test.
+
 ## Printing
 
 `uv run tiqr ticket save` only writes a PDF file. `uv run tiqr ticket print` writes the same

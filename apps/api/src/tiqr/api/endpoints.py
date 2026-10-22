@@ -16,9 +16,10 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import FileResponse
 
 from tiqr.api import __version__
-from tiqr.api.deps import AppState, Server, Signed
+from tiqr.api.deps import AppState, Server, Signed, require_license
 from tiqr.api.errors import ApiError
 from tiqr.api.schemas import (
+    ActivateIn,
     AssignIn,
     BrandingOut,
     ConfigOut,
@@ -26,7 +27,10 @@ from tiqr.api.schemas import (
     ErrorOut,
     FieldErrorsOut,
     HealthOut,
+    LicenseRecordOut,
+    LicenseStatusOut,
     LoginIn,
+    RequestCodeOut,
     SessionOut,
     StatsOut,
     TicketIn,
@@ -47,11 +51,13 @@ from tiqr.api.schemas import (
 )
 from tiqr.api.security import clear_session_cookie, cookie_name, set_session_cookie
 from tiqr.core.auth import WEB_SESSION_IDLE, AuthenticationError
+from tiqr.core.license import RequestType
 from tiqr.core.localtime import parse_input_datetime
 from tiqr.core.models import Currency, Ticket, TicketState
 
 router = APIRouter(
     prefix="/api",
+    dependencies=[Depends(require_license)],
     # Any handler can fail unexpectedly, and the error handler answers 500 for all of them.
     responses={500: {"model": ErrorOut, "description": "Unexpected server error"}},
 )
@@ -63,10 +69,11 @@ _DEFAULT_SIZE = 20
 _MAX_SIZE = 100
 _IDLE_SECONDS = int(WEB_SESSION_IDLE.total_seconds())
 _REFUSALS: dict[int, str] = {
+    400: "The license key is not valid, is for another machine, or has expired",
     401: "Not signed in, or sign-in was refused",
-    403: "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+    403: "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
     404: "Ticket, user, ticket type or visitor type not found",
-    409: "The ticket or account is not in a state that allows this",
+    409: "The ticket, account or license is not in a state that allows this",
     422: "Invalid input: a malformed request, or a value the server refuses",
     429: "Too many failed logins; wait the Retry-After seconds",
     502: "BioStar or the server's printer failed",
@@ -162,6 +169,42 @@ def logo(server: Server) -> FileResponse:
 @router.get("/config", tags=["meta"], responses=_refusals(401))
 def config(_: Signed, server: Server) -> ConfigOut:
     return ConfigOut(timezone=server.timezone, server_printing=server.config.server_printing)
+
+
+@router.get("/license/status", tags=["license"], responses=_refusals(401))
+def license_status(_: Signed, server: Server) -> LicenseStatusOut:
+    """The license, verified now; the web app shows its wall unless `is_valid` is true."""
+    return LicenseStatusOut.of(server.service.license_status())
+
+
+@router.get("/license/request-code", tags=["license"], responses=_refusals(401, 422))
+def license_request_code(
+    me: Signed,
+    server: Server,
+    type: Annotated[RequestType, Query()] = "standard",  # noqa: A002
+) -> RequestCodeOut:
+    """A code to send the vendor, for any signed-in role."""
+    return RequestCodeOut(code=server.service.license_request_code(me.user, type))
+
+
+@router.post("/license/activate", tags=["license"], responses=_refusals(400, 401, 403, 409, 422))
+def activate_license(body: ActivateIn, me: Signed, server: Server) -> LicenseStatusOut:
+    """Store a vendor key (admin). A refused key leaves the current license in place."""
+    return LicenseStatusOut.of(server.service.activate_license(me.user, body.license_key))
+
+
+@router.post(
+    "/license/deactivate", tags=["license"], status_code=204, responses=_refusals(401, 403)
+)
+def deactivate_license(me: Signed, server: Server) -> None:
+    """Retire the active key (admin), for swapping licenses by hand. Resets nothing else."""
+    server.service.deactivate_license(me.user)
+
+
+@router.get("/license/history", tags=["license"], responses=_refusals(401, 403))
+def license_history(me: Signed, server: Server) -> list[LicenseRecordOut]:
+    """Every stored key, newest first (admin), with most of each key hidden."""
+    return [LicenseRecordOut.of(record) for record in server.service.license_history(me.user)]
 
 
 @router.post("/auth/login", tags=["auth"], responses=_refusals(401, 403, 422, 429))

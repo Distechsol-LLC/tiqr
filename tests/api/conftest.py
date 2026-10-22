@@ -17,6 +17,13 @@ TLS = {"tls_cert": Path("cert.pem"), "tls_key": Path("key.pem")}
 
 
 @pytest.fixture
+def service(service, accounts, issue):
+    # The API refuses everything without a license, so its tests start with a paid one.
+    service.activate_license(accounts["admin"], issue())
+    return service
+
+
+@pytest.fixture
 def printed():
     return []
 

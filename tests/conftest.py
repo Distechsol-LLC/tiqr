@@ -1,12 +1,16 @@
+import importlib.util
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import NAMESPACE_DNS, uuid5
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from tiqr.core import settings
 from tiqr.core.auth import new_user
+from tiqr.core.license import build_request_code, parse_request_code
 from tiqr.core.models import Role
 from tiqr.core.repository import SQLiteRepository
 from tiqr.core.service import TicketService
@@ -62,6 +66,46 @@ def clock():
     return Clock()
 
 
+@pytest.fixture(scope="session")
+def license_pair():
+    """A throwaway RSA pair standing in for the vendor's: (private PEM bytes, public PEM text)."""
+    key = rsa.generate_private_key(65537, 2048)
+    private = key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    )
+    public = key.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    return private, public.decode()
+
+
+def _vendor():
+    spec = importlib.util.spec_from_file_location(
+        "issue_license", REPO_ROOT / "tools/issue_license.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 @pytest.fixture
-def service(repository, clock):
-    return TicketService(repository, SECRET, clock=clock)
+def issue(clock, license_pair):
+    """Sign a key for this machine with the vendor tool's own code."""
+    vendor = _vendor()
+
+    def make(kind="standard", *, days=365, machine=None, **overrides):
+        request = parse_request_code(build_request_code("trial" if kind == "trial" else "standard"))
+        payload = vendor.build_payload(
+            request, kind=kind, licensed_to="Acme", days=days, now=clock.now
+        )
+        payload |= overrides
+        if machine is not None:
+            payload["machineId"] = machine
+        return vendor.sign_license(payload, license_pair[0])
+
+    return make
+
+
+@pytest.fixture
+def service(repository, clock, license_pair):
+    return TicketService(repository, SECRET, clock=clock, license_public_key=license_pair[1])

@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from tiqr.core.auth import AuthenticationError
 from tiqr.core.biostar import BioStarError
+from tiqr.core.license import LicenseError
 from tiqr.core.printer import PrinterError
 from tiqr.core.service import NotFoundError, PermissionDeniedError, StateError
 
@@ -70,6 +71,10 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def api_error(_: Request, exc: ApiError) -> JSONResponse:
         return error_response(exc.status, exc.code, exc.detail, exc.headers)
+
+    @app.exception_handler(LicenseError)
+    async def license_error(_: Request, exc: LicenseError) -> JSONResponse:
+        return error_response(exc.status, exc.code, str(exc))
 
     @app.exception_handler(BioStarError)
     async def biostar_error(_: Request, exc: BioStarError) -> JSONResponse:

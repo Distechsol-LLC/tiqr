@@ -10,6 +10,7 @@ dependencies = [
     "argon2-cffi>=25.1",
     "tzdata>=2025.2",
     "python-dotenv>=1.2.4",
+    "cryptography>=46",
 ]
 
 [build-system]

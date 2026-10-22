@@ -18,6 +18,12 @@ import {
   ticketTypeSchema,
   visitorTypeSchema,
 } from '$/catalog.ts';
+import {
+  type LicenseStatus,
+  type RequestType,
+  licenseStatusSchema,
+  requestCodeSchema,
+} from '$/license.ts';
 import { type Config, type Stats, configSchema, countSchema, statsSchema } from '$/operations.ts';
 import { MAX_SIZE, type Page, type PageRequest, pageSchema } from '$/pagination.ts';
 import {
@@ -34,6 +40,8 @@ const CSRF_HEADER = 'X-CSRF-Token';
 const UNAUTHENTICATED = 401;
 const NO_CONTENT = 204;
 const RATE_LIMITED = 429;
+const FORBIDDEN = 403;
+const LICENSE_REQUIRED = 'license_required';
 
 type ApiFailure =
   | { kind: 'invalid_response' }
@@ -43,6 +51,13 @@ type ApiFailure =
   | { kind: 'unauthenticated' };
 
 type ApiResult<T> = { data: T; ok: true } | { error: ApiFailure; ok: false };
+
+// The license store listens, so a key that ends mid-session raises the wall without a reload
+let onLicenseRequired: (() => void) | null = null;
+
+const listenForLicense = (listener: () => void): void => {
+  onLicenseRequired = listener;
+};
 
 const parseRetryAfter = (header: string | null): number | null => {
   const seconds = Number(header);
@@ -70,6 +85,9 @@ const toFailure = async (response: Response): Promise<ApiFailure> => {
     };
 
   const body = apiErrorSchema.safeParse(await readJson(response));
+
+  if (response.status === FORBIDDEN && body.success && body.data.code === LICENSE_REQUIRED)
+    onLicenseRequired?.();
 
   // Core refusals carry a message meant for people; malformed-request lists don't
   return {
@@ -143,6 +161,25 @@ const logout = (csrfToken: string): Promise<ApiResult<null>> =>
 
 // Public: the login page shows it before anyone signs in
 const fetchBranding = (): Promise<ApiResult<Branding>> => request('/branding', brandingSchema);
+
+const fetchLicense = (): Promise<ApiResult<LicenseStatus>> =>
+  request('/license/status', licenseStatusSchema);
+
+const fetchRequestCode = (type: RequestType): Promise<ApiResult<string>> =>
+  request(
+    `/license/request-code?${new URLSearchParams({ type })}`,
+    requestCodeSchema.transform(({ code }) => code)
+  );
+
+const activateLicense = (
+  csrfToken: string,
+  licenseKey: string
+): Promise<ApiResult<LicenseStatus>> =>
+  request(
+    '/license/activate',
+    licenseStatusSchema,
+    write('POST', csrfToken, { license_key: licenseKey })
+  );
 
 const fetchConfig = (): Promise<ApiResult<Config>> => request('/config', configSchema);
 
@@ -291,6 +328,7 @@ const fetchStats = (range?: DateRange): Promise<ApiResult<Stats>> =>
 
 export type { ApiFailure, ApiResult };
 export {
+  activateLicense,
   assignTicket,
   createTicket,
   createTicketType,
@@ -304,6 +342,8 @@ export {
   fetchAllVisitorTypes,
   fetchBranding,
   fetchConfig,
+  fetchLicense,
+  fetchRequestCode,
   fetchSession,
   fetchStats,
   fetchTicket,
@@ -311,6 +351,7 @@ export {
   fetchTickets,
   fetchUsers,
   fetchVisitorTypes,
+  listenForLicense,
   login,
   logout,
   printTicket,

@@ -27,10 +27,25 @@ from tiqr.core.auth import (
     web_token_hash,
 )
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
+from tiqr.core.license import (
+    PUBLIC_KEY,
+    LicenseError,
+    LicensePayload,
+    LicenseState,
+    LicenseStatus,
+    LicenseType,
+    RequestType,
+    build_request_code,
+    check_machine,
+    days_between,
+    machine_id,
+    verify_license_key,
+)
 from tiqr.core.localtime import day_start
 from tiqr.core.models import (
     AccessEvent,
     Currency,
+    LicenseRecord,
     Outcome,
     RawEvent,
     Role,
@@ -117,12 +132,14 @@ class TicketService:
         *,
         clock: Clock | None = None,
         prefix: str = DEFAULT_PREFIX,
+        license_public_key: str = PUBLIC_KEY,
     ) -> None:
         validate_secret(secret_key)
         validate_prefix(prefix)
         self.repository = repository
         self.secret_key = secret_key
         self.prefix = prefix
+        self._license_public_key = license_public_key
         self.registrar: Registrar = registrar or InMemoryRegistrar()
         self.event_source: EventSource = event_source or InMemoryEventSource()
         self._clock: Clock = clock or partial(datetime.now, UTC)
@@ -270,6 +287,89 @@ class TicketService:
     @staticmethod
     def _is_active_admin(user: User) -> bool:
         return user.active and user.role == Role.ADMIN
+
+    def _verified(self, license_key: str, this_machine: str) -> LicensePayload | None:
+        """The payload when the key verifies for this machine; a copied key is no key."""
+        payload = verify_license_key(license_key, self._license_public_key)
+        return payload if payload and payload.machine_id == this_machine else None
+
+    def _live_license(self) -> LicensePayload | None:
+        """The stored key's payload while it verifies and has not ended."""
+        record = self.repository.active_license()
+        payload = None if record is None else self._verified(record.license_key, machine_id())
+        return payload if payload and payload.expires_at > self._now() else None
+
+    def license_status(self) -> LicenseStatus:
+        """Verified on every read: the database row is a cache with no say over expiry."""
+        this_machine = machine_id()
+        record = self.repository.active_license()
+        if record is None:
+            return LicenseStatus(LicenseState.NONE, this_machine)
+        payload = self._verified(record.license_key, this_machine)
+        if payload is None:
+            return LicenseStatus(LicenseState.INVALID, this_machine)
+        now = self._now()
+        if payload.expires_at <= now:
+            return LicenseStatus(
+                LicenseState.EXPIRED,
+                this_machine,
+                licensed_to=payload.licensed_to,
+                expires_at=payload.expires_at,
+                days_remaining=0,
+            )
+        return LicenseStatus(
+            LicenseState.TRIAL if payload.type == LicenseType.TRIAL else LicenseState.ACTIVE,
+            this_machine,
+            type=payload.type,
+            licensed_to=payload.licensed_to,
+            expires_at=payload.expires_at,
+            days_remaining=days_between(now, payload.expires_at),
+        )
+
+    def license_request_code(self, actor: User, request_type: RequestType) -> str:
+        """A code for the vendor, for any signed-in role: a viewer at the wall can pass it on."""
+        self._actor(actor)
+        return build_request_code(request_type)
+
+    def activate_license(self, actor: User, license_key: str) -> LicenseStatus:
+        """Store a vendor key for an admin, after every check; a bad key leaves the old one live."""
+        self._require(self._actor(actor), _ADMINS)
+        payload = verify_license_key(license_key, self._license_public_key)
+        if payload is None:
+            raise LicenseError(
+                400, "license_bad_signature", "The key is not valid for this product"
+            )
+        check_machine(payload)
+        now = self._now()
+        if payload.expires_at <= now:
+            raise LicenseError(400, "license_already_expired", "The key has already expired")
+        with self.repository.transaction():
+            # A trial must never replace a live paid license.
+            current = self._live_license()
+            if (
+                payload.type == LicenseType.TRIAL
+                and current is not None
+                and current.type != LicenseType.TRIAL
+            ):
+                raise LicenseError(
+                    409, "license_trial_over_paid", "A trial cannot replace a paid license"
+                )
+            self.repository.activate_license(
+                LicenseRecord(license_key.strip(), now, payload.expires_at, payload.licensed_to)
+            )
+        return self.license_status()
+
+    def deactivate_license(self, actor: User) -> None:
+        """Retire the active key without resetting anything; for swapping licenses by hand."""
+        self._require(self._actor(actor), _ADMINS)
+        with self.repository.transaction():
+            record = self.repository.active_license()
+            if record is not None:
+                self.repository.deactivate_licenses()
+
+    def license_history(self, actor: User) -> list[LicenseRecord]:
+        self._require(self._actor(actor), _ADMINS)
+        return self.repository.list_licenses()
 
     def _admin_exists(self) -> bool:
         return any(user.role == Role.ADMIN for user in self.repository.list_users())

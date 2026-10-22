@@ -158,6 +158,320 @@
         }
       }
     },
+    "/api/license/status": {
+      "get": {
+        "tags": [
+          "license"
+        ],
+        "summary": "License Status",
+        "description": "The license, verified now; the web app shows its wall unless `is_valid` is true.",
+        "operationId": "license_status",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseStatusOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/license/request-code": {
+      "get": {
+        "tags": [
+          "license"
+        ],
+        "summary": "License Request Code",
+        "description": "A code to send the vendor, for any signed-in role.",
+        "operationId": "license_request_code",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/RequestType",
+              "default": "standard"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestCodeOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 License Request Code"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/license/activate": {
+      "post": {
+        "tags": [
+          "license"
+        ],
+        "summary": "Activate License",
+        "description": "Store a vendor key (admin). A refused key leaves the current license in place.",
+        "operationId": "activate_license",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseStatusOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The license key is not valid, is for another machine, or has expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The ticket, account or license is not in a state that allows this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Activate License"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/license/deactivate": {
+      "post": {
+        "tags": [
+          "license"
+        ],
+        "summary": "Deactivate License",
+        "description": "Retire the active key (admin), for swapping licenses by hand. Resets nothing else.",
+        "operationId": "deactivate_license",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/license/history": {
+      "get": {
+        "tags": [
+          "license"
+        ],
+        "summary": "License History",
+        "description": "Every stored key, newest first (admin), with most of each key hidden.",
+        "operationId": "license_history",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LicenseRecordOut"
+                  },
+                  "type": "array",
+                  "title": "Response License History"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
@@ -208,7 +522,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -280,7 +594,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -403,7 +717,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -481,7 +795,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -573,7 +887,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -593,7 +907,7 @@
             }
           },
           "409": {
-            "description": "The ticket or account is not in a state that allows this",
+            "description": "The ticket, account or license is not in a state that allows this",
             "content": {
               "application/json": {
                 "schema": {
@@ -666,7 +980,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -686,7 +1000,7 @@
             }
           },
           "409": {
-            "description": "The ticket or account is not in a state that allows this",
+            "description": "The ticket, account or license is not in a state that allows this",
             "content": {
               "application/json": {
                 "schema": {
@@ -853,7 +1167,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -945,7 +1259,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -1028,7 +1342,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -1205,7 +1519,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -1297,7 +1611,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -1380,7 +1694,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -1572,7 +1886,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -1663,7 +1977,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -1764,7 +2078,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -1784,7 +2098,7 @@
             }
           },
           "409": {
-            "description": "The ticket or account is not in a state that allows this",
+            "description": "The ticket, account or license is not in a state that allows this",
             "content": {
               "application/json": {
                 "schema": {
@@ -1862,7 +2176,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -1882,7 +2196,7 @@
             }
           },
           "409": {
-            "description": "The ticket or account is not in a state that allows this",
+            "description": "The ticket, account or license is not in a state that allows this",
             "content": {
               "application/json": {
                 "schema": {
@@ -1964,7 +2278,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -1984,7 +2298,7 @@
             }
           },
           "409": {
-            "description": "The ticket or account is not in a state that allows this",
+            "description": "The ticket, account or license is not in a state that allows this",
             "content": {
               "application/json": {
                 "schema": {
@@ -2064,7 +2378,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -2126,7 +2440,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -2228,7 +2542,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: the role may not do this, or the CSRF token or Origin is wrong",
+            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
             "content": {
               "application/json": {
                 "schema": {
@@ -2261,6 +2575,20 @@
   },
   "components": {
     "schemas": {
+      "ActivateIn": {
+        "properties": {
+          "license_key": {
+            "type": "string",
+            "maxLength": 4096,
+            "title": "License Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "license_key"
+        ],
+        "title": "ActivateIn"
+      },
       "AssignIn": {
         "properties": {
           "assignee": {
@@ -2422,6 +2750,11 @@
               "rate_limited",
               "printer",
               "biostar",
+              "license_required",
+              "license_bad_signature",
+              "license_wrong_machine",
+              "license_already_expired",
+              "license_trial_over_paid",
               "internal"
             ],
             "title": "Code"
@@ -2518,6 +2851,136 @@
         ],
         "title": "HealthOut"
       },
+      "LicenseRecordOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "activated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Activated At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "licensed_to": {
+            "type": "string",
+            "title": "Licensed To"
+          },
+          "key_hint": {
+            "type": "string",
+            "title": "Key Hint",
+            "description": "Both ends of the key; it is a working credential"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "is_active",
+          "activated_at",
+          "expires_at",
+          "licensed_to",
+          "key_hint"
+        ],
+        "title": "LicenseRecordOut"
+      },
+      "LicenseState": {
+        "type": "string",
+        "enum": [
+          "none",
+          "invalid",
+          "expired",
+          "trial",
+          "active"
+        ],
+        "title": "LicenseState"
+      },
+      "LicenseStatusOut": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/LicenseState"
+          },
+          "is_valid": {
+            "type": "boolean",
+            "title": "Is Valid",
+            "description": "True only for a live trial or paid license"
+          },
+          "machine_id": {
+            "type": "string",
+            "title": "Machine Id",
+            "description": "This install's fingerprint, in every state"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LicenseType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "licensed_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licensed To"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "days_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Remaining"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "is_valid",
+          "machine_id"
+        ],
+        "title": "LicenseStatusOut",
+        "description": "Verified against the signed key on every read; only `none` and `invalid` hide the rest."
+      },
+      "LicenseType": {
+        "type": "string",
+        "enum": [
+          "trial",
+          "standard",
+          "enterprise"
+        ],
+        "title": "LicenseType"
+      },
       "LoginIn": {
         "properties": {
           "username": {
@@ -2538,6 +3001,27 @@
           "password"
         ],
         "title": "LoginIn"
+      },
+      "RequestCodeOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Send this to the vendor to get a key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "RequestCodeOut"
+      },
+      "RequestType": {
+        "type": "string",
+        "enum": [
+          "trial",
+          "standard"
+        ]
       },
       "Role": {
         "type": "string",
