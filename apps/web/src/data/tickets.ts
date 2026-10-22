@@ -10,8 +10,6 @@ const DISCOUNT_MAX = 100;
 
 const ticketStateSchema = z.enum(['issued', 'passed', 'expired']);
 const usageTypeSchema = z.enum(['one_time', 'multi_use']);
-// Offered when creating a ticket while no visitor types are defined; the API keeps any name
-const fallbackVisitorTypes = ['Guest', 'Staff', 'Student'] as const;
 
 const offsetDatetime = z.iso.datetime({ offset: true });
 
@@ -87,11 +85,4 @@ type TicketState = z.infer<typeof ticketStateSchema>;
 type UsageType = z.infer<typeof usageTypeSchema>;
 
 export type { AssignInput, Ticket, TicketInput, TicketState, UsageType };
-export {
-  assignInputSchema,
-  fallbackVisitorTypes,
-  ticketInputSchema,
-  ticketSchema,
-  ticketStateSchema,
-  usageTypeSchema,
-};
+export { assignInputSchema, ticketInputSchema, ticketSchema, ticketStateSchema, usageTypeSchema };

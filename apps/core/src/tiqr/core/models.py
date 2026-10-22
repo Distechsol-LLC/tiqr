@@ -31,6 +31,7 @@ class Currency(StrEnum):
     USD = "USD"
     RUB = "RUB"
     AZN = "AZN"
+    KZT = "KZT"
 
 
 class UsageType(StrEnum):

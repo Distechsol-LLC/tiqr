@@ -25,7 +25,7 @@ def test_new_database_gets_the_latest_schema(tmp_path):
     path = tmp_path / "new.db"
     with SQLiteRepository(path) as repository:
         repository.initialize()
-    assert version(path) == SCHEMA_VERSION == 5
+    assert version(path) == SCHEMA_VERSION == 6
 
 
 def test_older_schema_is_refused_until_setup_upgrades_it(tmp_path):

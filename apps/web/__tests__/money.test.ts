@@ -72,10 +72,11 @@ describe('money', () => {
     expect(formatMinor(TWELVE_FIFTY, 'RUB')).toBe('12.50\u00A0₽');
     expect(formatMinor(TWELVE_FIFTY, 'AZN')).toBe('12.50\u00A0₼');
     expect(formatMinor(BIG, 'AZN')).toBe('1,234.56\u00A0₼');
+    expect(formatMinor(TWELVE_FIFTY, 'KZT')).toBe('12.50\u00A0₸');
   });
 
   it('labels each currency with its code and sign', () => {
-    expect(CURRENCY_LABELS).toEqual({ AZN: 'AZN ₼', RUB: 'RUB ₽', USD: 'USD $' });
+    expect(CURRENCY_LABELS).toEqual({ AZN: 'AZN ₼', KZT: 'KZT ₸', RUB: 'RUB ₽', USD: 'USD $' });
   });
 
   it('takes a discount off, rounding half up, like the server', () => {

@@ -95,6 +95,46 @@ ALTER TABLE ticket_types ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'
 ALTER TABLE tickets ADD COLUMN currency TEXT CHECK(currency IN ('USD','RUB','AZN'));
 UPDATE tickets SET currency='USD' WHERE base_price IS NOT NULL;
 """
+# SQLite cannot change a CHECK, so the tables that hold currencies are rebuilt to accept tenge.
+# `tickets` has children, so its foreign keys are off while the steps run (see `initialize`).
+_TENGE = """
+CREATE TABLE ticket_types_rebuilt (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    price INTEGER NOT NULL CHECK(price >= 0),
+    currency TEXT NOT NULL DEFAULT 'USD' CHECK(currency IN ('USD','RUB','AZN','KZT'))
+);
+INSERT INTO ticket_types_rebuilt (id, name, price, currency)
+    SELECT id, name, price, currency FROM ticket_types;
+DROP TABLE ticket_types;
+ALTER TABLE ticket_types_rebuilt RENAME TO ticket_types;
+CREATE TABLE tickets_rebuilt (
+    id TEXT PRIMARY KEY, external_id TEXT UNIQUE, qr_payload TEXT NOT NULL UNIQUE,
+    readable_serial TEXT NOT NULL UNIQUE, visitor_name TEXT NOT NULL, visitor_type TEXT NOT NULL,
+    valid_from TEXT NOT NULL, valid_until TEXT NOT NULL,
+    usage_type TEXT NOT NULL CHECK(usage_type IN ('one_time','multi_use')),
+    state TEXT NOT NULL CHECK(state IN ('issued','passed','expired')),
+    created_by TEXT NOT NULL REFERENCES users(id),
+    assigned_operator TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL, passed_at TEXT,
+    print_count INTEGER NOT NULL CHECK(print_count >= 0),
+    use_count INTEGER NOT NULL CHECK(use_count >= 0),
+    ticket_type TEXT, base_price INTEGER CHECK(base_price >= 0),
+    discount_percent INTEGER NOT NULL DEFAULT 0
+        CHECK(discount_percent BETWEEN 0 AND 100),
+    currency TEXT CHECK(currency IN ('USD','RUB','AZN','KZT'))
+);
+INSERT INTO tickets_rebuilt (
+    id, external_id, qr_payload, readable_serial, visitor_name, visitor_type, valid_from,
+    valid_until, usage_type, state, created_by, assigned_operator, created_at, passed_at,
+    print_count, use_count, ticket_type, base_price, discount_percent, currency
+) SELECT
+    id, external_id, qr_payload, readable_serial, visitor_name, visitor_type, valid_from,
+    valid_until, usage_type, state, created_by, assigned_operator, created_at, passed_at,
+    print_count, use_count, ticket_type, base_price, discount_percent, currency
+FROM tickets;
+DROP TABLE tickets;
+ALTER TABLE tickets_rebuilt RENAME TO tickets;
+"""
 
 
 def _statements(script: str) -> tuple[str, ...]:
@@ -105,7 +145,8 @@ def _statements(script: str) -> tuple[str, ...]:
 # Step N upgrades schema version N to N + 1. Steps are append-only, and each runs once, in one
 # transaction with its version bump.
 _MIGRATIONS = tuple(
-    _statements(script) for script in (_SCHEMA, _WEB_SESSIONS, _USER_ACTIVE, _CATALOG, _CURRENCY)
+    _statements(script)
+    for script in (_SCHEMA, _WEB_SESSIONS, _USER_ACTIVE, _CATALOG, _CURRENCY, _TENGE)
 )
 SCHEMA_VERSION = len(_MIGRATIONS)
 
@@ -257,8 +298,13 @@ class SQLiteRepository(Repository):
                     " then run `tiqr setup` to upgrade it"
                 )
             # A current database skips every step, sparing each command a write and fsync.
-            for target in range(version + 1, SCHEMA_VERSION + 1):
-                self._migrate(_MIGRATIONS[target - 1], target)
+            # Dropping a table with children needs foreign keys off; a no-op inside a transaction.
+            self._connection.execute("PRAGMA foreign_keys = OFF")
+            try:
+                for target in range(version + 1, SCHEMA_VERSION + 1):
+                    self._migrate(_MIGRATIONS[target - 1], target)
+            finally:
+                self._connection.execute("PRAGMA foreign_keys = ON")
 
     def _migrate(self, statements: tuple[str, ...], version: int) -> None:
         # The version is set in the same transaction, so a failed step leaves the old schema.
@@ -269,6 +315,9 @@ class SQLiteRepository(Repository):
                 return
             for statement in statements:
                 self._connection.execute(statement)
+            # Checked before the commit, so a step that orphans rows rolls back instead.
+            if self._connection.execute("PRAGMA foreign_key_check").fetchone():
+                raise ValueError(f"Upgrading to schema version {version} would orphan rows")
             self._connection.execute(f"PRAGMA user_version = {version}")
 
     def close(self) -> None:

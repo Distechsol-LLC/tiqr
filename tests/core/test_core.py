@@ -12,7 +12,7 @@ from tiqr.core.auth import SESSION_LIFETIME, AuthenticationError, verify_passwor
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
 from tiqr.core.models import AccessEvent, Outcome, Registration, Role, SyncCursor, UsageType, utc
 from tiqr.core.qr import build_payload, make_serial, signature, validate_prefix, verify_payload
-from tiqr.core.repository import SQLiteRepository
+from tiqr.core.repository import _MIGRATIONS, SCHEMA_VERSION, SQLiteRepository
 from tiqr.core.service import TicketService
 from tiqr.core.settings import (
     BRANDING_FILE,
@@ -564,6 +564,50 @@ def test_old_database_is_not_migrated_or_modified(tmp_path):
         with pytest.raises(ValueError, match="Reference"):
             repo.initialize()
         assert repo._connection.execute("SELECT name FROM sqlite_master").fetchone()[0] == "guests"
+    finally:
+        repo.close()
+
+
+def test_upgrade_keeps_tickets_and_their_events_and_accepts_tenge(tmp_path):
+    path = tmp_path / "before_tenge.db"
+    with sqlite3.connect(path) as connection:
+        for statements in _MIGRATIONS[:-1]:
+            for statement in statements:
+                connection.execute(statement)
+        connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION - 1}")
+        connection.execute(
+            "INSERT INTO users (id, username, password_hash, role)"
+            " VALUES ('u1','admin','x','admin')"
+        )
+        connection.execute(
+            "INSERT INTO tickets (id, qr_payload, readable_serial, visitor_name, visitor_type,"
+            " valid_from, valid_until, usage_type, state, created_by, assigned_operator,"
+            " created_at, print_count, use_count, base_price, currency)"
+            " VALUES ('t1','p','TQR-1','Ann','Guest','a','b','one_time','issued','u1','u1',"
+            " 'c', 0, 0, 1500, 'AZN')"
+        )
+        connection.execute(
+            "INSERT INTO access_events (event_id, ticket_id, occurred_at, granted, outcome,"
+            " processed_at) VALUES ('e1','t1','c',1,'granted','c')"
+        )
+        connection.execute(
+            "INSERT INTO ticket_types (id, name, price, currency) VALUES ('k1','Pass',1500,'AZN')"
+        )
+    repo = SQLiteRepository(path)
+    try:
+        repo.initialize(upgrade=True)
+        connection = repo._connection
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+        assert connection.execute("SELECT currency FROM tickets").fetchone()[0] == "AZN"
+        assert connection.execute("SELECT COUNT(*) FROM access_events").fetchone()[0] == 1
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        connection.execute(
+            "INSERT INTO ticket_types (id, name, price, currency) VALUES ('k2','Tenge',900,'KZT')"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO ticket_types (id, name, price, currency) VALUES ('k3','Bad',900,'EUR')"
+            )
     finally:
         repo.close()
 

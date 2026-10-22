@@ -2397,7 +2397,8 @@
         "enum": [
           "USD",
           "RUB",
-          "AZN"
+          "AZN",
+          "KZT"
         ],
         "title": "Currency"
       },

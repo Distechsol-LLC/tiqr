@@ -17,13 +17,7 @@
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import type { TicketType, VisitorType } from '$/catalog.ts';
-  import {
-    type Ticket,
-    type UsageType,
-    fallbackVisitorTypes,
-    ticketInputSchema,
-    usageTypeSchema,
-  } from '$/tickets.ts';
+  import { type Ticket, type UsageType, ticketInputSchema, usageTypeSchema } from '$/tickets.ts';
 
   type TicketFormProps = {
     isOpen: boolean;
@@ -70,10 +64,6 @@
     isSubmitted && !validation.success ? z.flattenError(validation.error).fieldErrors : {}
   );
 
-  // Defined visitor types are the only choices; with none defined, the usual ones stand in
-  const visitorOptions = $derived(
-    visitorTypes.length > 0 ? visitorTypes.map((type) => type.name) : fallbackVisitorTypes
-  );
   const ticketTypeOptions = $derived(ticketTypes.map((type) => type.name));
   // With ticket types defined a ticket needs one, since that is what prices it
   const ticketTypeError = $derived(
@@ -167,13 +157,24 @@
     bind:value={visitorName}
   />
 
-  <FloatingSelect
-    error={fieldErrors.visitor_type?.[0]}
-    id="visitor-type"
-    label={i18n.t.ticketForm.visitorType}
-    options={visitorOptions}
-    bind:value={visitorType}
-  />
+  {#if visitorTypes.length > 0}
+    <FloatingSelect
+      error={fieldErrors.visitor_type?.[0]}
+      id="visitor-type"
+      label={i18n.t.ticketForm.visitorType}
+      options={visitorTypes.map((type) => type.name)}
+      bind:value={visitorType}
+    />
+  {:else}
+    <FloatingInput
+      autocomplete="off"
+      error={fieldErrors.visitor_type?.[0]}
+      id="visitor-type"
+      label={i18n.t.ticketForm.visitorType}
+      required
+      bind:value={visitorType}
+    />
+  {/if}
 
   {#if ticketTypeOptions.length > 0}
     <FloatingSelect

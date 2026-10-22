@@ -6,9 +6,9 @@ from collections.abc import Iterable
 from tiqr.core.models import Currency
 
 # The web app is translated into these; a language needs a translation there before it is listed.
-SUPPORTED_LANGUAGES = frozenset({"en", "ru", "az"})
+SUPPORTED_LANGUAGES = frozenset({"en", "ru", "az", "kk"})
 # The region of a language code names the currency its speakers pay in.
-REGION_CURRENCIES = {"US": Currency.USD, "RU": Currency.RUB, "AZ": Currency.AZN}
+REGION_CURRENCIES = {"US": Currency.USD, "RU": Currency.RUB, "AZ": Currency.AZN, "KZ": Currency.KZT}
 DEFAULT_LANGUAGES = ("en-US", "ru-RU", "az-AZ")
 
 _CODE = re.compile(r"(?P<language>[A-Za-z]{2})-(?P<region>[A-Za-z]{2})")

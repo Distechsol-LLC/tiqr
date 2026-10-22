@@ -25,6 +25,10 @@
     <rect fill="#fff" height="16" width="24" />
     <rect fill="#0039A6" height="5.34" width="24" y="5.33" />
     <rect fill="#D52B1E" height="5.34" width="24" y="10.66" />
+  {:else if code === 'kk'}
+    <rect fill="#00AFCA" height="16" width="24" />
+    <circle cx="12" cy="6.4" fill="#FEC50C" r="3" />
+    <rect fill="#FEC50C" height="3.2" width="24" y="12.8" />
   {:else}
     <rect fill="#00B5E2" height="5.34" width="24" />
     <rect fill="#EF3340" height="5.34" width="24" y="5.33" />

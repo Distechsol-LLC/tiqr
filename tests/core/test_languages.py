@@ -33,6 +33,11 @@ def test_currencies_follow_the_regions_in_order():
     assert Settings(secret_key=KEY, languages=("ru-RU",)).currencies == (Currency.RUB,)
 
 
+def test_kazakh_is_served_and_priced_in_tenge():
+    assert parse_languages(["kk-kz", "en-US"]) == ("kk-KZ", "en-US")
+    assert currencies_for(("kk-KZ",)) == (Currency.KZT,)
+
+
 def test_settings_check_branding(tmp_path):
     with pytest.raises(ValueError, match="logo_path"):
         Settings(secret_key=KEY, logo_path=tmp_path / "missing.png")
