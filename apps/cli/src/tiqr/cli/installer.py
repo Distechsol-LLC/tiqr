@@ -127,13 +127,13 @@ StartLimitIntervalSec=0
 Type=simple
 User={SERVICE_USER}
 Group={SERVICE_USER}
-Environment="TIQR_HOME={home}"
-ExecStart="{executable}" serve
+Environment="TIQR_HOME={home.as_posix()}"
+ExecStart="{executable.as_posix()}" serve
 Restart=on-failure
 RestartSec=5s
 NoNewPrivileges=yes
 ProtectSystem=strict
-ReadWritePaths={home}
+ReadWritePaths={home.as_posix()}
 ProtectHome=yes
 PrivateTmp=yes
 

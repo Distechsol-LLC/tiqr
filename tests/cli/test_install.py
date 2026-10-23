@@ -134,11 +134,14 @@ def test_windows_service_needs_winsw_beside_the_release(tmp_path, monkeypatch):
 
 
 def test_winsw_config_names_the_executable_home_and_logs(tmp_path):
-    config = installer.winsw_config(Path("C:/TiQR & Co/tiqr.exe"), Path("C:/TiQR"))
+    executable = Path("C:/TiQR & Co/tiqr.exe")
+    home = Path("C:/TiQR")
 
-    assert "<executable>C:/TiQR &amp; Co/tiqr.exe</executable>" in config
-    assert '<env name="TIQR_HOME" value="C:/TiQR"/>' in config
-    assert "<logpath>C:/TiQR/logs</logpath>" in config
+    config = installer.winsw_config(executable, home)
+
+    assert f"<executable>{str(executable).replace('&', '&amp;')}</executable>" in config
+    assert f'<env name="TIQR_HOME" value="{home}"/>' in config
+    assert f"<logpath>{home / 'logs'}</logpath>" in config
 
 
 def test_systemd_unit_runs_serve_as_the_service_user(tmp_path):
