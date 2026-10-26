@@ -67,6 +67,25 @@ def test_double_click_opens_terminal_and_leaves_setup_to_it(tmp_path, monkeypatc
     assert not (tmp_path / ".env.local").exists()
 
 
+def test_terminal_run_waits_for_enter_before_closing(tmp_path, monkeypatch):
+    paused: list[bool] = []
+    monkeypatch.setenv(launcher._PAUSE_ENV, "1")
+    monkeypatch.setattr(launcher, "_pause", lambda: paused.append(True))
+    with pytest.raises(SystemExit) as exit_info:
+        launcher.main(["--help"])
+    assert exit_info.value.code == 0
+    assert paused == [True]
+
+
+def test_direct_run_does_not_wait_for_enter(tmp_path, monkeypatch):
+    paused: list[bool] = []
+    monkeypatch.delenv(launcher._PAUSE_ENV, raising=False)
+    monkeypatch.setattr(launcher, "_pause", lambda: paused.append(True))
+    with pytest.raises(SystemExit):
+        launcher.main(["--help"])
+    assert paused == []
+
+
 def test_linux_terminal_runs_cli_then_keeps_a_shell(tmp_path, monkeypatch):
     monkeypatch.setattr(launcher.sys, "platform", "linux")
     monkeypatch.setattr(launcher.shutil, "which", lambda name: name == "xterm" or None)
@@ -99,7 +118,12 @@ def test_windows_console_runs_executable_from_its_folder(tmp_path, monkeypatch):
     calls: list[tuple[list[str], dict[str, object]]] = []
     monkeypatch.setattr(subprocess, "Popen", lambda argv, **kwargs: calls.append((argv, kwargs)))
     assert launcher._open_terminal(tmp_path / "tiqr.exe")
-    assert calls == [(["cmd.exe", "/k", "tiqr.exe"], {"cwd": tmp_path, "creationflags": 0x10})]
+    assert len(calls) == 1
+    argv, kwargs = calls[0]
+    assert argv == ["cmd.exe", "/k", "tiqr.exe"]
+    assert kwargs["cwd"] == tmp_path
+    assert kwargs["creationflags"] == 0x10
+    assert kwargs["env"][launcher._PAUSE_ENV] == "1"
 
 
 def _answers(*values: str):

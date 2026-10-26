@@ -21,6 +21,9 @@
 
   const { editing, isOpen, onClose, onSaved }: VisitorTypeFormProps = $props();
 
+  // Whole numbers only; the range is checked in the schema
+  const DISCOUNT_CHARS = /\D/g;
+
   let name = $state('');
   let discount = $state('');
   let isPending = $state(false);
@@ -37,7 +40,7 @@
 
     untrack(() => {
       name = editing?.name ?? '';
-      discount = String(editing?.discount_percent ?? 0);
+      discount = editing ? String(editing.discount_percent) : '';
       isSubmitted = false;
     });
   });
@@ -100,6 +103,7 @@
     inputmode="numeric"
     label={i18n.t.visitorTypeForm.discount}
     required
+    strip={DISCOUNT_CHARS}
     bind:value={discount}
   />
 </FormDialog>

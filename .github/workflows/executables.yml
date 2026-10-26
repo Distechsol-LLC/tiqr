@@ -49,7 +49,7 @@ jobs:
           mkdir "$smoke"
           cp dist/tiqr* "$smoke/"
           # The executable refuses to run without its branding file beside it.
-          cp tiqr_branding.jsonc "$smoke/"
+          cp tiqr_brand.jsonc "$smoke/"
           # Named explicitly: once setup creates tiqr.db, a tiqr* glob would match it too.
           exe=$(basename dist/tiqr*)
           cd "$smoke"
@@ -98,7 +98,7 @@ jobs:
           mkdir -p "bundle/$name" release
           # Plain names inside, so the install scripts need not know the platform.
           cp "dist/$exe" "bundle/$name/$exe"
-          cp tiqr_branding.jsonc packaging/bundle/INSTALL.txt "bundle/$name/"
+          cp tiqr_brand.jsonc packaging/bundle/INSTALL.txt "bundle/$name/"
           uv run python packaging/notices.py "bundle/$name/THIRD-PARTY-NOTICES.txt" --web apps/web
           if [ "$RUNNER_OS" = "Windows" ]; then
             cp packaging/bundle/install.cmd "bundle/$name/"
@@ -121,7 +121,7 @@ jobs:
             tar -C "$customer" -xzf "release/$name.tar.gz"
           fi
           cd "$customer/$name"
-          for file in INSTALL.txt THIRD-PARTY-NOTICES.txt tiqr_branding.jsonc; do test -s "$file"; done
+          for file in INSTALL.txt THIRD-PARTY-NOTICES.txt tiqr_brand.jsonc; do test -s "$file"; done
           if [ "$RUNNER_OS" = "Windows" ]; then test -f install.cmd; test -f tiqr-service.exe; else test -x install.sh; fi
           exe=$(ls tiqr tiqr.exe 2>/dev/null | head -1)
           # The service and firewall steps need a real host; everything else runs as installed.

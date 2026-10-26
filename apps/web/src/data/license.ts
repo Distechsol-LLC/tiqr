@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-const licenseStateSchema = z.enum(['active', 'expired', 'invalid', 'none', 'trial']);
-const licenseTypeSchema = z.enum(['enterprise', 'standard', 'trial']);
+const licenseStateSchema = z.enum(['active', 'expired', 'invalid', 'none']);
+const licenseTypeSchema = z.enum(['standard', 'trial']);
 const requestTypeSchema = z.enum(['standard', 'trial']);
 
 const licenseStatusSchema = z.object({

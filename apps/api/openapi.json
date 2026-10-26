@@ -1123,7 +1123,7 @@
           "catalog"
         ],
         "summary": "Create Ticket Type",
-        "description": "Add a ticket type, its price and the currency it is in. Admins and managers.\n\nThe currency must be one of the languages' regions' (languages in tiqr_branding.jsonc).",
+        "description": "Add a ticket type, its price and the currency it is in. Admins and managers.\n\nThe currency must be one of the languages' regions' (languages in tiqr_brand.jsonc).",
         "operationId": "create_ticket_type",
         "requestBody": {
           "required": true,
@@ -2134,7 +2134,7 @@
           "tickets"
         ],
         "summary": "Ticket Pdf",
-        "description": "Render the badge and return it; a POST, since every render counts as a print.\n\nThe PDF is also kept in TIQR_OUT, as `tiqr ticket save` does.",
+        "description": "Render the badge and return it; a POST, since every render counts as a print.\n\nThe PDF is also kept in the out folder, as `tiqr ticket save` does.",
         "operationId": "ticket_pdf",
         "parameters": [
           {
@@ -2623,7 +2623,7 @@
             },
             "type": "array",
             "title": "Languages",
-            "description": "languages, such as en-US: what the switcher offers, first is default"
+            "description": "languages, such as en-US: what the switcher offers, first is the fallback default"
           },
           "currencies": {
             "items": {
@@ -2898,7 +2898,6 @@
           "none",
           "invalid",
           "expired",
-          "trial",
           "active"
         ],
         "title": "LicenseState"
@@ -2976,8 +2975,7 @@
         "type": "string",
         "enum": [
           "trial",
-          "standard",
-          "enterprise"
+          "standard"
         ],
         "title": "LicenseType"
       },
@@ -3388,7 +3386,7 @@
           },
           "price_minor": {
             "type": "integer",
-            "maximum": 1000000000.0,
+            "maximum": 100000000000.0,
             "minimum": 0.0,
             "title": "Price Minor",
             "description": "In minor units, such as cents: 1250 is 12.50"
@@ -3489,7 +3487,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 1000000000.0,
+                "maximum": 100000000000.0,
                 "minimum": 0.0,
                 "description": "In minor units, such as cents: 1250 is 12.50"
               },

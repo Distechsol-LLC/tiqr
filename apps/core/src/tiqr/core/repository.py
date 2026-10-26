@@ -308,7 +308,7 @@ class SQLiteRepository(Repository):
                 )
             }
             if {"guests", "print_jobs"} & tables:
-                raise ValueError("Reference application database detected; use a new TIQR_DB")
+                raise ValueError("Reference application database detected; use a new database file")
             (version,) = self._connection.execute("PRAGMA user_version").fetchone()
             if not 0 <= version <= SCHEMA_VERSION:
                 raise ValueError(f"Unsupported database version: {version}")

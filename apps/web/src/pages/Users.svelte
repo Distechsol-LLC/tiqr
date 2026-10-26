@@ -20,11 +20,12 @@
   import { deleteUser, fetchUsers, updateUser } from '%/api.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { pageCount } from '%/pagination.ts';
-  import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
+  import { type SortValues, sortRows } from '%/sort.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { createPagination } from '%/usePagination.svelte.ts';
+  import { createSortParams } from '%/useSortParams.svelte.ts';
   import { type Role, type User, roleSchema } from '$/auth.ts';
   import type { UserPatch } from '$/users.ts';
 
@@ -55,7 +56,6 @@
   let total = $state(0);
   // Counts the requests, so a slow one can't land over a newer one
   let requestId = 0;
-  let sort = $state<Sort<SortKey> | null>({ direction: 'asc', key: 'username' });
   let isLoading = $state(true);
   let isCreating = $state(false);
   let resetting = $state<User | null>(null);
@@ -69,15 +69,10 @@
     username: (user) => user.username,
   };
 
-  // Starts alphabetical
-  const rows = $derived(sortRows(users, sort, sortValues));
+  // Starts by role
+  const sorting = createSortParams(sortValues, { direction: 'asc', key: 'role' });
 
-  const sortBy = (key: SortKey): void => {
-    sort = toggleSort(sort, key);
-  };
-
-  const directionOf = (key: SortKey): Sort<SortKey>['direction'] | null =>
-    sort?.key === key ? sort.direction : null;
+  const rows = $derived(sortRows(users, sorting.sort, sortValues));
 
   const load = async (): Promise<void> => {
     requestId += 1;
@@ -209,7 +204,7 @@
     resetting = null;
   };
 
-  // Usernames are alphabetical, so the new account may belong on another page
+  // Roles sort the list, so the new account may belong on another page
   const addUser = (): void => {
     void load();
   };
@@ -264,21 +259,21 @@
 >
   {#snippet head()}
     <SortHeader
-      direction={directionOf('username')}
+      direction={sorting.directionOf('username')}
       label={i18n.t.users.columns.username}
-      onSort={(): void => sortBy('username')}
+      onSort={(): void => sorting.sortBy('username')}
     />
     <SortHeader
       class="w-56"
-      direction={directionOf('role')}
+      direction={sorting.directionOf('role')}
       label={i18n.t.users.columns.role}
-      onSort={(): void => sortBy('role')}
+      onSort={(): void => sorting.sortBy('role')}
     />
     <SortHeader
       class="w-40"
-      direction={directionOf('status')}
+      direction={sorting.directionOf('status')}
       label={i18n.t.users.columns.status}
-      onSort={(): void => sortBy('status')}
+      onSort={(): void => sorting.sortBy('status')}
     />
     {#if isStaff}
       <ActionsHeader count={isAdmin ? ADMIN_ACTIONS : MANAGER_ACTIONS} />

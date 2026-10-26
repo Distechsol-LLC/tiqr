@@ -49,8 +49,8 @@ describe('money', () => {
     for (const text of REFUSED) expect(parseMinor(text)).toBeNull();
   });
 
-  it('refuses a price too big to hold exactly', () => {
-    expect(parseMinor(TOO_BIG)).toBeNull();
+  it('reads a price too big to hold exactly as above any cap', () => {
+    expect(parseMinor(TOO_BIG)).toBeGreaterThan(Number.MAX_SAFE_INTEGER);
   });
 
   it('writes minor units back as input text', () => {

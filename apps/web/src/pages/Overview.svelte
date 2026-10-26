@@ -16,18 +16,19 @@
   import { type ApiResult, fetchStats, runCleanup, runSync } from '%/api.ts';
   import { toLocalInput } from '%/formatters.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
-  import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
+  import { type SortValues, sortRows } from '%/sort.ts';
   import { type DateRange, type Span, moveAnchor, shiftAnchor, spanOf } from '%/statsRange.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
+  import { createSortParams } from '%/useSortParams.svelte.ts';
   import type { Counts, Stats } from '$/operations.ts';
 
   type Operation = 'cleanup' | 'sync';
   type Range = Span | 'all' | 'range';
   type Metric = keyof Counts;
-  type SortKey = 'count' | 'meaning' | 'metric';
+  type SortKey = 'count';
 
   const ICON_SIZE = 18;
   const COLUMNS = 3;
@@ -70,15 +71,14 @@
   // Any day in the day, month or year showing; kept across them, so a day picked opens its month
   let anchor = $state(readDay('date'));
   let span = $state<string[]>(readSpan());
-  let sort = $state<Sort<SortKey> | null>(null);
   let isLoading = $state(true);
   let running = $state<Operation | null>(null);
 
   const sortValues: SortValues<Metric, SortKey> = {
     count: (metric) => stats?.[metric] ?? 0,
-    meaning: (metric) => i18n.t.overview.metrics[metric].description,
-    metric: (metric) => i18n.t.overview.metrics[metric].label,
   };
+
+  const sorting = createSortParams(sortValues, { direction: 'desc', key: 'count' });
 
   // Days are the server's, as are the tickets' creation times it counts by
   const timeZone = $derived(
@@ -100,16 +100,9 @@
     range !== 'all' && range !== 'range' && spanOf(range, anchor || today).until >= today
   );
 
-  const rows = $derived(sortRows(METRICS, sort, sortValues));
+  const rows = $derived(sortRows(METRICS, sorting.sort, sortValues));
   // One column per visitor type, in the order the server sends them
   const visitorTypes = $derived(stats ? Object.keys(stats.visitor_types) : []);
-
-  const sortBy = (key: SortKey): void => {
-    sort = toggleSort(sort, key);
-  };
-
-  const directionOf = (key: SortKey): Sort<SortKey>['direction'] | null =>
-    sort?.key === key ? sort.direction : null;
 
   const keyOf = (requested: DateRange | undefined): string =>
     requested ? `${requested.since}/${requested.until}` : 'all';
@@ -261,14 +254,17 @@
   {/snippet}
   {#snippet toolbar()}
     <!-- As tall as the period controls, so the bar keeps its height when they come and go -->
-    <div class="flex min-h-9 flex-wrap items-center justify-between gap-3">
-      <FilterTabs
-        label={(option): string => i18n.t.overview.ranges[option]}
-        legend={i18n.t.overview.range}
-        onpick={pick}
-        options={RANGES}
-        selected={range}
-      />
+    <div class="flex -mt-4 sm:mt-0 min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-8">
+      <!-- A line of its own at the tabs' height, so they stay put whether or not the picker wraps -->
+      <div class="flex h-9 items-end">
+        <FilterTabs
+          label={(option): string => i18n.t.overview.ranges[option]}
+          legend={i18n.t.overview.range}
+          onpick={pick}
+          options={RANGES}
+          selected={range}
+        />
+      </div>
 
       {#if range !== 'all'}
         <div class="flex items-center gap-2">
@@ -318,18 +314,13 @@
   minWidth="{MIN_REM + VISITOR_TYPE_REM * visitorTypes.length}rem"
 >
   {#snippet head()}
-    <SortHeader
-      class="w-44"
-      direction={directionOf('metric')}
-      label={i18n.t.overview.columns.metric}
-      onSort={(): void => sortBy('metric')}
-    />
+    <th class="w-44">{i18n.t.overview.columns.metric}</th>
     <SortHeader
       class="w-36"
-      direction={directionOf('count')}
+      direction={sorting.directionOf('count')}
       isEnd
       label={i18n.t.overview.columns.count}
-      onSort={(): void => sortBy('count')}
+      onSort={(): void => sorting.sortBy('count')}
     />
     {#each visitorTypes as name (name)}
       <th class="w-32 text-right" title={name}>
@@ -337,11 +328,7 @@
       </th>
     {/each}
     <!-- Without a set width, it takes the spare width, so the figures stay beside their labels -->
-    <SortHeader
-      direction={directionOf('meaning')}
-      label={i18n.t.overview.columns.meaning}
-      onSort={(): void => sortBy('meaning')}
-    />
+    <th>{i18n.t.overview.columns.meaning}</th>
   {/snippet}
 
   {#if stats}

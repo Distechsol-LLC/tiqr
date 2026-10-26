@@ -49,14 +49,12 @@ _DAY_SECONDS = 86_400
 class LicenseType(StrEnum):
     TRIAL = "trial"
     STANDARD = "standard"
-    ENTERPRISE = "enterprise"
 
 
 class LicenseState(StrEnum):
     NONE = "none"
     INVALID = "invalid"
     EXPIRED = "expired"
-    TRIAL = "trial"
     ACTIVE = "active"
 
 
@@ -95,7 +93,7 @@ class LicenseStatus:
 
     @property
     def is_valid(self) -> bool:
-        return self.state in {LicenseState.TRIAL, LicenseState.ACTIVE}
+        return self.state == LicenseState.ACTIVE
 
 
 @dataclass(frozen=True, slots=True)

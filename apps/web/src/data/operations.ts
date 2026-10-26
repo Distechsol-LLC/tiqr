@@ -25,4 +25,4 @@ type Counts = z.infer<typeof countsSchema>;
 type Stats = z.infer<typeof statsSchema>;
 
 export type { Config, Counts, Stats };
-export { configSchema, countSchema, countsSchema, statsSchema };
+export { configSchema, countSchema, statsSchema };

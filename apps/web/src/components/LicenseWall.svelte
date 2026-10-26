@@ -2,7 +2,6 @@
   import ShieldAlert from '@lucide/svelte/icons/shield-alert';
 
   import AccountMenu from '@/components/AccountMenu.svelte';
-  import LanguageMenu from '@/components/LanguageMenu.svelte';
   import LicenseActivation from '@/components/LicenseActivation.svelte';
   import Logo from '@/components/Logo.svelte';
   import { formatDatetime } from '%/formatters.ts';
@@ -34,7 +33,6 @@
 </svelte:head>
 
 <div class="fixed top-4 right-4 z-10 flex items-center gap-1">
-  <LanguageMenu class="size-12" />
   <AccountMenu placement="bottom-end" variant="compact" />
 </div>
 

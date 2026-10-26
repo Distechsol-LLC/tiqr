@@ -22,7 +22,7 @@ const az: Messages = {
     previousPage: 'Əvvəlki səhifə',
     range: (from: number, to: number, total: number): string => `${from}–${to} / ${total}`,
     refresh: 'Yenilə',
-    rowsPerPage: 'Səhifədə sətir',
+    rowsPerPage: 'Sətirlər',
     save: 'Saxla',
   },
   dateField: {
@@ -49,6 +49,7 @@ const az: Messages = {
     passwordMismatch: 'Şifrələr uyğun gəlmir.',
     passwordRequired: 'Şifrənizi daxil edin.',
     priceInvalid: 'Qiyməti 12.50 kimi daxil edin.',
+    priceTooHigh: 'Qiymət çox yüksəkdir.',
     rateLimited: 'Həddindən artıq uğursuz giriş cəhdi. Bir az sonra yenidən cəhd edin.',
     rateLimitedFor: (wait: string): string =>
       `Həddindən artıq uğursuz giriş cəhdi. ${wait} sonra yenidən cəhd edin.`,
@@ -95,7 +96,7 @@ const az: Messages = {
       'Sorğu kodunu administratora göndərin: açarı yalnız administrator aktivləşdirə bilər.',
     requestCode: 'Sorğu kodu',
     requestHint: 'Bu quraşdırma üçün açar almaq məqsədilə bu kodu təchizatçıya göndərin.',
-    requestStandard: 'Standart lisenziya',
+    requestStandard: 'Standart',
     requestTrial: 'Sınaq (30 gün)',
     requestType: 'Sorğulanan lisenziya',
     retry: 'Yenidən cəhd et',
@@ -104,14 +105,12 @@ const az: Messages = {
       expired: 'Müddəti bitib',
       invalid: 'Yoxlanılmayıb',
       none: 'Lisenziya yoxdur',
-      trial: 'Sınaq',
     },
     status: 'Status',
     title: 'Lisenziya',
     trialOverPaid: 'Sınaq lisenziyası ödənişli lisenziyanı əvəz edə bilməz.',
     type: 'Növ',
     types: {
-      enterprise: 'Korporativ',
       standard: 'Standart',
       trial: 'Sınaq',
     },
@@ -226,7 +225,7 @@ const az: Messages = {
   theme: {
     dark: 'Tünd',
     light: 'Açıq',
-    toggle: 'Mövzunu dəyiş',
+    toggle: 'Mühit',
   },
   ticketForm: {
     catalogNotLoaded: 'Bilet və ziyarətçi növləri yüklənmədi',

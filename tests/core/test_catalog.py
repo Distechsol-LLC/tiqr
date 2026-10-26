@@ -105,7 +105,7 @@ def test_deactivated_actors_are_refused(service, accounts):
     [
         lambda service, actor: service.create_ticket_type(actor, " ", 100, Currency.USD),
         lambda service, actor: service.create_ticket_type(actor, "Day", -1, Currency.USD),
-        lambda service, actor: service.create_ticket_type(actor, "Day", 10**9 + 1, Currency.USD),
+        lambda service, actor: service.create_ticket_type(actor, "Day", 10**11 + 1, Currency.USD),
         lambda service, actor: service.create_visitor_type(actor, "", 10),
         lambda service, actor: service.create_visitor_type(actor, "Student", -1),
         lambda service, actor: service.create_visitor_type(actor, "Student", 101),

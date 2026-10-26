@@ -38,13 +38,11 @@ def unlicensed(monkeypatch):
 
 
 @pytest.fixture
-def cli_env(tmp_path, monkeypatch, license_pair):
+def cli_env(tmp_path, monkeypatch, license_pair, project_root):
     for name in tuple(os.environ):
         if name.startswith("TIQR_"):
             monkeypatch.delenv(name)
     monkeypatch.setenv("TIQR_SECRET_KEY", "cli-suite-unique-signing-key")
-    monkeypatch.setenv("TIQR_DB", str(tmp_path / "tickets.db"))
-    monkeypatch.setenv("TIQR_OUT", str(tmp_path / "pdfs"))
     monkeypatch.setenv("TIQR_DEFAULT_TZ", "Asia/Baku")
     registrar = InMemoryRegistrar()
     events = InMemoryEventSource()
@@ -142,7 +140,7 @@ def test_all_commands_use_core_fakes(cli_env):
     assert assigned["assigned_operator"] == operator["id"]
     saved = invoke(["ticket", "save", ticket_id, "--as", "operator"])
     assert saved.exit_code == 0, saved.output
-    destination = directory / "pdfs" / f"{ticket_id}.pdf"
+    destination = directory / "out" / f"{ticket_id}.pdf"
     assert str(destination) in saved.output
     assert destination.read_bytes().startswith(b"%PDF-")
 
@@ -321,7 +319,7 @@ def test_permissions_are_enforced_by_service(cli_env):
     ticket_id = output_json(create_ticket())["id"]
     result = invoke(["ticket", "save", ticket_id, "--as", "operator"])
     assert result.exit_code == 1
-    assert not (cli_env[0] / "pdfs" / f"{ticket_id}.pdf").exists()
+    assert not (cli_env[0] / "out" / f"{ticket_id}.pdf").exists()
     assert invoke(["stats", "--as", "operator"]).exit_code == 1
     assert invoke(["ticket", "assign", ticket_id, "operator", "--as", "admin"]).exit_code == 1
     own = output_json(create_ticket("operator"))
@@ -446,7 +444,7 @@ def test_short_option_aliases_match_long_forms(cli_env):
 
 def test_old_database_refused_and_connection_closed(cli_env, monkeypatch):
     directory = cli_env[0]
-    with sqlite3.connect(directory / "tickets.db") as connection:
+    with sqlite3.connect(directory / "tiqr.db") as connection:
         connection.execute("CREATE TABLE guests (id INTEGER)")
     closed = []
     original = SQLiteRepository.close
@@ -653,8 +651,8 @@ def test_reset_deletes_the_database_so_setup_starts_fresh(cli_env):
     directory, _, _ = cli_env
     assert invoke(["setup"]).exit_code == 0
     add_user("admin", "admin")
-    database = directory / "tickets.db"
-    sidecar = directory / "tickets.db-wal"
+    database = directory / "tiqr.db"
+    sidecar = directory / "tiqr.db-wal"
     sidecar.write_bytes(b"")
 
     result = runner.invoke(cli.app, ["reset"], input="y\n")
@@ -673,7 +671,7 @@ def test_reset_aborts_without_confirmation(cli_env):
     result = runner.invoke(cli.app, ["reset"], input="n\n")
 
     assert result.exit_code != 0
-    assert (directory / "tickets.db").exists()
+    assert (directory / "tiqr.db").exists()
 
 
 def test_reset_yes_works_on_a_fresh_checkout(cli_env):
@@ -696,7 +694,7 @@ def test_ticket_print_saves_pdf_and_sends_it_to_printer(cli_env, monkeypatch):
 
     result = invoke(["ticket", "print", ticket_id, "--as", "admin"])
 
-    destination = directory / "pdfs" / f"{ticket_id}.pdf"
+    destination = directory / "out" / f"{ticket_id}.pdf"
     assert result.exit_code == 0, result.output
     assert sent == [destination]
     assert destination.read_bytes().startswith(b"%PDF-")
@@ -725,7 +723,7 @@ def write_v1_database(path):
 
 def test_old_schema_needs_setup_which_upgrades_it(cli_env):
     directory, _, _ = cli_env
-    write_v1_database(directory / "tickets.db")
+    write_v1_database(directory / "tiqr.db")
     refused = invoke(["user", "list"])
     assert refused.exit_code == 1
     assert "out of date" in refused.output
@@ -743,7 +741,7 @@ def test_serve_checks_settings_then_runs_the_server(cli_env, monkeypatch):
     # Plain HTTP on 7102 unless a certificate is configured.
     assert (plain.host, plain.port, plain.dev, plain.secure) == ("127.0.0.1", 7102, False, False)
     assert (dev.port, dev.dev) == (8123, True)
-    assert (directory / "tickets.db").exists()
+    assert (directory / "tiqr.db").exists()
 
 
 @pytest.mark.parametrize(
@@ -752,7 +750,7 @@ def test_serve_checks_settings_then_runs_the_server(cli_env, monkeypatch):
 )
 def test_serve_stops_before_listening(cli_env, monkeypatch, args, message):
     directory, _, _ = cli_env
-    write_v1_database(directory / "tickets.db")
+    write_v1_database(directory / "tiqr.db")
     monkeypatch.setattr(api_server, "run", lambda config: pytest.fail("the server started"))
     result = invoke(args)
     assert result.exit_code == 1

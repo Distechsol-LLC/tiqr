@@ -274,7 +274,10 @@ class BrandingOut(BaseModel):
     theme: Annotated[str, Field(description="theme: default, light, dark or a Skeleton theme name")]
     languages: Annotated[
         list[str],
-        Field(description="languages, such as en-US: what the switcher offers, first is default"),
+        Field(
+            description="languages, such as en-US: what the switcher offers, "
+            "first is the fallback default"
+        ),
     ]
     currencies: Annotated[
         list[Currency], Field(description="The currencies of the languages' regions")

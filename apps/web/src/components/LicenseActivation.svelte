@@ -24,7 +24,7 @@
   const COPIED_FOR = 2000;
   const REQUEST_TYPES = requestTypeSchema.options;
 
-  let requestType = $state<RequestType>('trial');
+  let requestType = $state<RequestType>('standard');
   let code = $state('');
   let key = $state('');
   let isRequesting = $state(false);
@@ -174,10 +174,10 @@
 <section class="space-y-3">
   {#if canActivate}
     <form class="space-y-3" onsubmit={activate}>
-      <label class="block space-y-2">
+      <label class="block">
         <span class="h6">{i18n.t.license.keyLabel}</span>
         <textarea
-          class="textarea font-mono text-xs"
+          class="textarea mt-2 font-mono text-xs"
           placeholder={i18n.t.license.keyPlaceholder}
           rows="5"
           spellcheck="false"

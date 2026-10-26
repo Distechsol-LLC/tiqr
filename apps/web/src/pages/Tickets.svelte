@@ -26,19 +26,20 @@
   import { formatMinor } from '%/money.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { pageCount } from '%/pagination.ts';
-  import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
+  import { type SortValues, sortRows } from '%/sort.ts';
   import { toaster } from '%/toaster.ts';
   import { tooltipIfTruncated } from '%/tooltipIfTruncated.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { createPagination } from '%/usePagination.svelte.ts';
+  import { createSortParams } from '%/useSortParams.svelte.ts';
   import type { User } from '$/auth.ts';
   import { type Ticket, type TicketState, ticketStateSchema } from '$/tickets.ts';
 
   type Filter = TicketState | 'all';
   type RowAction = 'browser' | 'pdf' | 'print';
-  type SortKey = 'assignee' | 'price' | 'serial' | 'state' | 'valid' | 'visitor';
+  type SortKey = 'assignee' | 'price' | 'state' | 'valid' | 'visitor';
 
   const ICON_SIZE = 18;
   const SMALL_ICON_SIZE = 14;
@@ -68,7 +69,6 @@
   let accounts = $state<User[]>([]);
   let filter = $state<Filter>('all');
   let query = $state('');
-  let sort = $state<Sort<SortKey> | null>(null);
   let isLoading = $state(true);
   let isCreating = $state(false);
   let assigning = $state<Ticket | null>(null);
@@ -79,13 +79,13 @@
   const sortValues: SortValues<Ticket, SortKey> = {
     assignee: (ticket) => usernames.get(ticket.assigned_operator) ?? '',
     price: (ticket) => ticket.price_minor ?? -1,
-    serial: (ticket) => ticket.readable_serial,
     state: (ticket) => STATE_ORDER.get(ticket.state) ?? 0,
     valid: (ticket) => Date.parse(ticket.valid_from),
     visitor: (ticket) => ticket.visitor_name,
   };
 
-  // The API sends the newest tickets first, what people look for first, until a column is picked.
+  const sorting = createSortParams(sortValues, { direction: 'asc', key: 'valid' });
+
   // Searching and sorting only reach the page showing.
   const rows = $derived.by(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -100,7 +100,7 @@
         )
       : tickets;
 
-    return sortRows(matches, sort, sortValues);
+    return sortRows(matches, sorting.sort, sortValues);
   });
 
   const load = async (state: Filter): Promise<void> => {
@@ -144,13 +144,6 @@
     if (result.ok) accounts = result.data;
     else await notifyFailure(i18n.t.tickets.accountsNotLoaded, result.error);
   };
-
-  const sortBy = (key: SortKey): void => {
-    sort = toggleSort(sort, key);
-  };
-
-  const directionOf = (key: SortKey): Sort<SortKey>['direction'] | null =>
-    sort?.key === key ? sort.direction : null;
 
   const refresh = (): void => {
     void load(filter);
@@ -309,7 +302,8 @@
     </button>
   {/snippet}
   {#snippet toolbar()}
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <!-- The tabs' negative bottom margin eats into the row gap, so the wrapped row needs more -->
+    <div class="flex -mt-px flex-wrap items-center justify-between gap-x-3 gap-y-8">
       <FilterTabs
         label={(option): string => (option === 'all' ? i18n.t.tickets.all : i18n.t.states[option])}
         legend={i18n.t.tickets.filter}
@@ -352,44 +346,39 @@
   minWidth="88rem"
 >
   {#snippet head()}
+    <th class="w-48">{i18n.t.tickets.columns.serial}</th>
     <SortHeader
       class="w-48"
-      direction={directionOf('serial')}
-      label={i18n.t.tickets.columns.serial}
-      onSort={(): void => sortBy('serial')}
-    />
-    <SortHeader
-      class="w-48"
-      direction={directionOf('visitor')}
+      direction={sorting.directionOf('visitor')}
       label={i18n.t.tickets.columns.visitor}
-      onSort={(): void => sortBy('visitor')}
+      onSort={(): void => sorting.sortBy('visitor')}
     />
     <SortHeader
       class="w-36"
-      direction={directionOf('valid')}
+      direction={sorting.directionOf('valid')}
       label={i18n.t.tickets.columns.valid}
-      onSort={(): void => sortBy('valid')}
+      onSort={(): void => sorting.sortBy('valid')}
     />
     <SortHeader
       class="w-32"
-      direction={directionOf('state')}
+      direction={sorting.directionOf('state')}
       label={i18n.t.tickets.columns.state}
-      onSort={(): void => sortBy('state')}
+      onSort={(): void => sorting.sortBy('state')}
     />
     <SortHeader
       class="w-28"
-      direction={directionOf('price')}
+      direction={sorting.directionOf('price')}
       isEnd
       label={i18n.t.tickets.columns.price}
-      onSort={(): void => sortBy('price')}
+      onSort={(): void => sorting.sortBy('price')}
     />
     <th class="w-28">{i18n.t.tickets.columns.usage}</th>
     {#if isStaff}
       <SortHeader
         class="w-30"
-        direction={directionOf('assignee')}
+        direction={sorting.directionOf('assignee')}
         label={i18n.t.tickets.columns.assignee}
-        onSort={(): void => sortBy('assignee')}
+        onSort={(): void => sorting.sortBy('assignee')}
       />
     {/if}
     <ActionsHeader count={actionCount} />

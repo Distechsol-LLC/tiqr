@@ -66,7 +66,7 @@ def _read_history(path: Path) -> list[dict[str, Any]]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--request", required=True, help="the customer's request code")
-    parser.add_argument("--type", choices=("trial", "standard", "enterprise"), default="standard")
+    parser.add_argument("--type", choices=("trial", "standard"), default="standard")
     parser.add_argument("--licensedTo", dest="licensed_to")
     parser.add_argument("--days", type=int)
     parser.add_argument("--note")

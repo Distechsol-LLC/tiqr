@@ -69,7 +69,7 @@ describe('catalog', () => {
     const huge = ticketTypeInputSchema.safeParse({
       currency: 'USD',
       name: 'Day',
-      price: '10000000.01',
+      price: '1000000000.01',
     });
     const long = ticketTypeInputSchema.safeParse({
       currency: 'USD',
@@ -79,11 +79,11 @@ describe('catalog', () => {
 
     expect(blank.error?.issues[0]?.message).toBe(en.errors.nameRequired);
     expect(bad.error?.issues[0]?.message).toBe(en.errors.priceInvalid);
-    expect(huge.error?.issues[0]?.message).toBe(en.errors.priceInvalid);
+    expect(huge.error?.issues[0]?.message).toBe(en.errors.priceTooHigh);
     expect(long.error?.issues[0]?.message).toBe(en.errors.nameLong);
     // The limit itself is fine
     expect(
-      ticketTypeInputSchema.safeParse({ currency: 'USD', name: 'Day', price: '10000000' }).success
+      ticketTypeInputSchema.safeParse({ currency: 'USD', name: 'Day', price: '1000000000' }).success
     ).toBeTrue();
   });
 

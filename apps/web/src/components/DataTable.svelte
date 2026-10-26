@@ -46,7 +46,7 @@
        collapsed, Firefox paints the head's shade over them -->
   <table
     class={[
-      isEmpty && 'h-full',
+      isEmpty && 'h-full [&_tbody_td]:border-b-0',
       'table table-fixed border-separate border-spacing-0 [&_:is(th,td)]:truncate [&_td>p]:truncate [&_:is(th,td)]:border-b [&_:is(th,td)]:[border-color:light-dark(var(--color-surface-200),var(--color-surface-800))] [&_:is(th,td):not(:first-child)]:border-s [&_:is(th,td)]:px-4 [&_:is(th,td)]:py-3 [&_:is(th,td):first-child]:ps-4 md:[&_:is(th,td):first-child]:ps-8 [&_:is(th,td):last-child]:pe-4 md:[&_:is(th,td):last-child]:pe-8',
     ]}
     style:min-width={minWidth}

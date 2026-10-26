@@ -25,9 +25,9 @@ for file in THIRD-PARTY-NOTICES.txt INSTALL.txt; do
     if [ -f "$here/$file" ]; then cp "$here/$file" "$target/$file"; fi
 done
 # A reinstall keeps the branding the site has already edited.
-if [ ! -f "$target/tiqr_branding.jsonc" ]; then
-    [ -f "$here/tiqr_branding.jsonc" ] || { echo "tiqr_branding.jsonc is missing" >&2; exit 1; }
-    cp "$here/tiqr_branding.jsonc" "$target/tiqr_branding.jsonc"
+if [ ! -f "$target/tiqr_brand.jsonc" ]; then
+    [ -f "$here/tiqr_brand.jsonc" ] || { echo "tiqr_brand.jsonc is missing" >&2; exit 1; }
+    cp "$here/tiqr_brand.jsonc" "$target/tiqr_brand.jsonc"
 fi
 
 cd "$target"

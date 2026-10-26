@@ -1,0 +1,227 @@
+# TiQR Web: User Guide
+
+This guide explains how to use the TiQR web app in a browser. It covers signing in, the three
+roles, and the everyday tasks: issuing tickets, sending badges to print, assigning tickets, and
+managing accounts, ticket types and visitor types.
+
+## 1. Opening the app
+
+Your administrator will give you an address such as `https://tiqr.example.com:7102/tiqr/`
+(or `http://127.0.0.1:7102/tiqr/` on the server itself). Opening the bare address without
+`/tiqr/` takes you to the same place.
+
+Use a current version of Chrome, Edge, Firefox or Safari.
+
+## 2. Signing in
+
+1. Enter your **Username** and **Password**.
+2. Select **Sign in**.
+
+If the sign-in fails, the app shows a message:
+
+- **Invalid username or password.** Check the spelling and try again.
+- **Too many failed sign-ins.** Wait the time shown (up to 15 minutes) before trying again.
+- **Your session has ended.** Sign in again.
+
+You are signed out automatically after **30 minutes** without activity, and in any case after
+**12 hours**. Your account can also be signed out by an administrator or a manager if it is
+deactivated or its password is reset; sign in again with the new password when asked.
+
+On the sign-in page, the globe button changes the language and the sun/moon button changes the
+theme (light or dark).
+
+## 3. Finding your way around
+
+After signing in, you land on the **Tickets** page. The left-hand menu shows the pages you can use.
+Select the arrow at the bottom of the menu to collapse it to icons only, and select it again to expand it.
+
+At the top right of the screen:
+
+- **Language**: switch the interface language.
+- **Theme**: switch between light and dark.
+- **Account menu**: shows your name and role, and contains **Sign out**.
+
+## 4. Roles and what you can do
+
+Your role decides which menu items you see. Your role is shown in the account menu.
+
+| Menu item | Operator | Manager | Admin |
+|---|:---:|:---:|:---:|
+| Tickets | Yes (assigned to you only) | Yes (all tickets) | Yes (all tickets) |
+| Accounts / Users | No | Yes (operators only) | Yes (all roles) |
+| Ticket types | No (used when creating tickets) | Yes | Yes |
+| Visitor types | No (used when creating tickets) | Yes | Yes |
+| Overview | No | Yes | Yes |
+| License | No | No | Yes |
+
+The tasks below say which role can do each one.
+
+## 5. Tickets
+
+The **Tickets** page lists tickets. Each row shows the serial number, visitor, state, validity,
+usage, prints, uses, price and assignee.
+
+### Ticket states
+
+- **Issued**: valid and waiting for its first passage. Only issued tickets can be downloaded or printed.
+- **Passed**: has been used at least once and is still within its validity period.
+- **Expired**: past its validity period.
+
+### Searching and filtering
+
+- Type in the **Search tickets** box to find a ticket by its serial number, visitor name or other details.
+- Use the **Filter by state** tabs to show **All**, **Issued**, **Passed** or **Expired** tickets.
+- Use the page controls at the bottom to change the number of **Rows** and move between pages.
+
+Operators see only tickets assigned to them. Managers and admins see every ticket.
+
+### Creating a ticket (Operator, Manager, Admin)
+
+1. Select **New Ticket**.
+2. Fill in the form:
+   - **Visitor name**: the visitor's full name.
+   - **Visitor type**: choose from the list. Discounts for the visitor type are applied automatically.
+   - **Ticket type**: choose from the list. The price comes from the ticket type.
+   - **Usage**: **One-time** (used for a single passage) or **Multi-use** (can be used repeatedly within its validity period).
+   - **Valid from** and **Valid until**: pick the date and time. The end must not be before the start.
+3. Check the **Price**, **Discount** and **Total** shown on the form.
+4. Select **Create**.
+
+The new ticket is assigned to you, the account that created it. A confirmation message shows the
+serial number and the visitor's name.
+
+If the form says **Ticket and visitor types not loaded**, ask a manager or admin to check that the
+ticket types and visitor types exist, then select **Refresh** and try again.
+
+### Printing and downloading a badge
+
+Each ticket can produce a foldable A4 badge with the visitor's name, visitor type, validity, a QR code
+and the readable serial number.
+
+For an issued ticket, the row actions offer:
+
+- **Download** (or **Download badge for …**): saves the PDF to your computer. Open it and print it on your own printer.
+- **Print PDF** (or **Print PDF of badge …**): opens the badge in your browser's print dialog, so you can choose your own printer.
+- **Send to printer** (or **Send badge … to the printer**): prints on the server's default printer. This option appears only when the administrator has turned on server printing.
+
+Download and print are available only for **issued** tickets. Every time a badge is generated
+or printed, the **Prints** count goes up, so the count shows how many badges have been made for
+that ticket. Passed or expired tickets cannot be printed.
+
+### Assigning a ticket (Manager, Admin)
+
+1. Find the ticket and select **Assign** (or **Assign …** with the serial number).
+2. Pick an account from **Assignee**.
+3. Select **Assign**.
+
+The assignee is the person responsible for the ticket. Operators see a ticket only while it is
+assigned to them, and only that operator can then download or print it. Deactivated accounts cannot
+hold tickets; a manager must reassign them.
+
+## 6. Accounts (Manager and Admin)
+
+The **Accounts** page (called **Users** for admins) lists sign-in accounts with their role and status.
+
+### Adding an account
+
+1. Select **New User**.
+2. Enter a **Username** and an initial **Password**.
+3. Choose a **Role** (admins only; managers can add operators only).
+4. Select **Create**.
+
+### Managers
+
+- Add operators and deactivate or reactivate them.
+
+### Admins
+
+- Change an account's role with the role menu.
+- Reset a password with **Reset password**. Enter the new password twice. The account is signed out
+  everywhere and must sign in with the new password.
+- Deactivate or reactivate an account with the status control.
+- Delete an account with **Delete**. You can delete only accounts that are already deactivated and have
+  never created or held a ticket.
+
+Some rules protect everyone:
+
+- You cannot change your own role or deactivate yourself.
+- The last active admin cannot be demoted or deactivated, so there is always someone who can manage accounts.
+- A deactivated account keeps its history but cannot sign in or be assigned tickets.
+
+## 7. Ticket types and visitor types (Manager and Admin)
+
+Operators cannot open these pages, but the ticket form uses these lists, so operators can pick from them when creating tickets.
+
+### Ticket types
+
+Ticket types define what a visitor pays and how much.
+
+- **New Ticket Type**: enter a **Name**, a **Price** such as `12.50`, and a **Currency**. Select **Create**.
+- **Edit**: change the name, price or currency.
+- **Delete**: removes the ticket type for good. Tickets already issued keep their original price.
+
+### Visitor types
+
+Visitor types define discounts.
+
+- **New Visitor Type**: enter a **Name** and a **Discount, %** as a whole number from 0 to 100. Select **Create**.
+- **Edit**: change the name or discount.
+- **Delete**: removes the visitor type for good. Tickets already issued keep their original discount.
+
+## 8. Overview (Manager and Admin)
+
+The **Overview** page shows ticket statistics for a period.
+
+- Choose the **Period**: **Day**, **Month**, **Year**, **Range** (pick a start and end date) or **All time**.
+  Use **Earlier** and **Later** to move through periods.
+- The table shows these figures:
+  - **Total**: every ticket issued in the period.
+  - **Issued**: tickets waiting for their first passage.
+  - **Passed**: tickets used at least once that are still valid.
+  - **Expired**: tickets past their validity.
+  - **Uses**: granted passages applied to tickets.
+  - **Prints**: badges rendered or printed.
+
+Two maintenance buttons talk to BioStar:
+
+- **Sync** (**Pull new access events**): fetches the latest passages from the access system. Use it
+  if the figures look out of date. A message reports how many new events were applied.
+- **Clean** (**Remove finished tickets**): removes finished tickets from BioStar. A message reports how many were removed.
+
+## 9. License (Admin)
+
+The app needs an active license before it can manage tickets. If the license is missing, expired or
+cannot be verified, a red message appears at the top of the License page, and the app stays locked until
+a valid license is activated.
+
+- **Request code**: choose **Trial (30 days)** or **Standard license**. A code appears in the grey box.
+  Select **Copy** and send the code to your vendor. Anyone can request a code, but only an admin can
+  activate a key.
+- **License key**: paste the key your vendor sends back and select **Activate license**.
+- **Machine ID**: shown at the bottom of the page. Your vendor needs it to issue a key.
+- **Status**: shows whether the license is **Active**, a **Trial**, **Expired** or **Not verified**, the
+  **Licensed to** name and the expiry date.
+
+Messages you may see:
+
+- **This key is not valid for this product.** Check you copied the whole key from the vendor.
+- **This key was issued for another machine.** The key belongs to a different installation. Ask the vendor for a key using this install's request code.
+- **This key has already expired.** Ask the vendor for a renewal.
+- **A trial cannot replace a paid license.** Activate the paid key instead of requesting a trial.
+
+If you are an operator or manager and see the license message, send the request code to your administrator.
+
+## 10. Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| **Cannot reach the server.** | Check your network connection, then select **Refresh** or reload the page. If it persists, tell your administrator. |
+| **Something went wrong on the server.** | Try again in a moment. If it keeps happening, tell your administrator. |
+| **Your session has ended.** | Sign in again. Unsaved form entries may need to be re-entered. |
+| **Tickets not loaded** / **Accounts not loaded** | Select **Refresh**. If the message stays, check the connection. |
+| The **Send to printer** option is missing | Server printing is not enabled. Use **Download** or **Print PDF** instead. |
+| A badge does not print | Make sure the ticket is **Issued**, then try **Print PDF** or **Download** and print from your own computer. |
+| Page not found | Use the menu to go back to a page you can access, or select **Back home**. |
+
+When you report a problem, include the serial number of the ticket (if any), the page you were on and the
+exact message shown.

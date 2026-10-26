@@ -1,4 +1,4 @@
-import { LOCALE_CODES, type Locale, isLocale } from '@/config/locales.ts';
+import { DEFAULT_LOCALES, type Locale, isLocale } from '@/config/locales.ts';
 import { fetchBranding } from '%/api.ts';
 import type { Branding } from '$/branding.ts';
 import { type Currency, currencySchema } from '$/catalog.ts';
@@ -46,7 +46,7 @@ const createBranding = (): BrandingController => {
     get locales(): readonly Locale[] {
       const locales = offered();
 
-      return locales.length > 0 ? locales : LOCALE_CODES;
+      return locales.length > 0 ? locales : DEFAULT_LOCALES;
     },
     get logoSrc(): string | null {
       return current?.has_logo ? LOGO_URL : null;
@@ -59,4 +59,4 @@ const createBranding = (): BrandingController => {
 
 const branding = createBranding();
 
-export { branding, createBranding };
+export { branding };

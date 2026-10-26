@@ -36,16 +36,15 @@ also reads `.env` and then `.env.local` from the project root (the checkout that
 environment variables win over both. `.env` is committed and lists every key with blank
 placeholders; a blank value counts as unset, so local mode works and CI can fill the
 BioStar block in. `.env.local` is git-ignored and holds private values such as
-`TIQR_SECRET_KEY` and `TIQR_BIOSTAR_PASSWORD`. `tiqr_branding.jsonc` (comments allowed) sits in the same folder and is required: the program
+`TIQR_SECRET_KEY` and `TIQR_BIOSTAR_PASSWORD`. `tiqr_brand.jsonc` (comments allowed) sits in the same folder and is required: the program
 does not run without it. It holds the name, logo, theme and languages (the web app reads them from
 the server at load, so one build serves any of them) and may also set the other non-secret keys:
-`db`, `out`, `prefix`, `default_tz`, the server's `host`, `port`, `tls_cert`, `tls_key`,
+`prefix`, `default_tz`, the server's `host`, `port`, `tls_cert`, `tls_key`,
 `server_printing`, `sync_interval`, `cleanup_interval`, and a `biostar` block. Each is the
 `TIQR_*` setting of the same name; the file wins over `.env` and `.env.local`, real environment
 variables win over it, and `null` leaves a key to the layers below. `TIQR_SECRET_KEY` and the
 BioStar password are refused there. `theme` is `default` (the Vintage theme) or any Skeleton theme
-name, and the first of `languages` is the one shown by default. A partly filled BioStar block is an error.
-Relative `TIQR_DB` and `TIQR_OUT` paths are also resolved against the project root.
+name, and a visitor's browser language is shown when `languages` offers it; otherwise the first of `languages` is shown. A partly filled BioStar block is an error.
 An installed service sets `TIQR_HOME` in its real environment instead, and the project root
 becomes that folder: config, database, PDFs and the CLI session then stay put while release
 folders change. It cannot be set in `.env`, which is found through it.
@@ -59,8 +58,6 @@ flag in `.env`, because local mode must keep working.
 |---|---|
 | `TIQR_HOME` | Unset; when set, the project root for every relative path and `.env` file |
 | `TIQR_SECRET_KEY` | Required, private non-placeholder signing key |
-| `TIQR_DB` | `tiqr.db`, relative to the project root |
-| `TIQR_OUT` | `out`, relative to the project root |
 | `TIQR_DEFAULT_TZ` | This machine's IANA zone when blank, else `UTC` |
 | `TIQR_PREFIX` | `TQR`; any three printable ASCII characters except `:` and `-`, prefixing new readable serials and QR payloads |
 | `TIQR_BIOSTAR_BASE_URL` | HTTPS host URL, optionally ending in `/api` |
@@ -72,7 +69,6 @@ flag in `.env`, because local mode must keep working.
 | `TIQR_BIOSTAR_TIMEOUT` | `30` seconds |
 | `TIQR_BIOSTAR_DOOR_OPEN_DURATION` | `3` seconds a door stays unlocked; applies to doors `tiqr setup` creates |
 | `TIQR_BIOSTAR_DOOR_OPEN_TIMEOUT` | `10` seconds a door may stay open before BioStar flags it; applies to doors `tiqr setup` creates |
-| `TIQR_BIOSTAR_USER_ID_BASE` | `1000000`, a reserved, non-reused user ID range |
 | `TIQR_BIOSTAR_REQUIRED` | `false`; `true` makes a missing BioStar block a startup error |
 | `TIQR_HOST` | `127.0.0.1`; the address `tiqr serve` binds. Use the server's LAN IP, not `0.0.0.0` |
 | `TIQR_PORT` | `7102` |
@@ -84,7 +80,7 @@ flag in `.env`, because local mode must keep working.
 With **no** BioStar settings, in-memory registrar and event-source fakes are the
 defaults. Supplying BioStar settings requires the base URL, username, password and at least one
 device ID; partial or empty configuration fails instead of silently using fakes. Only enable
-live settings for the intended server. Changing `TIQR_DB`, deleting sequence records,
+live settings for the intended server. Changing the database file, deleting sequence records,
 or sharing the ID range with another application risks reusing remote IDs. Reserve
 the range and keep database backups. The CLI never deletes doors, access levels or access groups.
 
@@ -141,7 +137,7 @@ uv run tiqr stats --since 2026-09-01 --until 2026-09-30 --as manager
 ```
 
 Replace `<ticket-uuid>` with the ID returned by creation. `ticket save` and `ticket print`
-write `./out/<ticket-uuid>.pdf` unless `TIQR_OUT` is set; `ticket print` then sends that file
+write `./out/<ticket-uuid>.pdf`; `ticket print` then sends that file
 to the default printer. The PDF
 is a foldable badge with name, visitor type, validity, a QR code, and the readable serial,
 with packaged badge logos. Printing is unlimited while the ticket is `issued` only;
@@ -278,7 +274,7 @@ Run one server process per database: scheduling, login limits and the sync lock 
 | `POST /api/visitor-types`, `PATCH`/`DELETE /api/visitor-types/{id}` | — | Admins and managers; a visitor type has a discount |
 | `GET /api/tickets?state=`, `POST /api/tickets`, `GET /api/tickets/{id}` | `ticket list`, `ticket create` | As the CLI; `POST` also takes an optional `ticket_type` |
 | `POST /api/tickets/{id}/assign` | `ticket assign` | Managers |
-| `POST /api/tickets/{id}/pdf` | `ticket save` | Returns the PDF and keeps it in `TIQR_OUT` |
+| `POST /api/tickets/{id}/pdf` | `ticket save` | Returns the PDF and keeps it in `out/` |
 | `POST /api/tickets/{id}/print` | `ticket print` | Server printer; `409` unless `TIQR_SERVER_PRINTING` |
 | `POST /api/sync`, `POST /api/cleanup`, `GET /api/stats` | `sync`, `cleanup`, `stats` | Admins and managers |
 
@@ -544,7 +540,7 @@ Builds from `prod` or a `v*` tag upload the archives as 7-day artifacts; a manua
 only builds and tests. The executable contains Python, the fonts and logos, and
 the time zone data. Its config and data live beside it, not in a temporary folder:
 `.env.local`, `tiqr.db` and `out/` appear in the folder that holds the executable. Copy
-your own `.env.local` there to supply BioStar settings, and put `tiqr_branding.jsonc` there too: the
+your own `.env.local` there to supply BioStar settings, and put `tiqr_brand.jsonc` there too: the
 executable refuses to run without it. Secrets are never built in.
 
 - **Windows:** double-clicking `tiqr.exe` runs setup when needed, then opens a terminal
@@ -560,7 +556,7 @@ Executables workflow compiles in before PyInstaller runs.
 ### Installing a release
 
 Each release carries one archive per OS, `tiqr-Linux-X64.tar.gz` and `tiqr-Windows-X64.zip`,
-holding the executable, `tiqr_branding.jsonc`, `INSTALL.txt`, `THIRD-PARTY-NOTICES.txt` and an
+holding the executable, `tiqr_brand.jsonc`, `INSTALL.txt`, `THIRD-PARTY-NOTICES.txt` and an
 install script (plus WinSW on Windows). Unpack it and run the script as an administrator:
 
 ```text

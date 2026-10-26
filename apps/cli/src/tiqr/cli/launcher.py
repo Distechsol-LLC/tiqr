@@ -4,6 +4,7 @@ Double-clicked, it opens a terminal window in its own folder and runs the CLI th
 """
 
 import ctypes
+import os
 import shlex
 import shutil
 import subprocess
@@ -30,6 +31,8 @@ _LINUX_TERMINALS = (
     ("xterm", ("-e",)),
 )
 _KEEP_SHELL_OPEN = 'exec "${SHELL:-/bin/sh}"'
+# Set in the terminal we open, so the CLI waits for Enter before that window closes.
+_PAUSE_ENV = "TIQR_PAUSE_ON_EXIT"
 
 
 def _interactive() -> bool:
@@ -71,10 +74,12 @@ def _needs_admin(arguments: Sequence[str]) -> bool:
 def _open_terminal(executable: Path) -> bool:
     """Open a terminal in the executable's folder that runs the CLI and stays open."""
     folder = executable.parent
+    environment = {**os.environ, _PAUSE_ENV: "1"}
     if sys.platform == "win32":
         subprocess.Popen(  # noqa: S603 - fixed shell; the only argument is this executable's name
             ["cmd.exe", "/k", executable.name],  # noqa: S607 - cmd.exe is always on Windows
             cwd=folder,
+            env=environment,
             creationflags=subprocess.CREATE_NEW_CONSOLE,
         )
         return True
@@ -84,7 +89,7 @@ def _open_terminal(executable: Path) -> bool:
     for terminal, flags in _LINUX_TERMINALS:
         if shutil.which(terminal):
             subprocess.Popen(  # noqa: S603 - the terminal is picked from a fixed list
-                [terminal, *flags, "sh", "-c", command]
+                [terminal, *flags, "sh", "-c", command], env=environment
             )
             return True
     return False
@@ -95,15 +100,7 @@ def _pause() -> None:
         input("Press Enter to close this window...")
 
 
-def main(argv: Sequence[str] | None = None) -> None:
-    arguments = list(sys.argv[1:] if argv is None else argv)
-    if not arguments and _launched_from_file_manager():
-        executable = Path(sys.executable)
-        if not _open_terminal(executable):
-            typer.echo(f"No terminal window could be opened. Run {executable.name} from a terminal")
-            _pause()
-            raise SystemExit(1)
-        return
+def _run(arguments: Sequence[str]) -> None:
     if _needs_setup(arguments):
         # Non-standalone, so a failed setup returns its exit code instead of exiting.
         code = app(args=["setup"], standalone_mode=False)
@@ -116,3 +113,20 @@ def main(argv: Sequence[str] | None = None) -> None:
             typer.echo("Cancelled before an admin account was created.", err=True)
             raise SystemExit(1) from None
     app(args=arguments)
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if not arguments and _launched_from_file_manager():
+        executable = Path(sys.executable)
+        if not _open_terminal(executable):
+            typer.echo(f"No terminal window could be opened. Run {executable.name} from a terminal")
+            _pause()
+            raise SystemExit(1)
+        return
+    try:
+        _run(arguments)
+    finally:
+        # Runs on success, failure and the CLI's own exit, so the output stays readable.
+        if os.environ.get(_PAUSE_ENV):
+            _pause()

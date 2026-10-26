@@ -362,20 +362,15 @@ def test_dotenv_files_override_in_order_and_process_environment_wins(monkeypatch
     for key in tuple(__import__("os").environ):
         if key.startswith("TIQR_"):
             monkeypatch.delenv(key)
-    (tmp_path / ".env").write_text(
-        "TIQR_SECRET_KEY=shared-file-key-0123456789abcdef\n"
-        "TIQR_DB=from-env.db\n"
-        "TIQR_OUT=from-env-out\n"
-    )
+    (tmp_path / ".env").write_text("TIQR_SECRET_KEY=shared-file-key-0123456789abcdef\n")
     (tmp_path / ".env.local").write_text("TIQR_SECRET_KEY=local-file-key-0123456789abcdef\n")
-    monkeypatch.setenv("TIQR_OUT", "from-process")
     (tmp_path / BRANDING_FILE).write_text(
         '{"app_name": "A", "theme": "default", "languages": ["en-US"]}'
     )
     settings = Settings.from_env()
     assert settings.secret_key == "local-file-key-0123456789abcdef"
-    assert settings.database_path == tmp_path / "from-env.db"
-    assert settings.output_dir == tmp_path / "from-process"
+    assert settings.database_path == tmp_path / "tiqr.db"
+    assert settings.output_dir == tmp_path / "out"
 
 
 def test_branding_file_is_required_and_read_as_jsonc(tmp_path):
@@ -440,6 +435,8 @@ def test_file_settings_override_env_files_but_not_the_environment(monkeypatch, t
         ("[1]", "JSON object"),
         ("{oops", "not valid"),
         ('{"app_name": "A", "theme": "x", "languages": ["en-US"], "color": 1}', "unknown keys"),
+        ('{"app_name": "A", "theme": "x", "languages": ["en-US"], "db": "x.db"}', "db"),
+        ('{"app_name": "A", "theme": "x", "languages": ["en-US"], "out": "pdfs"}', "out"),
         ('{"app_name": "A", "languages": ["en-US"]}', "missing theme"),
         (
             '{"app_name": "A", "theme": "x", "languages": ["en-US"], "biostar": {"password": "p"}}',

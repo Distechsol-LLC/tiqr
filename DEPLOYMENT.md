@@ -174,7 +174,7 @@ The installer collects, then writes `tiqr.env`:
 | Setting | Source |
 |---|---|
 | Bind address and port (`TIQR_HOST`, `TIQR_PORT`), for example `10.0.0.5:7102` | The target IP the customer gave; port defaults to 7102 |
-| Data folder (`TIQR_HOME`), `TIQR_DB`, `TIQR_OUT` | Fixed by the server layout |
+| Data folder (`TIQR_HOME`) | Fixed by the server layout |
 | `TIQR_BIOSTAR_*` block and `TIQR_BIOSTAR_REQUIRED=true` | Prompted; the password is never written to an answers file or logged |
 | `TIQR_BIOSTAR_VERIFY_TLS` | Prompted, defaulting to `true` for installs. The library's `false` default suits development only |
 | `TIQR_DEFAULT_TZ` | Prompted, defaulting to the server's zone |
@@ -187,7 +187,7 @@ never reads it back. `TIQR_HOME` must reach the process as a real environment va
 files through it, so a `.env` file cannot set it. With it set, data and config stay put while
 release folders change.
 
-The server reads `tiqr_branding.jsonc` from `TIQR_HOME` at every start and refuses to run without
+The server reads `tiqr_brand.jsonc` from `TIQR_HOME` at every start and refuses to run without
 it. Before the service starts, run `tiqr install` from the release folder (or pass `--source`) to
 copy the file there. It checks the file first, so a broken copy never replaces a working one.
 

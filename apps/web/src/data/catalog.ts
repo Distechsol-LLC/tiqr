@@ -5,7 +5,7 @@ import { i18n } from '%/useLocale.svelte.ts';
 
 // Same bounds as _Name, _Price and _Discount in apps/api/src/tiqr/api/schemas.py
 const NAME_MAX = 200;
-const PRICE_MAX = 1_000_000_000;
+const PRICE_MAX = 100_000_000_000;
 const DISCOUNT_MAX = 100;
 // Whole per cent only, as the API takes it
 const DISCOUNT_TEXT = /^\d{1,3}$/;
@@ -41,8 +41,9 @@ const ticketTypeInputSchema = z.object({
   price: z
     .string()
     .transform((text) => parseMinor(text))
-    .refine((minor) => minor !== null && minor <= PRICE_MAX, {
-      error: () => i18n.t.errors.priceInvalid,
+    .refine((minor) => minor !== null, { error: () => i18n.t.errors.priceInvalid })
+    .refine((minor) => minor === null || minor <= PRICE_MAX, {
+      error: () => i18n.t.errors.priceTooHigh,
     })
     .transform((minor) => minor as number),
 });
