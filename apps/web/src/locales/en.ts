@@ -129,7 +129,7 @@ const en = {
     expand: 'Expand',
     label: 'Main',
     license: 'License',
-    overview: 'Overview',
+    overview: 'Stats',
     signOut: 'Sign out',
     tickets: 'Tickets',
     ticketTypes: 'Ticket types',
@@ -159,6 +159,10 @@ const en = {
     description: 'Ticket figures, and BioStar maintenance on demand',
     earlier: 'Earlier',
     empty: 'No statistics',
+    export: {
+      failed: 'Export failed',
+      hint: 'Export as CSV',
+    },
     later: 'Later',
     metrics: {
       expired: { description: 'Past their validity window', label: 'Expired' },
@@ -195,7 +199,7 @@ const en = {
       finished: 'Sync finished',
       hint: 'Pull new access events',
     },
-    title: 'Overview',
+    title: 'Stats',
   },
   password: {
     confirm: 'Confirm password',

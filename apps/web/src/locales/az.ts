@@ -132,7 +132,7 @@ const az: Messages = {
     expand: 'Aç',
     label: 'Əsas',
     license: 'Lisenziya',
-    overview: 'İcmal',
+    overview: 'Statistika',
     signOut: 'Çıxış',
     tickets: 'Biletlər',
     ticketTypes: 'Bilet növləri',
@@ -161,6 +161,10 @@ const az: Messages = {
     description: 'Bilet göstəriciləri və istəyə görə BioStar xidməti',
     earlier: 'Əvvəlki',
     empty: 'Statistika yoxdur',
+    export: {
+      failed: 'İxrac alınmadı',
+      hint: 'CSV kimi ixrac et',
+    },
     later: 'Sonrakı',
     metrics: {
       expired: {
@@ -199,7 +203,7 @@ const az: Messages = {
       finished: 'Sinxronlaşdırma tamamlandı',
       hint: 'Yeni giriş hadisələrini al',
     },
-    title: 'İcmal',
+    title: 'Statistika',
   },
   password: {
     confirm: 'Şifrəni təsdiqləyin',
