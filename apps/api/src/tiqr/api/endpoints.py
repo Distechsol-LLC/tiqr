@@ -395,10 +395,15 @@ def delete_visitor_type(type_id: UUID, me: Signed, server: Server) -> None:
 
 @router.get("/tickets", tags=["tickets"], responses=_refusals(401, 422))
 def list_tickets(
-    me: Signed, server: Server, paging: Paging, state: Annotated[TicketState | None, Query()] = None
+    me: Signed,
+    server: Server,
+    paging: Paging,
+    state: Annotated[TicketState | None, Query()] = None,
+    # Same bound as a visitor name in apps/api/src/tiqr/api/schemas.py
+    search: Annotated[str | None, Query(max_length=200)] = None,
 ) -> TicketPage:
-    """One page of tickets, newest first."""
-    tickets = server.service.list_tickets(me.user, state=state)
+    """One page of tickets, newest first, matching the search on serial, visitor or type."""
+    tickets = server.service.list_tickets(me.user, state=state, search=search)
     tickets.sort(key=lambda ticket: (ticket.readable_serial, str(ticket.id)), reverse=True)
     return TicketPage(
         items=[_ticket(server, ticket) for ticket in paging.slice(tickets)],

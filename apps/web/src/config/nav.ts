@@ -23,10 +23,10 @@ type NavItem = {
 const NAV: Record<Role, NavItem[]> = {
   admin: [
     { icon: Ticket, label: 'tickets', path: '/admin' },
-    { icon: UsersRound, label: 'users', path: '/admin/users' },
     { icon: Tag, label: 'ticketTypes', path: '/admin/ticket-types' },
     { icon: Percent, label: 'visitorTypes', path: '/admin/visitor-types' },
     { icon: ChartColumn, label: 'overview', path: '/admin/overview' },
+    { icon: UsersRound, label: 'users', path: '/admin/users' },
     { icon: KeyRound, label: 'license', path: '/admin/license' },
   ],
   manager: [

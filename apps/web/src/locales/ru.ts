@@ -134,7 +134,7 @@ const ru: Messages = {
     expand: 'Развернуть',
     label: 'Главное',
     license: 'Лицензия',
-    overview: 'Обзор',
+    overview: 'Статистика',
     signOut: 'Выйти',
     tickets: 'Билеты',
     ticketTypes: 'Типы билетов',
@@ -164,6 +164,10 @@ const ru: Messages = {
     description: 'Показатели билетов и обслуживание BioStar по запросу',
     earlier: 'Раньше',
     empty: 'Нет статистики',
+    export: {
+      failed: 'Экспорт не выполнен',
+      hint: 'Экспорт в CSV',
+    },
     later: 'Позже',
     metrics: {
       expired: { description: 'Срок действия истёк', label: 'Просрочены' },
@@ -200,7 +204,7 @@ const ru: Messages = {
       finished: 'Синхронизация завершена',
       hint: 'Получить новые события доступа',
     },
-    title: 'Обзор',
+    title: 'Статистика',
   },
   password: {
     confirm: 'Подтвердите пароль',
@@ -251,6 +255,7 @@ const ru: Messages = {
     assignFor: (serial: string): string => `Назначить ${serial}`,
     badgeNotPrinted: 'Пропуск не напечатан',
     badgeNotRendered: 'Пропуск не сформирован',
+    clearSearch: 'Очистить',
     columns: {
       assignee: 'Исполнитель',
       price: 'Цена',

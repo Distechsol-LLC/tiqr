@@ -2,6 +2,7 @@
   import ChartColumn from '@lucide/svelte/icons/chart-column';
   import ChevronLeft from '@lucide/svelte/icons/chevron-left';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import Download from '@lucide/svelte/icons/download';
   import Eraser from '@lucide/svelte/icons/eraser';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
@@ -14,6 +15,7 @@
   import PeriodPicker from '@/components/PeriodPicker.svelte';
   import SortHeader from '@/components/SortHeader.svelte';
   import { type ApiResult, fetchStats, runCleanup, runSync } from '%/api.ts';
+  import { downloadCsv, toCsv } from '%/csv.ts';
   import { toLocalInput } from '%/formatters.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { type SortValues, sortRows } from '%/sort.ts';
@@ -23,7 +25,7 @@
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { createSortParams } from '%/useSortParams.svelte.ts';
-  import type { Counts, Stats } from '$/operations.ts';
+  import { type Counts, METRICS, type Stats } from '$/operations.ts';
 
   type Operation = 'cleanup' | 'sync';
   type Range = Span | 'all' | 'range';
@@ -36,13 +38,12 @@
   const MIN_REM = 40;
   const VISITOR_TYPE_REM = 8;
 
-  // The same figures as `tiqr stats`, in its order; each is labelled in the showing language
-  const METRICS: Metric[] = ['total', 'issued', 'passed', 'expired', 'uses', 'prints'];
-
   const RANGES: Range[] = ['all', 'day', 'month', 'year', 'range'];
 
   const SEARCH_KEYS = ['range', 'date', 'since', 'until'];
   const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+  // The length of a period's first day in YYYY-MM-DD, which names the file
+  const SCOPE_LENGTH: Record<Span, number> = { day: 10, month: 7, year: 4 };
 
   const readDay = (key: string): string => {
     const value = searchParams.get(key);
@@ -73,6 +74,7 @@
   let span = $state<string[]>(readSpan());
   let isLoading = $state(true);
   let running = $state<Operation | null>(null);
+  let isExporting = $state(false);
 
   const sortValues: SortValues<Metric, SortKey> = {
     count: (metric) => stats?.[metric] ?? 0,
@@ -166,6 +168,45 @@
     await load();
   };
 
+  // The period showing, as the table has it; the file names the day, month or year
+  const exportCsv = async (): Promise<void> => {
+    isExporting = true;
+
+    const result = await fetchStats(dates);
+
+    isExporting = false;
+
+    if (!result.ok) {
+      await notifyFailure(i18n.t.overview.export.failed, result.error);
+      return;
+    }
+
+    const figures = result.data;
+    const types = Object.keys(figures.visitor_types);
+    const csvRows = [
+      [
+        i18n.t.overview.columns.metric,
+        i18n.t.overview.columns.count,
+        ...types,
+        i18n.t.overview.columns.meaning,
+      ],
+      ...METRICS.map((metric) => [
+        i18n.t.overview.metrics[metric].label,
+        String(figures[metric]),
+        ...types.map((name) => String(figures.visitor_types[name][metric])),
+        i18n.t.overview.metrics[metric].description,
+      ]),
+    ];
+    const period =
+      !dates || range === 'all'
+        ? 'all-time'
+        : range === 'range'
+          ? `${dates.since}_${dates.until}`
+          : dates.since.slice(0, SCOPE_LENGTH[range]);
+
+    downloadCsv(`tiqr-stats-${period}.csv`, toCsv(csvRows));
+  };
+
   const pick = (option: Range): void => {
     if (option === range) return;
 
@@ -224,6 +265,16 @@
       />
     </button>
     <button
+      aria-label={i18n.t.overview.export.hint}
+      class="btn-icon size-11 preset-tonal"
+      disabled={isExporting}
+      onclick={exportCsv}
+      title={i18n.t.overview.export.hint}
+      type="button"
+    >
+      <Download aria-hidden="true" size={ICON_SIZE} />
+    </button>
+    <button
       class="btn h-11 min-w-36 preset-tonal"
       disabled={running !== null}
       onclick={(): Promise<void> => run('cleanup')}
@@ -254,7 +305,7 @@
   {/snippet}
   {#snippet toolbar()}
     <!-- As tall as the period controls, so the bar keeps its height when they come and go -->
-    <div class="flex -mt-4 sm:mt-0 min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-8">
+    <div class="flex sm:flex-row sm:mt-0 min-h-9 flex-wrap items-center justify-between gap-x-3">
       <!-- A line of its own at the tabs' height, so they stay put whether or not the picker wraps -->
       <div class="flex h-9 items-end">
         <FilterTabs
@@ -267,11 +318,11 @@
       </div>
 
       {#if range !== 'all'}
-        <div class="flex items-center gap-2">
+        <div class="order-first flex items-center gap-2 sm:order-none">
           {#if range !== 'range'}
             <button
               aria-label={i18n.t.overview.earlier}
-              class="btn-icon size-9 preset-tonal"
+              class="btn-icon size-9 preset-filled-surface-50-950 border border-surface-200-800 enabled:hover:border-primary-500"
               onclick={(): void => step(-1)}
               title={i18n.t.overview.earlier}
               type="button"
@@ -289,7 +340,7 @@
           {#if range !== 'range'}
             <button
               aria-label={i18n.t.overview.later}
-              class="btn-icon size-9 preset-tonal"
+              class="btn-icon size-9 preset-filled-surface-50-950 border border-surface-200-800 enabled:hover:border-primary-500"
               disabled={isLatest}
               onclick={(): void => step(1)}
               title={i18n.t.overview.later}

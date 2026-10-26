@@ -131,7 +131,7 @@ const kk: Messages = {
     expand: 'Жаю',
     label: 'Негізгі',
     license: 'Лицензия',
-    overview: 'Шолу',
+    overview: 'Статистика',
     signOut: 'Шығу',
     tickets: 'Билеттер',
     ticketTypes: 'Билет түрлері',
@@ -160,6 +160,10 @@ const kk: Messages = {
     description: 'Билет көрсеткіштері және талап бойынша BioStar күтімі',
     earlier: 'Бұрынғы',
     empty: 'Статистика жоқ',
+    export: {
+      failed: 'Экспорттау сәтсіз аяқталды',
+      hint: 'CSV ретінде экспорттау',
+    },
     later: 'Кейінгі',
     metrics: {
       expired: { description: 'Жарамдылық мерзімі өткен', label: 'Мерзімі өткен' },
@@ -195,7 +199,7 @@ const kk: Messages = {
       finished: 'Синхрондау аяқталды',
       hint: 'Жаңа кіру оқиғаларын алу',
     },
-    title: 'Шолу',
+    title: 'Статистика',
   },
   password: {
     confirm: 'Құпия сөзді растау',
@@ -246,6 +250,7 @@ const kk: Messages = {
     assignFor: (serial: string): string => `${serial} тағайындау`,
     badgeNotPrinted: 'Бейдж басылмады',
     badgeNotRendered: 'Бейдж дайындалмады',
+    clearSearch: 'Тазарту',
     columns: {
       assignee: 'Тағайындалған',
       price: 'Баға',

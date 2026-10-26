@@ -85,6 +85,11 @@ def _can_view(actor: User, ticket: Ticket) -> bool:
     return actor.role != Role.OPERATOR or ticket.assigned_operator == actor.id
 
 
+def _matches(ticket: Ticket, needle: str) -> bool:
+    fields = (ticket.readable_serial, ticket.visitor_name, ticket.visitor_type, ticket.ticket_type)
+    return any(needle in (field or "").casefold() for field in fields)
+
+
 def _counts(tickets: list[Ticket]) -> Counts:
     states = Counter(ticket.state for ticket in tickets)
     return Counts(
@@ -672,13 +677,18 @@ class TicketService:
         self._require_view(actor, ticket)
         return ticket
 
-    def list_tickets(self, actor: User, state: TicketState | None = None) -> list[Ticket]:
+    def list_tickets(
+        self, actor: User, state: TicketState | None = None, search: str | None = None
+    ) -> list[Ticket]:
         actor = self._actor(actor)
         state = TicketState(state) if state is not None else None
+        needle = (search or "").strip().casefold()
         return [
             ticket
             for ticket in self._expire_all()
-            if _can_view(actor, ticket) and (state is None or ticket.state == state)
+            if _can_view(actor, ticket)
+            and (state is None or ticket.state == state)
+            and (not needle or _matches(ticket, needle))
         ]
 
     def assign_ticket(self, actor: User, ticket_id: UUID, assignee_username: str) -> Ticket:

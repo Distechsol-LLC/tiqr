@@ -24,5 +24,15 @@ type Config = z.infer<typeof configSchema>;
 type Counts = z.infer<typeof countsSchema>;
 type Stats = z.infer<typeof statsSchema>;
 
+// The same figures as `tiqr stats`, in its order; each is labelled in the showing language
+const METRICS = [
+  'total',
+  'issued',
+  'passed',
+  'expired',
+  'uses',
+  'prints',
+] satisfies (keyof Counts)[];
+
 export type { Config, Counts, Stats };
-export { configSchema, countSchema, statsSchema };
+export { METRICS, configSchema, countSchema, statsSchema };
