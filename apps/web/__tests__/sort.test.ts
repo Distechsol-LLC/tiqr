@@ -19,18 +19,31 @@ const values = {
 } as const;
 
 describe('toggleSort', () => {
-  it('cycles a column through ascending, descending and then no sort', () => {
-    const first = toggleSort(null, 'name');
-    const second = toggleSort(first, 'name');
-    const third = toggleSort(second, 'name');
+  it('cycles a column through ascending, descending and then back to the default', () => {
+    const fallback = { direction: 'asc', key: 'uses' } as const;
+    const first = toggleSort(fallback, 'name', fallback);
+    const second = toggleSort(first, 'name', fallback);
+    const third = toggleSort(second, 'name', fallback);
 
     expect(first).toEqual({ direction: 'asc', key: 'name' });
     expect(second).toEqual({ direction: 'desc', key: 'name' });
-    expect(third).toBeNull();
+    expect(third).toEqual(fallback);
+  });
+
+  it('starts over ascending when the default is already descending', () => {
+    const fallback = { direction: 'desc', key: 'name' } as const;
+    const first = toggleSort(fallback, 'name', fallback);
+    const second = toggleSort(first, 'name', fallback);
+
+    expect(first).toEqual({ direction: 'asc', key: 'name' });
+    expect(second).toEqual(fallback);
+    expect(toggleSort(second, 'name', fallback)).toEqual({ direction: 'asc', key: 'name' });
   });
 
   it('starts a different column ascending, whatever the previous direction was', () => {
-    expect(toggleSort({ direction: 'desc', key: 'name' }, 'uses')).toEqual({
+    const fallback = { direction: 'asc', key: 'name' } as const;
+
+    expect(toggleSort({ direction: 'desc', key: 'name' }, 'uses', fallback)).toEqual({
       direction: 'asc',
       key: 'uses',
     });
@@ -38,10 +51,6 @@ describe('toggleSort', () => {
 });
 
 describe('sortRows', () => {
-  it('returns the same array when nothing is sorted', () => {
-    expect(sortRows(rows, null, values)).toBe(rows);
-  });
-
   it('sorts numbers by value in both directions', () => {
     const asc = sortRows(rows, { direction: 'asc', key: 'uses' }, values).map((row) => row.uses);
     const desc = sortRows(rows, { direction: 'desc', key: 'uses' }, values).map((row) => row.uses);

@@ -9,6 +9,7 @@ const PRICE_TEXT = /^(?<whole>\d+)(?:[.,](?<fraction>\d{1,2}))?$/;
 
 // Prices cross the API as whole minor units (cents), so no float ever holds money.
 // `text` is what a person typed, such as 12.5, 12,50 or 12; anything else is null.
+// Too long to be exact is still a number, far above any cap, so callers compare it to their limit.
 const parseMinor = (text: string): number | null => {
   const groups = PRICE_TEXT.exec(text.trim())?.groups;
 
@@ -17,7 +18,7 @@ const parseMinor = (text: string): number | null => {
   const { fraction = '', whole = '' } = groups;
   const minor = Number(whole) * MINOR_PER_UNIT + Number(fraction.padEnd(MINOR_DIGITS, '0'));
 
-  return Number.isSafeInteger(minor) ? minor : null;
+  return minor;
 };
 
 // Back into an input's text: 1250 is 12.50

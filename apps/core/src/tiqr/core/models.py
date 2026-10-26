@@ -6,7 +6,7 @@ from uuid import UUID
 from tiqr.core.qr import PAYLOAD_LENGTH
 
 # Far above any real ticket, and well inside SQLite's integers and JSON's safe ones.
-MAX_PRICE = 10**9
+MAX_PRICE = 10**11
 MAX_DISCOUNT = 100
 
 

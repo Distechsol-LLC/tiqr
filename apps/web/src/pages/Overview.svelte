@@ -254,14 +254,17 @@
   {/snippet}
   {#snippet toolbar()}
     <!-- As tall as the period controls, so the bar keeps its height when they come and go -->
-    <div class="flex min-h-9 flex-wrap items-center justify-between gap-3">
-      <FilterTabs
-        label={(option): string => i18n.t.overview.ranges[option]}
-        legend={i18n.t.overview.range}
-        onpick={pick}
-        options={RANGES}
-        selected={range}
-      />
+    <div class="flex -mt-4 sm:mt-0 min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-8">
+      <!-- A line of its own at the tabs' height, so they stay put whether or not the picker wraps -->
+      <div class="flex h-9 items-end">
+        <FilterTabs
+          label={(option): string => i18n.t.overview.ranges[option]}
+          legend={i18n.t.overview.range}
+          onpick={pick}
+          options={RANGES}
+          selected={range}
+        />
+      </div>
 
       {#if range !== 'all'}
         <div class="flex items-center gap-2">

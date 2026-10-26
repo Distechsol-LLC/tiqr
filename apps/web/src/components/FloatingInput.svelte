@@ -1,13 +1,15 @@
 <script lang="ts">
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import type { Snippet } from 'svelte';
-  import type { HTMLInputAttributes } from 'svelte/elements';
+  import type { FormEventHandler, HTMLInputAttributes } from 'svelte/elements';
 
   type FloatingInputProps = Omit<HTMLInputAttributes, 'class' | 'id' | 'placeholder' | 'value'> & {
     id: string;
     label: string;
     error?: string;
     input?: HTMLInputElement;
+    // Matches what is dropped as it is typed or pasted, such as anything but digits
+    strip?: RegExp;
     trailing?: Snippet;
     value?: string;
   };
@@ -17,6 +19,8 @@
     label,
     error,
     input = $bindable(),
+    oninput,
+    strip,
     trailing,
     value = $bindable(''),
     ...rest
@@ -25,6 +29,14 @@
   const ERROR_ICON_SIZE = 14;
 
   const errorId = $derived(`${id}-error`);
+
+  const handleInput: FormEventHandler<HTMLInputElement> = (event) => {
+    const field = event.currentTarget;
+
+    if (strip) field.value = field.value.replace(strip, '');
+    value = field.value;
+    oninput?.(event);
+  };
 </script>
 
 <div>
@@ -36,9 +48,10 @@
       aria-invalid={error ? 'true' : undefined}
       class={['peer input h-12 aria-invalid:ring-error-500', trailing ? 'pr-12' : undefined]}
       {id}
+      oninput={handleInput}
       placeholder=" "
+      {value}
       bind:this={input}
-      bind:value
     />
     <!-- The label starts where Skeleton's .input puts its text, then floats onto the top border.
       Only a thin band across the border is painted, in the parent's color (--floating-label-notch,

@@ -49,6 +49,7 @@ const kk: Messages = {
     passwordMismatch: 'Құпия сөздер сәйкес келмейді.',
     passwordRequired: 'Құпия сөзді енгізіңіз.',
     priceInvalid: 'Бағаны 12.50 сияқты енгізіңіз.',
+    priceTooHigh: 'Баға тым жоғары.',
     rateLimited: 'Сәтсіз кіру әрекеттері тым көп. Кейінірек қайталап көріңіз.',
     rateLimitedFor: (wait: string): string =>
       `Сәтсіз кіру әрекеттері тым көп. ${wait} кейін қайталап көріңіз.`,
@@ -94,7 +95,7 @@ const kk: Messages = {
     notAdmin: 'Сұраным кодын әкімшіге жіберіңіз: кілтті тек әкімші белсендіре алады.',
     requestCode: 'Сұраным коды',
     requestHint: 'Осы орнатуға кілт алу үшін бұл кодты жеткізушіге жіберіңіз.',
-    requestStandard: 'Стандартты лицензия',
+    requestStandard: 'Стандартты',
     requestTrial: 'Сынақ (30 күн)',
     requestType: 'Сұралатын лицензия',
     retry: 'Қайталау',

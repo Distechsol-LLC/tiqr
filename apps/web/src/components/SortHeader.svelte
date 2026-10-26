@@ -6,7 +6,7 @@
 
   type SortHeaderProps = {
     label: string;
-    // Null when another column, or none, is the one sorted
+    // Null when another column is the one sorted
     direction: SortDirection | null;
     isEnd?: boolean;
     class?: string;

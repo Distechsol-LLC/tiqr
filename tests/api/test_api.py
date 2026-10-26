@@ -592,7 +592,7 @@ def test_catalog_refusals(client):
     assert duplicate.json()["code"] == "invalid"
     for body in (
         {"name": "Night", "price_minor": -1, "currency": "USD"},
-        {"name": "Night", "price_minor": 10**9 + 1, "currency": "USD"},
+        {"name": "Night", "price_minor": 10**11 + 1, "currency": "USD"},
         {"name": "Night", "price_minor": 1.5, "currency": "USD"},
         {"name": "Night"},
         {"name": "Night", "price_minor": 1},

@@ -24,7 +24,7 @@
   const COPIED_FOR = 2000;
   const REQUEST_TYPES = requestTypeSchema.options;
 
-  let requestType = $state<RequestType>('trial');
+  let requestType = $state<RequestType>('standard');
   let code = $state('');
   let key = $state('');
   let isRequesting = $state(false);

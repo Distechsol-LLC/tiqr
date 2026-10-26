@@ -140,7 +140,7 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/ticket-types` | session | List ticket types, by name, as a page (see Pagination). Every role may read them. |
-| POST | `/ticket-types` | session + CSRF | Add a ticket type. Body `{name, price_minor, currency}`; `price_minor` is whole minor units (1250 is 12.50), 0 to 1000000000; `currency` is required, one of `USD`, `RUB`, `AZN`, `KZT`. Admins and managers. Returns `201`; `422` for a blank or taken name (case-insensitive). |
+| POST | `/ticket-types` | session + CSRF | Add a ticket type. Body `{name, price_minor, currency}`; `price_minor` is whole minor units (1250 is 12.50), 0 to 100000000000; `currency` is required, one of `USD`, `RUB`, `AZN`, `KZT`. Admins and managers. Returns `201`; `422` for a blank or taken name (case-insensitive). |
 | PATCH | `/ticket-types/{type_id}` | session + CSRF | Change `name`, `price_minor` or `currency`; omitted fields are unchanged. Admins and managers. Issued tickets keep their price. |
 | DELETE | `/ticket-types/{type_id}` | session + CSRF | Remove a ticket type. Admins and managers. Returns `204`; issued tickets keep their price. |
 | GET | `/visitor-types` | session | List visitor types, by name, as a page (see Pagination). Every role may read them. |

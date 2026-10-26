@@ -24,6 +24,9 @@
 
   const { editing, isOpen, onClose, onSaved }: TicketTypeFormProps = $props();
 
+  // Digits, with a point or comma for the pence
+  const PRICE_CHARS = /[^\d.,]/g;
+
   let name = $state('');
   let price = $state('');
   let currency = $state('');
@@ -128,6 +131,7 @@
         inputmode="decimal"
         label={i18n.t.ticketTypeForm.price}
         required
+        strip={PRICE_CHARS}
         bind:value={price}
       />
     </div>

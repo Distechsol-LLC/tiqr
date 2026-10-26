@@ -329,6 +329,7 @@
 
   /* The table header's shade, so the picked tab reads as part of the table */
   &[aria-pressed='true'] {
+    border-left-width: 0;
     background-color: light-dark(var(--color-surface-100), var(--color-surface-900));
     box-shadow: inset 0 2px 0 var(--color-primary-500);
     color: light-dark(var(--color-surface-900), var(--color-surface-50));

@@ -49,6 +49,7 @@ const az: Messages = {
     passwordMismatch: 'Şifrələr uyğun gəlmir.',
     passwordRequired: 'Şifrənizi daxil edin.',
     priceInvalid: 'Qiyməti 12.50 kimi daxil edin.',
+    priceTooHigh: 'Qiymət çox yüksəkdir.',
     rateLimited: 'Həddindən artıq uğursuz giriş cəhdi. Bir az sonra yenidən cəhd edin.',
     rateLimitedFor: (wait: string): string =>
       `Həddindən artıq uğursuz giriş cəhdi. ${wait} sonra yenidən cəhd edin.`,
@@ -95,7 +96,7 @@ const az: Messages = {
       'Sorğu kodunu administratora göndərin: açarı yalnız administrator aktivləşdirə bilər.',
     requestCode: 'Sorğu kodu',
     requestHint: 'Bu quraşdırma üçün açar almaq məqsədilə bu kodu təchizatçıya göndərin.',
-    requestStandard: 'Standart lisenziya',
+    requestStandard: 'Standart',
     requestTrial: 'Sınaq (30 gün)',
     requestType: 'Sorğulanan lisenziya',
     retry: 'Yenidən cəhd et',
