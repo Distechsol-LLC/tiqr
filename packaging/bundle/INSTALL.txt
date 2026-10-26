@@ -7,7 +7,7 @@ The script copies this folder to /opt/tiqr (Linux) or C:\Program Files\TiQR (Win
 for the address operators' PCs will use, the port, and the first admin account. It opens the port
 in the firewall and installs TiQR as a service that starts at boot.
 
-Edit tiqr_branding.jsonc before installing if you need your own name, logo or languages.
+Edit tiqr_brand.jsonc before installing if you need your own name, logo or languages.
 
 Activating the license
 ----------------------

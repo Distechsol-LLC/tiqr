@@ -101,14 +101,12 @@ const en = {
       expired: 'Expired',
       invalid: 'Not verified',
       none: 'Not licensed',
-      trial: 'Trial',
     },
     status: 'Status',
     title: 'License',
     trialOverPaid: 'A trial cannot replace a paid license.',
     type: 'Type',
     types: {
-      enterprise: 'Enterprise',
       standard: 'Standard',
       trial: 'Trial',
     },
@@ -222,7 +220,7 @@ const en = {
   theme: {
     dark: 'Dark',
     light: 'Light',
-    toggle: 'Toggle theme',
+    toggle: 'Theme',
   },
   ticketForm: {
     catalogNotLoaded: 'Ticket and visitor types not loaded',

@@ -106,14 +106,12 @@ const ru: Messages = {
       expired: 'Истекла',
       invalid: 'Не проверена',
       none: 'Нет лицензии',
-      trial: 'Пробная',
     },
     status: 'Статус',
     title: 'Лицензия',
     trialOverPaid: 'Пробная лицензия не заменяет платную.',
     type: 'Тип',
     types: {
-      enterprise: 'Корпоративная',
       standard: 'Стандартная',
       trial: 'Пробная',
     },
@@ -227,7 +225,7 @@ const ru: Messages = {
   theme: {
     dark: 'Тёмная',
     light: 'Светлая',
-    toggle: 'Сменить тему',
+    toggle: 'Тема',
   },
   ticketForm: {
     catalogNotLoaded: 'Типы билетов и посетителей не загружены',

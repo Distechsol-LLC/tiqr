@@ -1123,7 +1123,7 @@
           "catalog"
         ],
         "summary": "Create Ticket Type",
-        "description": "Add a ticket type, its price and the currency it is in. Admins and managers.\n\nThe currency must be one of the languages' regions' (languages in tiqr_branding.jsonc).",
+        "description": "Add a ticket type, its price and the currency it is in. Admins and managers.\n\nThe currency must be one of the languages' regions' (languages in tiqr_brand.jsonc).",
         "operationId": "create_ticket_type",
         "requestBody": {
           "required": true,
@@ -2898,7 +2898,6 @@
           "none",
           "invalid",
           "expired",
-          "trial",
           "active"
         ],
         "title": "LicenseState"
@@ -2976,8 +2975,7 @@
         "type": "string",
         "enum": [
           "trial",
-          "standard",
-          "enterprise"
+          "standard"
         ],
         "title": "LicenseType"
       },

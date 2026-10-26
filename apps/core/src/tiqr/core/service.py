@@ -318,7 +318,7 @@ class TicketService:
                 days_remaining=0,
             )
         return LicenseStatus(
-            LicenseState.TRIAL if payload.type == LicenseType.TRIAL else LicenseState.ACTIVE,
+            LicenseState.ACTIVE,
             this_machine,
             type=payload.type,
             licensed_to=payload.licensed_to,

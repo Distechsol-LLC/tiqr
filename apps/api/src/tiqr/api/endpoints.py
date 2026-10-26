@@ -305,7 +305,7 @@ def list_ticket_types(me: Signed, server: Server, paging: Paging) -> TicketTypeP
 def create_ticket_type(body: TicketTypeIn, me: Signed, server: Server) -> TicketTypeOut:
     """Add a ticket type, its price and the currency it is in. Admins and managers.
 
-    The currency must be one of the languages' regions' (languages in tiqr_branding.jsonc).
+    The currency must be one of the languages' regions' (languages in tiqr_brand.jsonc).
     """
     _require_offered(server, body.currency)
     return TicketTypeOut.of(

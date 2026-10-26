@@ -18,7 +18,7 @@ sc query TiQR >nul 2>&1 && net stop TiQR >nul 2>&1
 
 rem Everything in this folder except the scripts. A reinstall keeps the branding already edited.
 set "SKIP=install.cmd install.sh"
-if exist "%TARGET%\tiqr_branding.jsonc" set "SKIP=%SKIP% tiqr_branding.jsonc"
+if exist "%TARGET%\tiqr_brand.jsonc" set "SKIP=%SKIP% tiqr_brand.jsonc"
 robocopy "%HERE%." "%TARGET%" /XF %SKIP% /NFL /NDL /NJH /NJS /NP
 if errorlevel 8 (
     echo Copying to %TARGET% failed.

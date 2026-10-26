@@ -50,7 +50,7 @@ A typical key runs about 600–700 characters, depending on field lengths.
 
 ```text
 product     string   constant for the program
-type        enum     'trial' | 'standard' | 'enterprise'
+type        enum     'trial' | 'standard'
 licensedTo  string   the holder, shown on the wall when the key has ended
 issuedAt    string   ISO 8601 with a UTC offset
 expiresAt   string   ISO 8601 with a UTC offset, fixed at issuance
@@ -184,8 +184,8 @@ license
 ### Status
 
 ```text
-state:          'none' | 'invalid' | 'expired' | 'trial' | 'active'
-is_valid:       true only for 'trial' and 'active'
+state:          'none' | 'invalid' | 'expired' | 'active'
+is_valid:       true only for 'active'
 machine_id:     present in every state
 type:           present when a key verifies
 licensed_to:    present when a key verifies
@@ -200,11 +200,11 @@ status():
   payload = verify(row.license_key) and payload.machineId == machine
             ; if not, return invalid     // the signature, product, and machine are all checked here
   if payload.expiresAt <= now: return expired (with holder and expiry)
-  state = payload.type == trial ? trial : active
+  state = active
   return state, type, holder, expiry, daysRemaining = ceil((expiresAt - now) / 1 day)
 ```
 
-Trial status comes from the signed `type`. Never derive it from a string prefix or from the cache.
+A trial is an `active` state whose `type` is `trial`. Read the type from the signed payload. Never derive it from a string prefix or from the cache.
 The cached columns feed history and listings only; nothing reads them to decide access.
 
 ---
@@ -286,7 +286,7 @@ Error codes are lowercase slugs in the response's `code` field. The client trans
 - **Trial:** `type` is forced to `trial`, `expiresAt` is `issuedAt + 30 days`, and whatever the
   operator passed for days is ignored. **Refuse if the history already has a non-revoked trial for
   this `machineId`.** Warn, but don't refuse, when the `contact` already had a trial elsewhere.
-- **Standard / enterprise:** the operator sets `licensedTo` and the number of days. Both are required,
+- **Standard:** the operator sets `licensedTo` and the number of days. Both are required,
   and days must not be negative. Use a real parser for numbers, so that `0` means zero days, not
   "unset".
 - **A trial request** must be answered with a trial. Refuse any other type for it.
@@ -314,7 +314,7 @@ IssuanceRecord
   requestId   string
   machineId   string
   contact     string, optional
-  type        'trial' | 'standard' | 'enterprise'
+  type        'trial' | 'standard'
   licensedTo  string
   issuedAt    string
   expiresAt   string

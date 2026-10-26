@@ -163,6 +163,14 @@
     padding: --spacing(1.5) --spacing(2.5);
   }
 
+  .select option::checkmark {
+    color: var(--color-primary-600-400);
+  }
+}
+
+/* Skeleton's .select option sets the option's colors in the utilities layer, which outranks base
+   whatever the specificity, so the hover wash and the checked color are set there too */
+@layer utilities {
   .select option:hover,
   .select option:focus-visible {
     background-color: color-mix(in oklab, var(--color-primary-500) 15%, transparent);
@@ -171,10 +179,6 @@
 
   .select option:checked {
     color: var(--color-primary-700-300);
-  }
-
-  .select option::checkmark {
-    color: var(--color-primary-600-400);
   }
 }
 
@@ -386,4 +390,27 @@
   box-shadow: var(--shadow-md);
   font-family: var(--font-geist), sans-serif;
   text-align: center;
+}
+
+/* The tables' sideways scrollbar. Chromium and Safari take its thickness from ::-webkit-scrollbar,
+   and ignore it once scrollbar-width or scrollbar-color is set, so the wrap resets those there and
+   draws a thin bar itself. Firefox keeps the standard thin scrollbar */
+@supports selector(::-webkit-scrollbar) {
+  .table-wrap {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+
+    &::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      border-radius: 9999px;
+      background-color: var(--color-surface-300-700);
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+  }
 }

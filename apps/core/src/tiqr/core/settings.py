@@ -37,7 +37,7 @@ PROJECT_ROOT = _project_root()
 LOCAL_ENV_FILE = ".env.local"
 ENV_FILES = (".env", LOCAL_ENV_FILE)
 # Name, logo, theme and languages. Required beside the executable: the program does not run without.
-BRANDING_FILE = "tiqr_branding.jsonc"
+BRANDING_FILE = "tiqr_brand.jsonc"
 SESSION_FILE = ".tiqr-session.json"
 # Fixed names, beside the executable: not settings, so nothing can point them elsewhere.
 DATABASE_FILE = "tiqr.db"
@@ -112,7 +112,7 @@ def _jsonc_loads(text: str) -> object:
 
 
 def load_branding(path: Path | None = None) -> dict[str, object]:
-    """Read tiqr_branding.jsonc, which must sit under the project root."""
+    """Read tiqr_brand.jsonc, which must sit under the project root."""
     path = path or PROJECT_ROOT / BRANDING_FILE
     if not path.is_file():
         raise ValueError(f"{BRANDING_FILE} is missing; place it beside the program ({path})")
@@ -161,7 +161,7 @@ def _setting_text(value: object) -> str | None:
 
 
 def _file_settings(data: Mapping[str, object]) -> dict[str, str]:
-    """The non-branding keys of tiqr_branding.jsonc as TIQR_* values; null leaves one unset."""
+    """The non-branding keys of tiqr_brand.jsonc as TIQR_* values; null leaves one unset."""
     biostar = data.get("biostar")
     block: Mapping[str, object] = (
         cast("Mapping[str, object]", biostar) if isinstance(biostar, dict) else {}
@@ -174,7 +174,7 @@ def _file_settings(data: Mapping[str, object]) -> dict[str, str]:
 
 
 def load_environment() -> dict[str, str]:
-    """The .env files, then tiqr_branding.jsonc, overridden by the real environment."""
+    """The .env files, then tiqr_brand.jsonc, overridden by the real environment."""
     values: dict[str, str] = {}
     for name in ENV_FILES:
         values.update(
@@ -296,7 +296,7 @@ def session_path() -> Path:
 
 
 def branding_path() -> Path:
-    """Where the server reads tiqr_branding.jsonc: TIQR_HOME when it is set."""
+    """Where the server reads tiqr_brand.jsonc: TIQR_HOME when it is set."""
     return PROJECT_ROOT / BRANDING_FILE
 
 

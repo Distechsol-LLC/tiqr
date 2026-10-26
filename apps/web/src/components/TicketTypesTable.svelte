@@ -14,11 +14,12 @@
   import { formatMinor } from '%/money.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { pageCount } from '%/pagination.ts';
-  import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
+  import { type SortValues, sortRows } from '%/sort.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { createPagination } from '%/usePagination.svelte.ts';
+  import { createSortParams } from '%/useSortParams.svelte.ts';
   import type { TicketType } from '$/catalog.ts';
 
   type SortKey = 'name' | 'price';
@@ -40,7 +41,6 @@
   let total = $state(0);
   // Counts the requests, so a slow one can't land over a newer one
   let requestId = 0;
-  let sort = $state<Sort<SortKey> | null>({ direction: 'asc', key: 'name' });
   let isFormOpen = $state(false);
   let editing = $state<TicketType | null>(null);
   let deleting = $state<TicketType | null>(null);
@@ -51,14 +51,9 @@
     price: (ticketType) => ticketType.price_minor,
   };
 
-  const rows = $derived(sortRows(ticketTypes, sort, sortValues));
+  const sorting = createSortParams(sortValues, { direction: 'desc', key: 'price' });
 
-  const sortBy = (key: SortKey): void => {
-    sort = toggleSort(sort, key);
-  };
-
-  const directionOf = (key: SortKey): Sort<SortKey>['direction'] | null =>
-    sort?.key === key ? sort.direction : null;
+  const rows = $derived(sortRows(ticketTypes, sorting.sort, sortValues));
 
   const reload = async (): Promise<void> => {
     requestId += 1;
@@ -146,16 +141,16 @@
 >
   {#snippet head()}
     <SortHeader
-      direction={directionOf('name')}
+      direction={sorting.directionOf('name')}
       label={i18n.t.ticketTypes.columns.name}
-      onSort={(): void => sortBy('name')}
+      onSort={(): void => sorting.sortBy('name')}
     />
     <SortHeader
       class="w-40"
-      direction={directionOf('price')}
+      direction={sorting.directionOf('price')}
       isEnd
       label={i18n.t.ticketTypes.columns.price}
-      onSort={(): void => sortBy('price')}
+      onSort={(): void => sorting.sortBy('price')}
     />
     <ActionsHeader count={ACTIONS} />
   {/snippet}
@@ -206,7 +201,7 @@
   {total}
 />
 
-<!-- Names sort alphabetically, so a new or renamed type may belong on another page -->
+<!-- Prices sort the list, so a new or repriced type may belong on another page -->
 <TicketTypeForm
   {editing}
   isOpen={isFormOpen}

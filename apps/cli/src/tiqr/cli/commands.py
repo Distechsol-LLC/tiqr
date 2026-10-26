@@ -281,7 +281,7 @@ def install(
     source: Annotated[
         Path | None,
         typer.Option(
-            help="Folder holding tiqr_branding.jsonc and WinSW; default: beside the executable."
+            help="Folder holding tiqr_brand.jsonc and WinSW; default: beside the executable."
         ),
     ] = None,
     host: Annotated[

@@ -73,7 +73,8 @@ def test_status_none_then_active(licensed, accounts, issue):
 
 def test_trial_status(licensed, accounts, issue):
     status = licensed.activate_license(accounts["admin"], issue("trial"))
-    assert status.state == LicenseState.TRIAL
+    assert status.state == LicenseState.ACTIVE
+    assert status.type == "trial"
     assert status.days_remaining == 30
 
 

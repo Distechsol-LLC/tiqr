@@ -104,14 +104,12 @@ const az: Messages = {
       expired: 'Müddəti bitib',
       invalid: 'Yoxlanılmayıb',
       none: 'Lisenziya yoxdur',
-      trial: 'Sınaq',
     },
     status: 'Status',
     title: 'Lisenziya',
     trialOverPaid: 'Sınaq lisenziyası ödənişli lisenziyanı əvəz edə bilməz.',
     type: 'Növ',
     types: {
-      enterprise: 'Korporativ',
       standard: 'Standart',
       trial: 'Sınaq',
     },
@@ -226,7 +224,7 @@ const az: Messages = {
   theme: {
     dark: 'Tünd',
     light: 'Açıq',
-    toggle: 'Mövzunu dəyiş',
+    toggle: 'Mühit',
   },
   ticketForm: {
     catalogNotLoaded: 'Bilet və ziyarətçi növləri yüklənmədi',

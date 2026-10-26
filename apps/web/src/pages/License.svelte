@@ -19,7 +19,9 @@
 
 <PageHeader description={i18n.t.license.description} title={i18n.t.license.title} />
 
-<div class="min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+<div
+  class="min-h-0 flex-1 overflow-y-auto bg-[light-dark(white,var(--color-surface-950))] p-4 md:p-8"
+>
   <div class="mx-auto max-w-xl space-y-8">
     {#if status}
       <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">

@@ -13,11 +13,12 @@
   import { deleteVisitorType, fetchVisitorTypes } from '%/api.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { pageCount } from '%/pagination.ts';
-  import { type Sort, type SortValues, sortRows, toggleSort } from '%/sort.ts';
+  import { type SortValues, sortRows } from '%/sort.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { createPagination } from '%/usePagination.svelte.ts';
+  import { createSortParams } from '%/useSortParams.svelte.ts';
   import type { VisitorType } from '$/catalog.ts';
 
   type SortKey = 'discount' | 'name';
@@ -39,7 +40,6 @@
   let total = $state(0);
   // Counts the requests, so a slow one can't land over a newer one
   let requestId = 0;
-  let sort = $state<Sort<SortKey> | null>({ direction: 'asc', key: 'name' });
   let isFormOpen = $state(false);
   let editing = $state<VisitorType | null>(null);
   let deleting = $state<VisitorType | null>(null);
@@ -50,14 +50,9 @@
     name: (visitorType) => visitorType.name,
   };
 
-  const rows = $derived(sortRows(visitorTypes, sort, sortValues));
+  const sorting = createSortParams(sortValues, { direction: 'desc', key: 'discount' });
 
-  const sortBy = (key: SortKey): void => {
-    sort = toggleSort(sort, key);
-  };
-
-  const directionOf = (key: SortKey): Sort<SortKey>['direction'] | null =>
-    sort?.key === key ? sort.direction : null;
+  const rows = $derived(sortRows(visitorTypes, sorting.sort, sortValues));
 
   const reload = async (): Promise<void> => {
     requestId += 1;
@@ -145,16 +140,16 @@
 >
   {#snippet head()}
     <SortHeader
-      direction={directionOf('name')}
+      direction={sorting.directionOf('name')}
       label={i18n.t.visitorTypes.columns.name}
-      onSort={(): void => sortBy('name')}
+      onSort={(): void => sorting.sortBy('name')}
     />
     <SortHeader
       class="w-40"
-      direction={directionOf('discount')}
+      direction={sorting.directionOf('discount')}
       isEnd
       label={i18n.t.visitorTypes.columns.discount}
-      onSort={(): void => sortBy('discount')}
+      onSort={(): void => sorting.sortBy('discount')}
     />
     <ActionsHeader count={ACTIONS} />
   {/snippet}
@@ -205,7 +200,7 @@
   {total}
 />
 
-<!-- Names sort alphabetically, so a new or renamed type may belong on another page -->
+<!-- Discounts sort the list, so a new or changed type may belong on another page -->
 <VisitorTypeForm
   {editing}
   isOpen={isFormOpen}

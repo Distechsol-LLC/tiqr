@@ -36,7 +36,7 @@ also reads `.env` and then `.env.local` from the project root (the checkout that
 environment variables win over both. `.env` is committed and lists every key with blank
 placeholders; a blank value counts as unset, so local mode works and CI can fill the
 BioStar block in. `.env.local` is git-ignored and holds private values such as
-`TIQR_SECRET_KEY` and `TIQR_BIOSTAR_PASSWORD`. `tiqr_branding.jsonc` (comments allowed) sits in the same folder and is required: the program
+`TIQR_SECRET_KEY` and `TIQR_BIOSTAR_PASSWORD`. `tiqr_brand.jsonc` (comments allowed) sits in the same folder and is required: the program
 does not run without it. It holds the name, logo, theme and languages (the web app reads them from
 the server at load, so one build serves any of them) and may also set the other non-secret keys:
 `prefix`, `default_tz`, the server's `host`, `port`, `tls_cert`, `tls_key`,
@@ -540,7 +540,7 @@ Builds from `prod` or a `v*` tag upload the archives as 7-day artifacts; a manua
 only builds and tests. The executable contains Python, the fonts and logos, and
 the time zone data. Its config and data live beside it, not in a temporary folder:
 `.env.local`, `tiqr.db` and `out/` appear in the folder that holds the executable. Copy
-your own `.env.local` there to supply BioStar settings, and put `tiqr_branding.jsonc` there too: the
+your own `.env.local` there to supply BioStar settings, and put `tiqr_brand.jsonc` there too: the
 executable refuses to run without it. Secrets are never built in.
 
 - **Windows:** double-clicking `tiqr.exe` runs setup when needed, then opens a terminal
@@ -556,7 +556,7 @@ Executables workflow compiles in before PyInstaller runs.
 ### Installing a release
 
 Each release carries one archive per OS, `tiqr-Linux-X64.tar.gz` and `tiqr-Windows-X64.zip`,
-holding the executable, `tiqr_branding.jsonc`, `INSTALL.txt`, `THIRD-PARTY-NOTICES.txt` and an
+holding the executable, `tiqr_brand.jsonc`, `INSTALL.txt`, `THIRD-PARTY-NOTICES.txt` and an
 install script (plus WinSW on Windows). Unpack it and run the script as an administrator:
 
 ```text
