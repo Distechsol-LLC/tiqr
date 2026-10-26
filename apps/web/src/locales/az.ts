@@ -250,6 +250,7 @@ const az: Messages = {
     assignFor: (serial: string): string => `${serial} təyin et`,
     badgeNotPrinted: 'Vəsiqə çap olunmadı',
     badgeNotRendered: 'Vəsiqə yaradılmadı',
+    clearSearch: 'Təmizlə',
     columns: {
       assignee: 'İcraçı',
       price: 'Qiymət',

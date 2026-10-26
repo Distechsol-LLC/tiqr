@@ -246,6 +246,7 @@ const kk: Messages = {
     assignFor: (serial: string): string => `${serial} тағайындау`,
     badgeNotPrinted: 'Бейдж басылмады',
     badgeNotRendered: 'Бейдж дайындалмады',
+    clearSearch: 'Тазарту',
     columns: {
       assignee: 'Тағайындалған',
       price: 'Баға',

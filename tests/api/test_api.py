@@ -221,6 +221,24 @@ def test_ticket_lifecycle_through_the_api(client, accounts):
     assert client.get(f"/api/tickets/{ticket_id}").json()["print_count"] == 1
 
 
+def test_search_narrows_the_list_on_the_server(client):
+    login(client)
+    ada = create_ticket(client, visitor_name="Ada Lovelace")["id"]
+    grace = create_ticket(client, visitor_name="Grace Hopper")["id"]
+
+    def found(**params):
+        return {
+            ticket["id"] for ticket in client.get("/api/tickets", params=params).json()["items"]
+        }
+
+    assert found(search="lovelace") == {ada}
+    assert found(search="  ") == {ada, grace}
+    assert found(search="nobody") == set()
+    matched = client.get("/api/tickets", params={"search": "grace", "size": 1}).json()
+    assert matched["total"] == 1
+    assert client.get("/api/tickets", params={"search": "x" * 201}).status_code == 422
+
+
 def test_explicit_offsets_and_timezones_are_honored(client):
     login(client)
     offset = create_ticket(client, valid_from="2026-09-17T09:00:00Z")

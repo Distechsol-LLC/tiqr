@@ -254,7 +254,7 @@
   {/snippet}
   {#snippet toolbar()}
     <!-- As tall as the period controls, so the bar keeps its height when they come and go -->
-    <div class="flex -mt-4 sm:mt-0 min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-8">
+    <div class="flex sm:flex-row sm:mt-0 min-h-9 flex-wrap items-center justify-between gap-x-3">
       <!-- A line of its own at the tabs' height, so they stay put whether or not the picker wraps -->
       <div class="flex h-9 items-end">
         <FilterTabs
@@ -267,11 +267,11 @@
       </div>
 
       {#if range !== 'all'}
-        <div class="flex items-center gap-2">
+        <div class="order-first flex items-center gap-2 sm:order-none">
           {#if range !== 'range'}
             <button
               aria-label={i18n.t.overview.earlier}
-              class="btn-icon size-9 preset-tonal"
+              class="btn-icon size-9 preset-filled-surface-50-950 border border-surface-200-800 enabled:hover:border-primary-500"
               onclick={(): void => step(-1)}
               title={i18n.t.overview.earlier}
               type="button"
@@ -289,7 +289,7 @@
           {#if range !== 'range'}
             <button
               aria-label={i18n.t.overview.later}
-              class="btn-icon size-9 preset-tonal"
+              class="btn-icon size-9 preset-filled-surface-50-950 border border-surface-200-800 enabled:hover:border-primary-500"
               disabled={isLatest}
               onclick={(): void => step(1)}
               title={i18n.t.overview.later}

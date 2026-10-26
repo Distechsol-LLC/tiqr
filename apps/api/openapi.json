@@ -1740,7 +1740,7 @@
           "tickets"
         ],
         "summary": "List Tickets",
-        "description": "One page of tickets, newest first.",
+        "description": "One page of tickets, newest first, matching the search on serial, visitor or type.",
         "operationId": "list_tickets",
         "parameters": [
           {
@@ -1757,6 +1757,23 @@
                 }
               ],
               "title": "State"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
             }
           },
           {

@@ -25,6 +25,29 @@ def scan(service, ticket, at, event_id="1", granted=True):
     service.event_source.events.append(RawEvent(event_id, ticket.external_id, at, granted))
 
 
+def test_search_matches_serial_visitor_and_type_ignoring_case(service, accounts, clock):
+    admin = accounts["admin"]
+    ada = service.create_ticket(
+        accounts["operator"],
+        visitor_name="Ada Lovelace",
+        visitor_type="Guest",
+        valid_from=clock.now - timedelta(hours=1),
+        valid_until=clock.now + timedelta(hours=1),
+        usage_type=UsageType.ONE_TIME,
+    )
+    student = issue(service, accounts, clock)
+    assert [t.id for t in service.list_tickets(admin, search="  LOVELACE ")] == [ada.id]
+    assert [t.id for t in service.list_tickets(admin, search="guest")] == [ada.id]
+    assert [t.id for t in service.list_tickets(admin, search=student.readable_serial)] == [
+        student.id
+    ]
+    assert [t.id for t in service.list_tickets(admin, TicketState.ISSUED, "student")] == [
+        student.id
+    ]
+    assert len(service.list_tickets(admin, search="  ")) == 2
+    assert service.list_tickets(admin, search="nobody") == []
+
+
 def test_granted_pass_uses_scan_time(service, accounts, clock):
     ticket = issue(service, accounts, clock)
     happened = clock.now - timedelta(minutes=3)

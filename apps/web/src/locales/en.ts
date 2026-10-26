@@ -246,6 +246,7 @@ const en = {
     assignFor: (serial: string): string => `Assign ${serial}`,
     badgeNotPrinted: 'Badge not printed',
     badgeNotRendered: 'Badge not rendered',
+    clearSearch: 'Clear',
     columns: {
       assignee: 'Assignee',
       price: 'Price',

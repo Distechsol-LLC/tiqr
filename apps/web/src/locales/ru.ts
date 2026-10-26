@@ -251,6 +251,7 @@ const ru: Messages = {
     assignFor: (serial: string): string => `Назначить ${serial}`,
     badgeNotPrinted: 'Пропуск не напечатан',
     badgeNotRendered: 'Пропуск не сформирован',
+    clearSearch: 'Очистить',
     columns: {
       assignee: 'Исполнитель',
       price: 'Цена',

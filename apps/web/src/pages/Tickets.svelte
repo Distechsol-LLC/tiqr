@@ -10,6 +10,7 @@
   import TicketIcon from '@lucide/svelte/icons/ticket';
   import TicketsIcon from '@lucide/svelte/icons/tickets';
   import UserRoundPen from '@lucide/svelte/icons/user-round-pen';
+  import X from '@lucide/svelte/icons/x';
   import { onMount, untrack } from 'svelte';
 
   import ActionsHeader from '@/components/ActionsHeader.svelte';
@@ -49,6 +50,10 @@
   // Long enough for the browser to start the download before the URL goes
   const REVOKE_DELAY = 60_000;
   const STATE_ORDER = new Map(ticketStateSchema.options.map((state, index) => [state, index]));
+  // Same bound as the API's search
+  const SEARCH_MAX = 200;
+  // Pause after typing before asking the server, so each keystroke doesn't send a request
+  const SEARCH_DELAY = 300;
 
   const role = $derived(auth.session?.user.role ?? 'operator');
   // Operators see only their own tickets and can't list accounts; only managers assign
@@ -68,7 +73,9 @@
   let requestId = 0;
   let accounts = $state<User[]>([]);
   let filter = $state<Filter>('all');
+  // What the input says, and the search the list is showing
   let query = $state('');
+  let search = $state('');
   let isLoading = $state(true);
   let isCreating = $state(false);
   let assigning = $state<Ticket | null>(null);
@@ -86,24 +93,10 @@
 
   const sorting = createSortParams(sortValues, { direction: 'asc', key: 'valid' });
 
-  // Searching and sorting only reach the page showing.
-  const rows = $derived.by(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    const matches = needle
-      ? tickets.filter((ticket) =>
-          [
-            ticket.readable_serial,
-            ticket.visitor_name,
-            ticket.visitor_type,
-            ticket.ticket_type ?? '',
-          ].some((field) => field.toLocaleLowerCase().includes(needle))
-        )
-      : tickets;
+  // The server filters and pages; sorting only reorders the page showing.
+  const rows = $derived(sortRows(tickets, sorting.sort, sortValues));
 
-    return sortRows(matches, sorting.sort, sortValues);
-  });
-
-  const load = async (state: Filter): Promise<void> => {
+  const load = async (state: Filter, term: string): Promise<void> => {
     requestId += 1;
 
     const id = requestId;
@@ -112,7 +105,8 @@
 
     const result = await fetchTickets(
       { page: pagination.page, size: pagination.size },
-      state === 'all' ? undefined : state
+      state === 'all' ? undefined : state,
+      term
     );
 
     // A newer filter or page may have been picked while this one loaded
@@ -129,7 +123,7 @@
     // A shared link can point past the end: show the last page
     if (pagination.page > last) {
       pagination.goTo(last);
-      await load(state);
+      await load(state, term);
       return;
     }
 
@@ -146,7 +140,7 @@
   };
 
   const refresh = (): void => {
-    void load(filter);
+    void load(filter, search);
   };
 
   const goToPage = (page: number): void => {
@@ -256,11 +250,25 @@
   const isPending = (ticket: Ticket, action: RowAction): boolean =>
     pending?.id === ticket.id && pending.action === action;
 
+  // A new search starts from the first page, as a new filter does
+  $effect(() => {
+    const term = query.trim();
+    const timer = setTimeout(() => {
+      if (term === search) return;
+
+      pagination.goTo(1);
+      search = term;
+    }, SEARCH_DELAY);
+
+    return (): void => clearTimeout(timer);
+  });
+
   $effect(() => {
     const state = filter;
+    const term = search;
 
     untrack(() => {
-      void load(state);
+      void load(state, term);
     });
   });
 
@@ -303,7 +311,7 @@
   {/snippet}
   {#snippet toolbar()}
     <!-- The tabs' negative bottom margin eats into the row gap, so the wrapped row needs more -->
-    <div class="flex -mt-px flex-wrap items-center justify-between gap-x-3 gap-y-8">
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-4">
       <FilterTabs
         label={(option): string => (option === 'all' ? i18n.t.tickets.all : i18n.t.states[option])}
         legend={i18n.t.tickets.filter}
@@ -318,7 +326,7 @@
         selected={filter}
       />
 
-      <label class="relative w-full sm:w-72">
+      <label class="relative order-first sm:order-none sm:w-72">
         <span class="sr-only">{i18n.t.tickets.search}</span>
         <Search
           aria-hidden="true"
@@ -326,11 +334,25 @@
           size={ICON_SIZE}
         />
         <input
-          class="input bg-surface-100-900 pl-10 ring-surface-200-800 [--field-placeholder:light-dark(var(--color-surface-300),var(--color-surface-400))]"
+          class="input bg-surface-50-950 px-10 ring-surface-200-800 [--field-placeholder:light-dark(var(--color-surface-300),var(--color-surface-400))] [&::-webkit-search-cancel-button]:appearance-none"
+          maxlength={SEARCH_MAX}
           placeholder={i18n.t.tickets.searchPlaceholder}
           type="search"
           bind:value={query}
         />
+        {#if query}
+          <button
+            aria-label={i18n.t.tickets.clearSearch}
+            class="btn-icon absolute top-1/2 right-2 -translate-y-1/2 hover:preset-tint-primary"
+            onclick={(): void => {
+              query = '';
+            }}
+            title={i18n.t.tickets.clearSearch}
+            type="button"
+          >
+            <X aria-hidden="true" size={ICON_SIZE} />
+          </button>
+        {/if}
       </label>
     </div>
   {/snippet}

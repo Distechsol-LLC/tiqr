@@ -85,15 +85,30 @@ describe('api sessions and errors', () => {
 });
 
 describe('api reads', () => {
-  it('asks for a page of tickets, optionally of one state', async () => {
+  it('asks for a page of tickets, optionally of one state and matching a search', async () => {
     const page = { items: [ticket], page: 2, size: 5, total: 6 };
-    const fetchMock = mockFetch(Response.json(page), Response.json(page));
+    const fetchMock = mockFetch(
+      Response.json(page),
+      Response.json(page),
+      Response.json(page),
+      Response.json(page)
+    );
 
     expect(await fetchTickets({ page: 2, size: 5 })).toEqual({ data: page, ok: true });
     expect(await fetchTickets({ page: 2, size: 5 }, 'issued')).toEqual({ data: page, ok: true });
+    expect(await fetchTickets({ page: 2, size: 5 }, undefined, 'Ada & Co')).toEqual({
+      data: page,
+      ok: true,
+    });
+    expect(await fetchTickets({ page: 2, size: 5 }, 'issued', 'A-1')).toEqual({
+      data: page,
+      ok: true,
+    });
     expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
       '/api/tickets?page=2&size=5',
       '/api/tickets?page=2&size=5&state=issued',
+      '/api/tickets?page=2&size=5&search=Ada+%26+Co',
+      '/api/tickets?page=2&size=5&state=issued&search=A-1',
     ]);
   });
 

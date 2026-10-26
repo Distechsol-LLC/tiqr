@@ -267,11 +267,13 @@ const deleteVisitorType = (csrfToken: string, id: string): Promise<ApiResult<nul
 
 const fetchTickets = (
   paging: PageRequest,
-  state?: TicketState
+  state?: TicketState,
+  search?: string
 ): Promise<ApiResult<Page<Ticket>>> => {
   const query = pageQuery(paging);
 
   if (state) query.set('state', state);
+  if (search) query.set('search', search);
 
   return request(`/tickets?${query}`, pageSchema(ticketSchema));
 };
