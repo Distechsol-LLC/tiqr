@@ -174,10 +174,10 @@
 <section class="space-y-3">
   {#if canActivate}
     <form class="space-y-3" onsubmit={activate}>
-      <label class="block space-y-2">
+      <label class="block">
         <span class="h6">{i18n.t.license.keyLabel}</span>
         <textarea
-          class="textarea font-mono text-xs"
+          class="textarea mt-2 font-mono text-xs"
           placeholder={i18n.t.license.keyPlaceholder}
           rows="5"
           spellcheck="false"

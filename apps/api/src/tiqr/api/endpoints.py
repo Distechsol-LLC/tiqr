@@ -444,7 +444,7 @@ def assign_ticket(ticket_id: UUID, body: AssignIn, me: Signed, server: Server) -
 def ticket_pdf(ticket_id: UUID, me: Signed, server: Server) -> Response:
     """Render the badge and return it; a POST, since every render counts as a print.
 
-    The PDF is also kept in TIQR_OUT, as `tiqr ticket save` does.
+    The PDF is also kept in the out folder, as `tiqr ticket save` does.
     """
     from tiqr.core.pdf import render_pdf  # noqa: PLC0415 - ReportLab is slow to import
 

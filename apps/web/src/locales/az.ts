@@ -22,7 +22,7 @@ const az: Messages = {
     previousPage: 'Əvvəlki səhifə',
     range: (from: number, to: number, total: number): string => `${from}–${to} / ${total}`,
     refresh: 'Yenilə',
-    rowsPerPage: 'Səhifədə sətir',
+    rowsPerPage: 'Sətirlər',
     save: 'Saxla',
   },
   dateField: {

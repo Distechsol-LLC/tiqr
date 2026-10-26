@@ -2134,7 +2134,7 @@
           "tickets"
         ],
         "summary": "Ticket Pdf",
-        "description": "Render the badge and return it; a POST, since every render counts as a print.\n\nThe PDF is also kept in TIQR_OUT, as `tiqr ticket save` does.",
+        "description": "Render the badge and return it; a POST, since every render counts as a print.\n\nThe PDF is also kept in the out folder, as `tiqr ticket save` does.",
         "operationId": "ticket_pdf",
         "parameters": [
           {
@@ -2623,7 +2623,7 @@
             },
             "type": "array",
             "title": "Languages",
-            "description": "languages, such as en-US: what the switcher offers, first is default"
+            "description": "languages, such as en-US: what the switcher offers, first is the fallback default"
           },
           "currencies": {
             "items": {

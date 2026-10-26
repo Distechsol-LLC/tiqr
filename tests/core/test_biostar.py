@@ -11,6 +11,7 @@ import pytest
 
 from tiqr.core.biostar import (
     SESSION_HEADER,
+    USER_ID_BASE,
     BioStarClient,
     BioStarError,
     BioStarXEventSource,
@@ -37,9 +38,7 @@ def collection(name, rows):
 
 @pytest.fixture
 def config():
-    return BioStarSettings(
-        "https://biostar.test", "admin", "private-password", ("540598970",), "3", user_id_base=401
-    )
+    return BioStarSettings("https://biostar.test", "admin", "private-password", ("540598970",), "3")
 
 
 @pytest.fixture
@@ -98,7 +97,7 @@ class Server:
         if (method, path) == ("POST", "/api/users"):
             user = json.loads(request.content)["User"]
             self.users[user["user_id"]] = user
-            if user["user_id"] == "401":
+            if user["user_id"] == "1000000":
                 return httpx2.Response(200, json=recording("user_created"))
             return collection("UserCollection", [{"user_id": user["user_id"]}])
         if (method, path) == ("POST", "/api/cards"):
@@ -318,9 +317,9 @@ def test_registration_window_group_card_assignment_and_no_operator_permission(
     shifted = replace(ticket, valid_from=ticket.valid_from.astimezone(timezone(timedelta(hours=4))))
     with client(config, server) as api:
         registrar = BioStarXRegistrar(api, repository)
-        assert registrar.register(shifted) == "401"
-    assert server.users["401"] == {
-        "user_id": "401",
+        assert registrar.register(shifted) == "1000000"
+    assert server.users["1000000"] == {
+        "user_id": "1000000",
         "name": "Visitor",
         "user_group_id": {"id": "1"},
         "disabled": "false",
@@ -337,7 +336,7 @@ def test_registration_window_group_card_assignment_and_no_operator_permission(
             "rows": [{"card_id": ticket.qr_payload, "card_type": {"id": "6", "type": "6"}}]
         }
     }
-    assert repository.get_registration("401") == Registration("401", "30")
+    assert repository.get_registration("1000000") == Registration("1000000", "30")
     assert repository.get_ticket(ticket.id) == ticket
 
 
@@ -370,7 +369,7 @@ def test_assignment_failure_rolls_back_user_before_card_and_preserves_primary(
     config, repository, ticket
 ):
     server = Server()
-    server.overrides["PUT", "/api/users/401"] = lambda r: httpx2.Response(
+    server.overrides["PUT", "/api/users/1000000"] = lambda r: httpx2.Response(
         400, json=recording("error_parse_json")
     )
     with client(config, server) as api, pytest.raises(BioStarError) as failure:
@@ -380,15 +379,15 @@ def test_assignment_failure_rolls_back_user_before_card_and_preserves_primary(
         "/api/users",
         "/api/cards",
     ]
-    assert repository.get_registration("401") == Registration("401", "30", True, True)
+    assert repository.get_registration("1000000") == Registration("1000000", "30", True, True)
     assert not server.users
     assert not server.cards
 
 
 def test_rollback_failure_is_reported_and_can_resume_after_restart(config, repository, ticket):
     server = Server()
-    for path in ("/api/users/401", "/api/cards"):
-        method = "PUT" if path.endswith("401") else "DELETE"
+    for path in ("/api/users/1000000", "/api/cards"):
+        method = "PUT" if path.endswith("1000000") else "DELETE"
         server.overrides[method, path] = lambda r: httpx2.Response(
             400, json=recording("error_parse_json")
         )
@@ -396,14 +395,14 @@ def test_rollback_failure_is_reported_and_can_resume_after_restart(config, repos
         BioStarXRegistrar(api, repository).register(ticket)
     assert failure.value.code == "700"
     assert "rollback failed" in failure.value.__notes__[0]
-    assert repository.get_registration("401") == Registration("401", "30", True, False)
+    assert repository.get_registration("1000000") == Registration("1000000", "30", True, False)
     del server.overrides["DELETE", "/api/cards"]
     before = len(server.requests)
     with client(config, server) as api:
-        BioStarXRegistrar(api, repository).remove("401")
-        BioStarXRegistrar(api, repository).remove("401")
+        BioStarXRegistrar(api, repository).remove("1000000")
+        BioStarXRegistrar(api, repository).remove("1000000")
     assert [r.url.path for r in server.requests[before:] if r.method == "DELETE"] == ["/api/cards"]
-    assert repository.get_registration("401") == Registration("401", "30", True, True)
+    assert repository.get_registration("1000000") == Registration("1000000", "30", True, True)
 
 
 def test_cleanup_survives_database_reopen_and_never_reuses_ids(config, tmp_path, ticket):
@@ -412,16 +411,16 @@ def test_cleanup_survives_database_reopen_and_never_reuses_ids(config, tmp_path,
     first = SQLiteRepository(path)
     first.initialize()
     with client(config, server) as api:
-        assert BioStarXRegistrar(api, first).register(ticket) == "401"
+        assert BioStarXRegistrar(api, first).register(ticket) == "1000000"
     first.close()
     second = SQLiteRepository(path)
     second.initialize()
     try:
         with client(config, server) as api:
             registrar = BioStarXRegistrar(api, second)
-            registrar.remove("401")
-            assert registrar.register(ticket) == "402"
-        assert second.get_registration("401") == Registration("401", "30", True, True)
+            registrar.remove("1000000")
+            assert registrar.register(ticket) == "1000001"
+        assert second.get_registration("1000000") == Registration("1000000", "30", True, True)
     finally:
         second.close()
 
@@ -436,7 +435,7 @@ def test_failed_user_creation_consumes_id_without_deleting_other_users(config, r
         with pytest.raises(BioStarError):
             registrar.register(ticket)
         del server.overrides["POST", "/api/users"]
-        assert registrar.register(ticket) == "402"
+        assert registrar.register(ticket) == "1000001"
     assert not any(r.method == "DELETE" for r in server.requests)
 
 
@@ -450,35 +449,35 @@ def test_silent_delete_does_not_mark_cleanup_complete(config, repository, ticket
             200, json=SUCCESS
         )
         with pytest.raises(BioStarError, match="still exists"):
-            registrar.remove("401")
-        progress = repository.get_registration("401")
+            registrar.remove("1000000")
+        progress = repository.get_registration("1000000")
         assert progress.user_removed == (resource == "cards")
         assert not progress.card_removed
         del server.overrides["DELETE", f"/api/{resource}"]
-        registrar.remove("401")
-    assert repository.get_registration("401") == Registration("401", "30", True, True)
+        registrar.remove("1000000")
+    assert repository.get_registration("1000000") == Registration("1000000", "30", True, True)
 
 
 def test_cleanup_missing_records_and_unknown_mapping(config, repository):
-    repository.save_registration(Registration("401", "30"))
+    repository.save_registration(Registration("1000000", "30"))
     server = Server()
     with client(config, server) as api:
         registrar = BioStarXRegistrar(api, repository)
-        registrar.remove("401")
+        registrar.remove("1000000")
         count = len(server.requests)
-        registrar.remove("401")
+        registrar.remove("1000000")
         assert len(server.requests) == count
         with pytest.raises(BioStarError, match="persisted"):
             registrar.remove("999")
     assert not any(r.method == "DELETE" for r in server.requests)
-    assert repository.get_registration("401") == Registration("401", "30", True, True)
+    assert repository.get_registration("1000000") == Registration("1000000", "30", True, True)
 
 
 def test_delete_error_is_only_accepted_after_verified_absence(config, repository, ticket):
     server = Server()
 
     def racing_delete(request):
-        server.users.pop("401")
+        server.users.pop("1000000")
         return httpx2.Response(
             400, json={"Response": {"code": "201", "message": "User can not be found with id"}}
         )
@@ -487,8 +486,8 @@ def test_delete_error_is_only_accepted_after_verified_absence(config, repository
         registrar = BioStarXRegistrar(api, repository)
         registrar.register(ticket)
         server.overrides["DELETE", "/api/users"] = racing_delete
-        registrar.remove("401")
-    assert repository.get_registration("401") == Registration("401", "30", True, True)
+        registrar.remove("1000000")
+    assert repository.get_registration("1000000") == Registration("1000000", "30", True, True)
 
 
 def test_card_internal_id_lookup_fallback(config, repository, ticket):
@@ -500,9 +499,9 @@ def test_card_internal_id_lookup_fallback(config, repository, ticket):
 
     server.overrides["POST", "/api/cards"] = created_without_id
     with client(config, server) as api:
-        assert BioStarXRegistrar(api, repository).register(ticket) == "401"
-    assert repository.get_registration("401").card_id == "30"
-    assert server.users["401"]["cards"] == [{"id": "30"}]
+        assert BioStarXRegistrar(api, repository).register(ticket) == "1000000"
+    assert repository.get_registration("1000000").card_id == "30"
+    assert server.users["1000000"]["cards"] == [{"id": "30"}]
 
 
 def test_card_creation_failure_rolls_back_user_and_checks_card_absence(config, repository, ticket):
@@ -513,21 +512,21 @@ def test_card_creation_failure_rolls_back_user_and_checks_card_absence(config, r
     with client(config, server) as api, pytest.raises(BioStarError) as failure:
         BioStarXRegistrar(api, repository).register(ticket)
     assert failure.value.code == "700"
-    assert repository.get_registration("401") == Registration("401", "", True, True)
+    assert repository.get_registration("1000000") == Registration("1000000", "", True, True)
     assert [r.url.path for r in server.requests if r.method == "DELETE"] == ["/api/users"]
 
 
 def test_card_cleanup_searches_beyond_first_page(config, repository):
     server = Server()
     server.cards = {str(i): {"id": str(i)} for i in range(501)}
-    repository.save_registration(Registration("401", "500", user_removed=True))
+    repository.save_registration(Registration("1000000", "500", user_removed=True))
     with client(config, server) as api:
-        BioStarXRegistrar(api, repository).remove("401")
+        BioStarXRegistrar(api, repository).remove("1000000")
     assert "500" not in server.cards
     assert any(r.url.params.get("offset") == "500" for r in server.requests)
 
 
-def scan(event_id="scan-1", when=NOW - timedelta(seconds=3), code="4133", user_id="401"):
+def scan(event_id="scan-1", when=NOW - timedelta(seconds=3), code="4133", user_id="1000000"):
     return {
         "id": event_id,
         "datetime": to_biostar_datetime(when),
@@ -590,7 +589,7 @@ def test_nested_scan_fields_types_system_filter_device_filter_and_server_datetim
     assert len(events) == 2
     assert {event.event_id for event in events} == {"scan-1", "denied"}
     granted = next(event for event in events if event.granted)
-    assert granted.external_id == "401"
+    assert granted.external_id == "1000000"
     assert granted.occurred_at == NOW - timedelta(seconds=3)
     denied = next(event for event in events if not event.granted)
     assert denied.external_id is None
@@ -757,20 +756,20 @@ def test_cleanup_progress_persists_after_database_reopen(config, tmp_path, ticke
         registrar = BioStarXRegistrar(api, first)
         registrar.register(ticket)
         with pytest.raises(BioStarError):
-            registrar.remove("401")
+            registrar.remove("1000000")
     first.close()
     second = SQLiteRepository(path)
     second.initialize()
     try:
-        assert second.get_registration("401") == Registration("401", "30", True, False)
+        assert second.get_registration("1000000") == Registration("1000000", "30", True, False)
         del server.overrides["DELETE", "/api/cards"]
         before = len(server.requests)
         with client(config, server) as api:
-            BioStarXRegistrar(api, second).remove("401")
+            BioStarXRegistrar(api, second).remove("1000000")
         assert [r.url.path for r in server.requests[before:] if r.method == "DELETE"] == [
             "/api/cards"
         ]
-        assert second.get_registration("401") == Registration("401", "30", True, True)
+        assert second.get_registration("1000000") == Registration("1000000", "30", True, True)
     finally:
         second.close()
 
@@ -795,7 +794,7 @@ def test_registration_persistence_failure_attempts_cleanup_and_keeps_primary(
     assert failure.value is primary
     assert not server.users
     assert not server.cards
-    assert repository.get_registration("401") == Registration("401", "", True, True)
+    assert repository.get_registration("1000000") == Registration("1000000", "", True, True)
 
 
 def test_allocation_is_not_wrapped_in_registration_transaction(
@@ -806,24 +805,24 @@ def test_allocation_is_not_wrapped_in_registration_transaction(
     def allocate(name, start):
         assert not repository._connection.in_transaction
         assert name == "biostar_user_id"
-        assert start == config.user_id_base
+        assert start == USER_ID_BASE
         return saved_allocate(name, start)
 
     monkeypatch.setattr(repository, "allocate", allocate)
     with client(config, Server()) as api:
-        assert BioStarXRegistrar(api, repository).register(ticket) == "401"
+        assert BioStarXRegistrar(api, repository).register(ticket) == "1000000"
 
 
 def test_user_rollback_failure_never_deletes_assigned_card(config, repository, ticket):
     server = Server()
-    for method, path in (("PUT", "/api/users/401"), ("DELETE", "/api/users")):
+    for method, path in (("PUT", "/api/users/1000000"), ("DELETE", "/api/users")):
         server.overrides[method, path] = lambda r: httpx2.Response(
             400, json=recording("error_parse_json")
         )
     with client(config, server) as api, pytest.raises(BioStarError) as failure:
         BioStarXRegistrar(api, repository).register(ticket)
     assert "rollback failed" in failure.value.__notes__[0]
-    assert repository.get_registration("401") == Registration("401", "30")
+    assert repository.get_registration("1000000") == Registration("1000000", "30")
     assert [r.url.path for r in server.requests if r.method == "DELETE"] == ["/api/users"]
 
 
@@ -832,10 +831,10 @@ def test_card_pagination_that_does_not_advance_fails_closed(config, repository):
     server.overrides["GET", "/api/cards"] = lambda r: collection(
         "CardCollection", [{"id": str(i)} for i in range(500)]
     )
-    repository.save_registration(Registration("401", "999", user_removed=True))
+    repository.save_registration(Registration("1000000", "999", user_removed=True))
     with client(config, server) as api, pytest.raises(BioStarError, match="pagination"):
-        BioStarXRegistrar(api, repository).remove("401")
-    assert not repository.get_registration("401").card_removed
+        BioStarXRegistrar(api, repository).remove("1000000")
+    assert not repository.get_registration("1000000").card_removed
     assert not any(r.method == "DELETE" for r in server.requests)
 
 
@@ -1002,15 +1001,15 @@ def test_registration_uses_the_tiqr_group_found_by_name(managed, repository, tic
     server = AccessServer({"30": {"id": "30", "name": "TiQR AG", "access_levels": []}})
     persist_ticket(repository, ticket)
     with client(managed, server) as api:
-        assert BioStarXRegistrar(api, repository).register(ticket) == "401"
-    assert server.users["401"]["access_groups"] == [{"id": "30"}]
+        assert BioStarXRegistrar(api, repository).register(ticket) == "1000000"
+    assert server.users["1000000"]["access_groups"] == [{"id": "30"}]
 
 
 def test_registration_without_a_provisioned_group_points_to_setup(managed, repository, ticket):
     persist_ticket(repository, ticket)
     with client(managed, AccessServer()) as api, pytest.raises(BioStarError, match="tiqr setup"):
         BioStarXRegistrar(api, repository).register(ticket)
-    assert not repository.get_registration("401")
+    assert not repository.get_registration("1000000")
 
 
 def test_polling_queries_every_reader_and_ignores_others(managed):

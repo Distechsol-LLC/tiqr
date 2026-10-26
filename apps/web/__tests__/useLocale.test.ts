@@ -58,6 +58,16 @@ describe('useLocale', () => {
     expect(locale.t).toBe(LOCALES.az.messages);
   });
 
+  it('shows the browser language over the first one the server offers', () => {
+    useLanguages(['ru-RU']);
+
+    const locale = createLocale();
+
+    locale.configure(['az', 'en', 'ru']);
+
+    expect(locale.code).toBe('ru');
+  });
+
   it('prefers the stored pick over the browser', () => {
     useStorage({ [STORAGE_KEY]: 'ru' });
     useLanguages(['az']);

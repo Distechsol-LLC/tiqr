@@ -27,6 +27,8 @@ type QueryParams = Mapping[str, str | int]
 
 SESSION_HEADER = "bs-session-id"
 CARD_PAGE_SIZE = 500
+# TiQR-created users start here, clear of the IDs BioStar's operators typically use.
+USER_ID_BASE = 1_000_000
 # Names of the objects TiQR owns in BioStar; doors are the plain name plus the device ID.
 ACCESS_NAME = "TiQR"
 ACCESS_GROUP_NAME = "TiQR AG"
@@ -555,9 +557,7 @@ class BioStarXRegistrar(Registrar):
         self.repository = repository
 
     def register(self, ticket: Ticket) -> str:
-        external_id = str(
-            self.repository.allocate("biostar_user_id", self.client.settings.user_id_base)
-        )
+        external_id = str(self.repository.allocate("biostar_user_id", USER_ID_BASE))
         self.client.create_user(external_id, ticket)
         registration = Registration(external_id, "", card_removed=True)
         try:

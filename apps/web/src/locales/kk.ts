@@ -22,7 +22,7 @@ const kk: Messages = {
     previousPage: 'Алдыңғы бет',
     range: (from: number, to: number, total: number): string => `${from}–${to} / ${total}`,
     refresh: 'Жаңарту',
-    rowsPerPage: 'Беттегі жолдар',
+    rowsPerPage: 'Жолдар',
     save: 'Сақтау',
   },
   dateField: {

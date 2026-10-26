@@ -36,7 +36,7 @@ def _flag(environment: Mapping[str, str], name: str, *, default: bool) -> bool:
 
 def _path(environment: Mapping[str, str], name: str) -> Path | None:
     value = _value(environment, name)
-    # Relative paths follow TIQR_DB and TIQR_OUT: against the project root, not the directory.
+    # Relative paths are against the project root, not the directory.
     return settings.PROJECT_ROOT / value if value else None
 
 

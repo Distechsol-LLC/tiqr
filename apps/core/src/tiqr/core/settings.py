@@ -39,6 +39,9 @@ ENV_FILES = (".env", LOCAL_ENV_FILE)
 # Name, logo, theme and languages. Required beside the executable: the program does not run without.
 BRANDING_FILE = "tiqr_branding.jsonc"
 SESSION_FILE = ".tiqr-session.json"
+# Fixed names, beside the executable: not settings, so nothing can point them elsewhere.
+DATABASE_FILE = "tiqr.db"
+OUTPUT_DIR = "out"
 
 _PLACEHOLDER_SECRETS = frozenset(
     {
@@ -65,7 +68,6 @@ _BIOSTAR_OPTIONAL = (
     "ACCESS_GROUP_ID",
     "VERIFY_TLS",
     "TIMEOUT",
-    "USER_ID_BASE",
     "DOOR_OPEN_DURATION",
     "DOOR_OPEN_TIMEOUT",
 )
@@ -78,8 +80,6 @@ _BRANDING_KEYS = frozenset({"app_name", "logo_path", "theme", "languages"})
 # BioStar password are not among them: those stay in .env.local, out of a file that gets shared.
 _SETTING_KEYS = frozenset(
     {
-        "db",
-        "out",
         "prefix",
         "default_tz",
         "host",
@@ -99,7 +99,6 @@ _BIOSTAR_KEYS = frozenset(
         "access_group_id",
         "verify_tls",
         "timeout",
-        "user_id_base",
         "door_open_duration",
         "door_open_timeout",
     }
@@ -286,10 +285,9 @@ def discard_access_group_id(path: Path | None = None) -> bool:
     )
 
 
-def database_path(environment: Mapping[str, str] | None = None) -> Path:
-    """Resolve the database location without needing a valid signing key."""
-    environment = load_environment() if environment is None else environment
-    return PROJECT_ROOT / environment.get("TIQR_DB", "tiqr.db")
+def database_path() -> Path:
+    """The database's location, which needs no valid signing key to find."""
+    return PROJECT_ROOT / DATABASE_FILE
 
 
 def session_path() -> Path:
@@ -336,12 +334,14 @@ def _logo_path(branding: Mapping[str, object]) -> Path | None:
     value = branding.get("logo_path")
     if value is None or value == "":
         return None
-    # Relative paths follow TIQR_DB and TIQR_OUT: against the project root.
+    # Relative paths are against the project root.
     return PROJECT_ROOT / _branding_text(branding, "logo_path")
 
 
 def _branding_languages(branding: Mapping[str, object]) -> tuple[str, ...]:
     value = branding.get("languages")
+    if value is None:
+        return DEFAULT_LANGUAGES
     if not isinstance(value, list):
         raise ValueError(f"{BRANDING_FILE}: languages must be a list of codes such as en-US")  # noqa: TRY004
     codes = cast("list[object]", value)
@@ -360,7 +360,6 @@ class BioStarSettings:
     access_group_id: str = ""
     verify_tls: bool = False
     timeout: float = 30.0
-    user_id_base: int = 1_000_000
     # Seconds a door stays unlocked, and may stay open before BioStar alarms.
     door_open_duration: int = 3
     door_open_timeout: int = 10
@@ -375,8 +374,8 @@ class BioStarSettings:
             raise ValueError("BioStar username and password are required")
         if not self.device_ids or not all(device.strip() for device in self.device_ids):
             raise ValueError("At least one BioStar device ID is required")
-        if self.timeout <= 0 or self.user_id_base < 1:
-            raise ValueError("BioStar timeout and user ID base must be positive")
+        if self.timeout <= 0:
+            raise ValueError("BioStar timeout must be positive")
         if self.door_open_duration < 1 or self.door_open_timeout < 1:
             raise ValueError("BioStar door open duration and timeout must be positive")
 
@@ -400,7 +399,6 @@ class BioStarSettings:
             access_group_id=_biostar_value(environment, "ACCESS_GROUP_ID"),
             verify_tls=_biostar_flag(environment, "VERIFY_TLS", default=False),
             timeout=float(_biostar_value(environment, "TIMEOUT", "30")),
-            user_id_base=int(_biostar_value(environment, "USER_ID_BASE", "1000000")),
             door_open_duration=int(_biostar_value(environment, "DOOR_OPEN_DURATION", "3")),
             door_open_timeout=int(_biostar_value(environment, "DOOR_OPEN_TIMEOUT", "10")),
         )
@@ -409,8 +407,8 @@ class BioStarSettings:
 @dataclass(frozen=True, slots=True)
 class Settings:
     secret_key: str
-    database_path: Path = Path("tiqr.db")
-    output_dir: Path = Path("out")
+    database_path: Path = Path(DATABASE_FILE)
+    output_dir: Path = Path(OUTPUT_DIR)
     default_tz: str = "UTC"
     prefix: str = DEFAULT_PREFIX
     biostar: BioStarSettings | None = None
@@ -450,8 +448,8 @@ class Settings:
         branding = load_branding()
         return cls(
             secret_key=environment.get("TIQR_SECRET_KEY", ""),
-            database_path=database_path(environment),
-            output_dir=PROJECT_ROOT / environment.get("TIQR_OUT", "out"),
+            database_path=database_path(),
+            output_dir=PROJECT_ROOT / OUTPUT_DIR,
             default_tz=_default_timezone(environment),
             prefix=_prefix(environment),
             biostar=biostar,

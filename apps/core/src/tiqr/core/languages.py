@@ -32,7 +32,7 @@ def parse_language(code: str) -> str:
 
 
 def parse_languages(codes: Iterable[str]) -> tuple[str, ...]:
-    """Normalize the codes, dropping repeats; the first is the language shown by default."""
+    """Normalize the codes, dropping repeats; the first is the fallback default."""
     codes = list(codes)
     if not codes:
         raise ValueError("At least one language is required")

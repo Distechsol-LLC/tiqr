@@ -22,7 +22,7 @@ const ru: Messages = {
     previousPage: 'Предыдущая страница',
     range: (from: number, to: number, total: number): string => `${from}–${to} / ${total}`,
     refresh: 'Обновить',
-    rowsPerPage: 'Строк на странице',
+    rowsPerPage: 'Строки',
     save: 'Сохранить',
   },
   dateField: {

@@ -20,7 +20,7 @@ const en = {
     previousPage: 'Previous page',
     range: (from: number, to: number, total: number): string => `${from}–${to} / ${total}`,
     refresh: 'Refresh',
-    rowsPerPage: 'Rows per page',
+    rowsPerPage: 'Rows',
     save: 'Save',
   },
   dateField: {

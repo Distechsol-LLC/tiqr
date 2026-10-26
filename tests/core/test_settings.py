@@ -65,12 +65,10 @@ def test_config_is_read_from_project_root_not_working_directory(
     for name in tuple(os.environ):
         if name.startswith("TIQR_"):
             monkeypatch.delenv(name)
-    (project_root / ".env").write_text(
-        "TIQR_SECRET_KEY=root-file-key-0123456789abcdef\nTIQR_DB=data/tickets.db\n"
-    )
+    (project_root / ".env").write_text("TIQR_SECRET_KEY=root-file-key-0123456789abcdef\n")
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (elsewhere / ".env").write_text("TIQR_DEFAULT_TZ=Asia/Baku\nTIQR_DB=wrong.db\n")
+    (elsewhere / ".env").write_text("TIQR_DEFAULT_TZ=Asia/Baku\n")
     (elsewhere / ".env.local").write_text("TIQR_SECRET_KEY=wrong-file-key-0123456789abcdef\n")
     monkeypatch.chdir(elsewhere)
     monkeypatch.setattr("tiqr.core.settings._detected_timezone", lambda: None)
@@ -79,7 +77,7 @@ def test_config_is_read_from_project_root_not_working_directory(
 
     assert settings.secret_key == "root-file-key-0123456789abcdef"
     assert settings.default_tz == "UTC"
-    assert settings.database_path == project_root / "data" / "tickets.db"
+    assert settings.database_path == project_root / "tiqr.db"
 
 
 def _zone_file(root, name):

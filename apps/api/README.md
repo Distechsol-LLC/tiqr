@@ -30,8 +30,6 @@ uv sync --locked
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `TIQR_SECRET_KEY` | none, required | Secret for the server. Must be non-empty and not a placeholder. `tiqr setup` generates one. |
-| `TIQR_DB` | `tiqr.db` | SQLite database path, relative to the project root. |
-| `TIQR_OUT` | `out` | Directory where PDFs are kept. |
 | `TIQR_DEFAULT_TZ` | machine zone, or `UTC` | IANA zone for offset-less input and for all displayed times. |
 | `TIQR_HOST` | `127.0.0.1` | Bind address. Set to the server's LAN address for operators' PCs. |
 | `TIQR_PORT` | `7102` | Listen port, 1 to 65535. |
@@ -153,7 +151,7 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 | POST | `/tickets` | session + CSRF | Issue a ticket. Returns `201`. An optional `ticket_type` (a catalog name) prices it; a `visitor_type` from the catalog takes its discount off that price. The ticket shows `ticket_type`, `base_price_minor`, `currency`, `discount_percent` and `price_minor` (null without a ticket type). `422` for an unknown `ticket_type`. |
 | GET | `/tickets/{ticket_id}` | session | One ticket. |
 | POST | `/tickets/{ticket_id}/assign` | session + CSRF | Body `{assignee}`: the username of any existing account to assign the ticket to. Managers only. |
-| POST | `/tickets/{ticket_id}/pdf` | session + CSRF | Render the one-page A4 badge and return it as `application/pdf`. Counts as a print, and the file is also saved to `TIQR_OUT`. Issued tickets only. |
+| POST | `/tickets/{ticket_id}/pdf` | session + CSRF | Render the one-page A4 badge and return it as `application/pdf`. Counts as a print, and the file is also saved to `out/`. Issued tickets only. |
 | POST | `/tickets/{ticket_id}/print` | session + CSRF | Print on the server's default printer. Needs `TIQR_SERVER_PRINTING=true`. Issued tickets only. Returns the updated ticket. |
 
 Create body:

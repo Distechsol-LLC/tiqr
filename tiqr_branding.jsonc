@@ -8,12 +8,10 @@
   "logo_path": null, // default: none
   // "default" is vintage; or any Skeleton theme name (e.g. "cerberus", "dracula").
   "theme": "default", // default: default (vintage)
-  // The first language is the default.
+  // The browser's language is used when offered; otherwise the first language is the default.
   "languages": ["en-US", "ru-RU", "az-AZ"], // default: en-US, ru-RU, az-AZ
 
-  // Data and tickets
-  "db": "tiqr.db", // default: tiqr.db
-  "out": "out", // default: out
+  // Tickets
   "prefix": "TQR", // default: TQR
   "default_tz": null, // default: this machine's time zone, else UTC
 
@@ -34,7 +32,6 @@
     "access_group_id": null, // default: blank, TiQR manages its own group
     "verify_tls": null, // default: false
     "timeout": null, // default: 30 seconds
-    "user_id_base": null, // default: 1000000
     "door_open_duration": null, // default: 3 seconds
     "door_open_timeout": null // default: 10 seconds
   }

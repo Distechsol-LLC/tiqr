@@ -71,7 +71,7 @@ usage, prints, uses, price and assignee.
 
 - Type in the **Search tickets** box to find a ticket by its serial number, visitor name or other details.
 - Use the **Filter by state** tabs to show **All**, **Issued**, **Passed** or **Expired** tickets.
-- Use the page controls at the bottom to change the number of **Rows per page** and move between pages.
+- Use the page controls at the bottom to change the number of **Rows** and move between pages.
 
 Operators see only tickets assigned to them. Managers and admins see every ticket.
 
