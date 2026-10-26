@@ -3386,7 +3386,7 @@
           },
           "price_minor": {
             "type": "integer",
-            "maximum": 1000000000.0,
+            "maximum": 100000000000.0,
             "minimum": 0.0,
             "title": "Price Minor",
             "description": "In minor units, such as cents: 1250 is 12.50"
@@ -3487,7 +3487,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 1000000000.0,
+                "maximum": 100000000000.0,
                 "minimum": 0.0,
                 "description": "In minor units, such as cents: 1250 is 12.50"
               },

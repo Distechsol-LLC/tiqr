@@ -48,5 +48,4 @@ const createPagination = (): PaginationController => {
   };
 };
 
-export type { PaginationController };
 export { createPagination };

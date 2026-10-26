@@ -56,5 +56,4 @@ const createSortParams = <Row, Key extends string>(
   };
 };
 
-export type { SortParams };
 export { createSortParams };

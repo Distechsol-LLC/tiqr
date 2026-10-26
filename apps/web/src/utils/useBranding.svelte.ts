@@ -59,4 +59,4 @@ const createBranding = (): BrandingController => {
 
 const branding = createBranding();
 
-export { branding, createBranding };
+export { branding };
