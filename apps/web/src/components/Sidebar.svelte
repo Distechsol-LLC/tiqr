@@ -34,7 +34,7 @@
      faded, so collapsing never reflows the contents mid-transition -->
 <aside
   class={[
-    'flex shrink-0 flex-col gap-4 border-surface-200-800 border-b bg-surface-100-900 p-4 md:sticky md:top-0 md:h-dvh md:overflow-hidden md:border-r md:border-b-0 md:transition-[width] md:duration-200 md:ease-out',
+    'border-surface-200-800 bg-surface-100-900 flex shrink-0 flex-col gap-4 border-b p-4 md:sticky md:top-0 md:h-dvh md:overflow-hidden md:border-r md:border-b-0 md:transition-[width] md:duration-200 md:ease-out',
     sidebar.isCollapsed ? 'md:w-18' : 'md:w-64',
   ]}
 >
@@ -43,7 +43,7 @@
       <Logo
         class={[
           'size-10 shadow-sm transition-opacity',
-          sidebar.isCollapsed && 'md:group-has-focus-visible:opacity-0 md:group-hover:opacity-0',
+          sidebar.isCollapsed && 'md:group-hover:opacity-0 md:group-has-focus-visible:opacity-0',
         ]}
       />
       <!-- Collapsed, the logo doubles as the expand button -->
@@ -51,7 +51,7 @@
         <button
           aria-expanded="false"
           aria-label={i18n.t.nav.expand}
-          class="btn-icon absolute inset-0 hidden size-10 text-surface-600-400 opacity-0 transition-opacity group-hover:opacity-100 hover:preset-tint-primary focus-visible:opacity-100 md:inline-flex"
+          class="btn-icon text-surface-600-400 hover:preset-tint-primary absolute inset-0 hidden size-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 md:inline-flex"
           data-tippy-placement="right"
           onclick={toggle}
           title={i18n.t.nav.expand}
@@ -74,7 +74,7 @@
       aria-expanded="true"
       aria-label={i18n.t.nav.collapse}
       class={[
-        'btn-icon hidden size-10 shrink-0 text-surface-600-400 transition-[opacity,visibility] hover:preset-tint-primary md:inline-flex',
+        'btn-icon text-surface-600-400 hover:preset-tint-primary hidden size-10 shrink-0 transition-[opacity,visibility] md:inline-flex',
         sidebar.isCollapsed && 'md:invisible md:opacity-0',
       ]}
       data-tippy-placement="right"
@@ -115,7 +115,7 @@
     {/each}
   </nav>
 
-  <footer class="hidden border-surface-200-800 border-t pt-2 md:flex">
+  <footer class="border-surface-200-800 hidden border-t pt-2 md:flex">
     <AccountMenu
       isCondensed={sidebar.isCollapsed}
       placement={sidebar.isCollapsed ? 'right-end' : 'top-start'}

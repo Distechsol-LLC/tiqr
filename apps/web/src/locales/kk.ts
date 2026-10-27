@@ -73,6 +73,7 @@ const kk: Messages = {
   license: {
     activate: 'Лицензияны белсендіру',
     activated: 'Лицензия белсендірілді',
+    alreadyActive: 'Бұл кілт бұдан бұрын белсенді.',
     alreadyExpired: 'Бұл кілттің мерзімі бұрын өткен.',
     badSignature: 'Бұл кілт осы өнім үшін жарамсыз.',
     banner: {
@@ -95,9 +96,6 @@ const kk: Messages = {
     notAdmin: 'Сұраным кодын әкімшіге жіберіңіз: кілтті тек әкімші белсендіре алады.',
     requestCode: 'Сұраным коды',
     requestHint: 'Осы орнатуға кілт алу үшін бұл кодты жеткізушіге жіберіңіз.',
-    requestStandard: 'Стандартты',
-    requestTrial: 'Сынақ (30 күн)',
-    requestType: 'Сұралатын лицензия',
     retry: 'Қайталау',
     states: {
       active: 'Белсенді',

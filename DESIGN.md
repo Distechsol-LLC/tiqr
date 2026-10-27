@@ -224,7 +224,7 @@ and carries the cutting instructions: a second badge cannot fill it because gues
 a time. A PDF rather than an image is kept, because the CLI hands the file to the system print
 path, which rasterizes it for printers without PDF support. Labels are English. The visitor type
 is the badge label and is printed as entered, never upper-cased, as Python's case mapping is
-wrong for Azerbaijani `i`. The front has name, QR code and serial; the back has name only, as it
+wrong for Azerbaijani `i`. The front has name, QR code and serial; the back has name and ticket type, as it
 faces outward when the badge turns. Names shrink to fit and are then cut with an ellipsis, so
 the layout is always exactly one page. Validity is shown to the minute as `dd.mm.yy · HH:MM`,
 in the configured timezone, which is no longer printed itself.

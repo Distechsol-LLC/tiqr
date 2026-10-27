@@ -80,11 +80,11 @@ describe('useLicense', () => {
 });
 
 describe('license api', () => {
-  it('asks for a request code of the chosen type', async () => {
+  it('asks for a request code', async () => {
     const fetchMock = mockFetch(Response.json({ code: 'abc' }));
 
-    expect(await fetchRequestCode('trial')).toEqual({ data: 'abc', ok: true });
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/license/request-code?type=trial');
+    expect(await fetchRequestCode()).toEqual({ data: 'abc', ok: true });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/license/request-code');
   });
 
   it('posts the key with the CSRF token', async () => {

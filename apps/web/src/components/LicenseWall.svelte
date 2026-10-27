@@ -43,9 +43,9 @@
       <h1 class="h3">{branding.appName}</h1>
     </header>
 
-    <div class="card space-y-6 bg-surface-100-900 p-6 shadow-md">
+    <div class="card bg-surface-100-900 space-y-6 p-6 shadow-md">
       <div
-        class="flex items-start gap-3 rounded-container bg-error-500/15 p-3 text-error-700-300"
+        class="rounded-container bg-error-500/15 text-error-700-300 flex items-start gap-3 p-3"
         role="alert"
       >
         <ShieldAlert aria-hidden="true" class="mt-0.5 shrink-0" size={ICON_SIZE} />
@@ -62,7 +62,7 @@
 
       <LicenseActivation canActivate={auth.session?.user.role === 'admin'} />
 
-      <p class="text-xs text-surface-600-400">
+      <p class="text-surface-600-400 text-xs">
         {i18n.t.license.machineId}: <span class="font-mono">{status.machine_id}</span>
       </p>
     </div>

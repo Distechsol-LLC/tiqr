@@ -132,6 +132,23 @@ def test_trial_cannot_replace_paid(licensed, accounts, issue):
     assert error.value.status == 409
 
 
+def test_same_key_cannot_be_pasted_twice(licensed, accounts, issue):
+    key = issue("trial")
+    licensed.activate_license(accounts["admin"], key)
+    with pytest.raises(LicenseError) as error:
+        licensed.activate_license(accounts["admin"], key)
+    assert error.value.code == "license_already_active"
+    assert [row.is_active for row in licensed.license_history(accounts["admin"])] == [True]
+
+
+def test_trial_cannot_replace_expired_paid(licensed, accounts, issue, clock):
+    licensed.activate_license(accounts["admin"], issue(days=30))
+    clock.now += timedelta(days=31)
+    with pytest.raises(LicenseError) as error:
+        licensed.activate_license(accounts["admin"], issue("trial"))
+    assert error.value.code == "license_trial_over_paid"
+
+
 def test_paid_replaces_trial_and_history_is_kept(licensed, accounts, issue):
     licensed.activate_license(accounts["admin"], issue("trial"))
     licensed.activate_license(accounts["admin"], issue())
@@ -145,4 +162,4 @@ def test_only_admins_manage_licenses(licensed, accounts, issue):
             licensed.activate_license(accounts[role], issue())
         with pytest.raises(PermissionDeniedError):
             licensed.license_history(accounts[role])
-    assert licensed.license_request_code(accounts["operator"], "trial")
+    assert licensed.license_request_code(accounts["operator"])

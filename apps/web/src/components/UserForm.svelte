@@ -3,13 +3,14 @@
   import { z } from 'zod';
 
   import FloatingInput from '@/components/FloatingInput.svelte';
+  import FloatingSelect from '@/components/FloatingSelect.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
   import { createUser } from '%/api.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
-  import { type Role, type User, roleSchema } from '$/auth.ts';
+  import { type User, roleSchema } from '$/auth.ts';
   import { userInputSchema } from '$/users.ts';
 
   type UserFormProps = {
@@ -24,7 +25,7 @@
 
   let username = $state('');
   let password = $state('');
-  let role = $state<Role>('operator');
+  let role = $state('operator');
   let isPending = $state(false);
   let isSubmitted = $state(false);
 
@@ -101,13 +102,12 @@
   />
 
   {#if canPickRole}
-    <label class="label">
-      <span class="label-text text-base">{i18n.t.userForm.role}</span>
-      <select class="select h-12" bind:value={role}>
-        {#each roleSchema.options as option (option)}
-          <option value={option}>{i18n.t.roles[option]}</option>
-        {/each}
-      </select>
-    </label>
+    <FloatingSelect
+      id="user-role"
+      label={i18n.t.userForm.role}
+      labels={i18n.t.roles}
+      options={roleSchema.options}
+      bind:value={role}
+    />
   {/if}
 </FormDialog>

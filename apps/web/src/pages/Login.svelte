@@ -91,7 +91,7 @@
 
 <main class="grid min-h-dvh place-items-center p-4">
   <div class="w-full max-w-sm space-y-8">
-    <header class="flex justify-center-safe items-center-safe gap-4 text-center">
+    <header class="flex items-center-safe justify-center-safe gap-4 text-center">
       <Logo class="size-14 shadow-lg" />
       <h1 class="h3">{branding.appName}</h1>
     </header>
@@ -146,7 +146,7 @@
         {/snippet}
       </FloatingInput>
 
-      <button class="btn h-12 w-full preset-filled-primary-500" disabled={isPending} type="submit">
+      <button class="btn preset-filled-primary-500 h-12 w-full" disabled={isPending} type="submit">
         {#if isPending}
           <LoaderCircle aria-hidden="true" class="animate-spin" size={ICON_SIZE} />
           {i18n.t.login.signingIn}

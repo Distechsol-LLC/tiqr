@@ -81,7 +81,7 @@
 
 {#if isOpen}
   <div
-    class="fixed inset-0 z-20 grid min-h-dvh place-items-center bg-surface-50-950/85 backdrop-blur-xs"
+    class="bg-surface-50-950/85 fixed inset-0 z-20 grid min-h-dvh place-items-center backdrop-blur-xs"
     role="presentation"
     bind:this={overlay}
   >

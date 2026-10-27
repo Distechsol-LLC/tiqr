@@ -1,4 +1,4 @@
-import { type Connect, defineConfig, type Plugin } from 'vite';
+import { type Connect, defineConfig, type Plugin, type PluginOption } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { VitePWA } from 'vite-plugin-pwa';
@@ -53,7 +53,7 @@ export default defineConfig({
       srcDir: 'src',
       strategies: 'injectManifest',
     }),
-  ],
+  ] as PluginOption[],
   build: {
     outDir: 'build',
     sourcemap: false,

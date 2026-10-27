@@ -194,8 +194,8 @@ The app needs an active license before it can manage tickets. If the license is 
 cannot be verified, a red message appears at the top of the License page, and the app stays locked until
 a valid license is activated.
 
-- **Request code**: choose **Trial (30 days)** or **Standard license**. A code appears in the grey box.
-  Select **Copy** and send the code to your vendor. Anyone can request a code, but only an admin can
+- **Request code**: a code appears in the grey box. Select **Copy** and send the code to your vendor,
+  who decides whether this install gets a trial or a paid license. Anyone can request a code, but only an admin can
   activate a key.
 - **License key**: paste the key your vendor sends back and select **Activate license**.
 - **Machine ID**: shown at the bottom of the page. Your vendor needs it to issue a key.

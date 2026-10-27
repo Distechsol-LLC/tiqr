@@ -31,9 +31,7 @@
 {/if}
 
 <Toast.Group {toaster}>
-  {#snippet children(
-    toast
-  )}
+  {#snippet children(toast)}
     <Toast {toast}>
       <Toast.Message>
         <Toast.Title>{toast.title}</Toast.Title>

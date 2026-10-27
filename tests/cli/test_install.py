@@ -56,7 +56,7 @@ def test_install_ends_with_the_license_request_code(home, release):
     assert "activate a license" in result.output
     assert "tiqr license activate" in result.output
     code = next(line.strip() for line in result.output.splitlines() if line.startswith("  ey"))
-    assert parse_request_code(code).request_type == "trial"
+    assert parse_request_code(code).request_type == "standard"
 
 
 def test_install_rejects_a_broken_file_and_keeps_the_existing_one(home, tmp_path):

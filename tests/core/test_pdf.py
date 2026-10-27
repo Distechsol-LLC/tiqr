@@ -97,6 +97,19 @@ def test_name_and_type_are_drawn_on_both_sides(ticket, render, strings):
     assert all(ord(char) in glyphs for char in ticket.visitor_name)
 
 
+def test_back_shows_the_ticket_type_only_once_and_wraps_when_long(ticket, render, strings):
+    ticket_type = "Gündəlik keçid " * 8
+    render(replace(ticket, ticket_type=ticket_type))
+    pieces = [(text, size) for _, text, size in strings if text and text in ticket_type]
+    assert len(pieces) >= 2
+    assert all(size < pdf._NAME_SIZES[0] * mm for _, size in pieces)
+
+
+def test_front_does_not_show_the_ticket_type(ticket, render, strings):
+    render(replace(ticket, ticket_type="Day pass"))
+    assert [text for _, text, _ in strings].count("Day pass") == 1
+
+
 def test_qr_is_vector_with_payload_and_quiet_zone(ticket, render, spy, monkeypatch):
     rects = spy(Canvas, "rect", lambda _, x, y, w, h, **kw: (x, y, w, h, kw))
     spans = []

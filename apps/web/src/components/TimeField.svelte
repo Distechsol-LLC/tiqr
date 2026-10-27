@@ -82,18 +82,18 @@
   onPick: (option: string) => void
 )}
   <fieldset class="flex flex-col items-center gap-1">
-    <legend class="mb-1 w-full text-center font-medium text-surface-600-400 text-xs">
+    <legend class="text-surface-600-400 mb-1 w-full text-center text-xs font-medium">
       {legend}
     </legend>
     <div
-      class="relative flex h-56 w-14 flex-col gap-0.5 overflow-y-auto pr-1 [scrollbar-width:thin]"
+      class="relative flex h-56 w-14 [scrollbar-width:thin] flex-col gap-0.5 overflow-y-auto pr-1"
       {@attach centerSelected}
     >
       {#each options as option (option)}
         <button
           aria-pressed={option === selected}
           class={[
-            'shrink-0 rounded-base py-1.5 text-sm tabular-nums',
+            'rounded-base shrink-0 py-1.5 text-sm tabular-nums',
             option === selected ? 'preset-filled-primary-500' : 'hover:preset-tint-primary',
           ]}
           onclick={(): void => {
@@ -121,7 +121,7 @@
       aria-invalid={isInvalid ? 'true' : undefined}
       aria-label={label}
       autocomplete="off"
-      class="input pr-10 tabular-nums aria-invalid:ring-error-500"
+      class="input aria-invalid:ring-error-500 pr-10 tabular-nums"
       inputmode="numeric"
       maxlength={MAX_LENGTH}
       onblur={(): void => {
@@ -139,7 +139,7 @@
     />
     <Popover.Trigger
       aria-label={i18n.t.dateField.openTimePicker}
-      class="btn-icon absolute top-1/2 right-1 size-8 -translate-y-1/2 bg-transparent text-surface-600-400 hover:preset-tint-primary"
+      class="btn-icon text-surface-600-400 hover:preset-tint-primary absolute top-1/2 right-1 size-8 -translate-y-1/2 bg-transparent"
     >
       <Clock aria-hidden="true" size={ICON_SIZE} />
     </Popover.Trigger>
@@ -149,7 +149,7 @@
        z-index sits on the content: the positioner copies it into an inline style of its own -->
   <Popover.Positioner>
     <Popover.Content
-      class="card z-30 flex gap-2 border border-surface-200-800 bg-surface-50-950 p-2 shadow-xl"
+      class="card border-surface-200-800 bg-surface-50-950 z-30 flex gap-2 border p-2 shadow-xl"
     >
       {@render column(i18n.t.dateField.hours, HOURS, selectedHour, pickHour)}
       {@render column(i18n.t.dateField.minutes, MINUTES, selectedMinute, pickMinute)}

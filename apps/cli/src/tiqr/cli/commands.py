@@ -25,7 +25,7 @@ from tiqr.cli.installer import (
 )
 from tiqr.core.auth import AuthenticationError, Session
 from tiqr.core.biostar import ACCESS_GROUP_NAME, BioStarClient, BioStarError, BioStarXProvisioner
-from tiqr.core.license import REQUEST_TYPES, build_request_code
+from tiqr.core.license import build_request_code
 from tiqr.core.localtime import parse_input_datetime
 from tiqr.core.models import Role, Ticket, TicketState, UsageType, User
 from tiqr.core.printer import send_to_printer
@@ -78,6 +78,13 @@ license_app = typer.Typer(no_args_is_help=True, help="Request and activate this 
 app.add_typer(user_app, name="user")
 app.add_typer(license_app, name="license")
 app.add_typer(ticket_app, name="ticket")
+
+
+@app.callback()
+def _copyright() -> None:
+    # Copyright Notice
+    typer.echo("© 2026 Distechsol LLC", err=True)
+
 
 Actor = Annotated[str, typer.Option("--as", "-a")]
 
@@ -351,13 +358,10 @@ def _license_next_steps(host: str, port: int) -> None:
             return
     typer.echo("")
     typer.echo("Last step: activate a license. Send this request code to your vendor:")
-    typer.echo(f"  {build_request_code('trial')}")
+    typer.echo(f"  {build_request_code('standard')}")
     typer.echo(
         f"Then paste the key they send back at http://{host}:{port} (License), or run:"
         "\n  tiqr license activate --as <admin> <key>"
-    )
-    typer.echo(
-        "For a paid license rather than a trial, run: tiqr license request-code --type standard"
     )
 
 
@@ -388,15 +392,9 @@ def _executable_folder() -> Path:
 
 
 @license_app.command("request-code")
-def license_request_code(
-    request_type: Annotated[
-        str, typer.Option("--type", help="trial (30 days) or standard.")
-    ] = "trial",
-) -> None:
+def license_request_code() -> None:
     """Print this machine's request code; send it to the vendor to get a license key."""
-    if request_type not in REQUEST_TYPES:
-        raise typer.BadParameter(f"use one of: {', '.join(REQUEST_TYPES)}", param_hint="--type")
-    typer.echo(build_request_code(request_type))
+    typer.echo(build_request_code("standard"))
 
 
 @license_app.command("status")

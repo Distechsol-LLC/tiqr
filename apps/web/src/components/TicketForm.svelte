@@ -190,7 +190,7 @@
     <!-- What the API will charge: the type's price, less the visitor type's discount -->
     <dl
       aria-live="polite"
-      class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 rounded-container border border-surface-200-800 bg-surface-100-900 px-4 py-3 text-sm tabular-nums"
+      class="rounded-container border-surface-200-800 bg-surface-100-900 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 border px-4 py-3 text-sm tabular-nums"
     >
       <dt class="text-surface-700-300">{i18n.t.ticketForm.price}</dt>
       <dd class="text-right">{formatMinor(priced.price_minor, priced.currency)}</dd>
@@ -231,7 +231,7 @@
       {#each USAGE_OPTIONS as { Icon, value: option } (option)}
         <label
           class={[
-            'btn h-12 cursor-pointer has-focus-visible:outline-2 has-focus-visible:outline-primary-500 has-focus-visible:outline-offset-2',
+            'btn has-focus-visible:outline-primary-500 h-12 cursor-pointer has-focus-visible:outline-2 has-focus-visible:outline-offset-2',
             usageType === option ? 'preset-filled-primary-500' : 'preset-tonal',
           ]}
         >

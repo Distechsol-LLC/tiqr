@@ -252,7 +252,7 @@
   {#snippet actions()}
     <button
       aria-label={i18n.t.common.refresh}
-      class="btn-icon size-11 preset-tonal"
+      class="btn-icon preset-tonal size-11"
       disabled={isLoading}
       onclick={load}
       title={i18n.t.common.refresh}
@@ -266,7 +266,7 @@
     </button>
     <button
       aria-label={i18n.t.overview.export.hint}
-      class="btn-icon size-11 preset-tonal"
+      class="btn-icon preset-tonal size-11"
       disabled={isExporting}
       onclick={exportCsv}
       title={i18n.t.overview.export.hint}
@@ -275,7 +275,7 @@
       <Download aria-hidden="true" size={ICON_SIZE} />
     </button>
     <button
-      class="btn h-11 min-w-36 preset-tonal"
+      class="btn preset-tonal h-11 min-w-36"
       disabled={running !== null}
       onclick={(): Promise<void> => run('cleanup')}
       title={i18n.t.overview.cleanup.hint}
@@ -289,7 +289,7 @@
       {i18n.t.overview.cleanup.action}
     </button>
     <button
-      class="btn h-11 min-w-36 preset-filled-primary-500"
+      class="btn preset-filled-primary-500 h-11 min-w-36"
       disabled={running !== null}
       onclick={(): Promise<void> => run('sync')}
       title={i18n.t.overview.sync.hint}
@@ -305,7 +305,7 @@
   {/snippet}
   {#snippet toolbar()}
     <!-- As tall as the period controls, so the bar keeps its height when they come and go -->
-    <div class="flex sm:flex-row sm:mt-0 min-h-9 flex-wrap items-center justify-between gap-x-3">
+    <div class="flex min-h-9 flex-wrap items-center justify-between gap-x-3 sm:mt-0 sm:flex-row">
       <!-- A line of its own at the tabs' height, so they stay put whether or not the picker wraps -->
       <div class="flex h-9 items-end">
         <FilterTabs
@@ -322,7 +322,7 @@
           {#if range !== 'range'}
             <button
               aria-label={i18n.t.overview.earlier}
-              class="btn-icon size-9 preset-filled-surface-50-950 border border-surface-200-800 enabled:hover:border-primary-500"
+              class="btn-icon preset-filled-surface-50-950 border-surface-200-800 enabled:hover:border-primary-500 size-9 border"
               onclick={(): void => step(-1)}
               title={i18n.t.overview.earlier}
               type="button"
@@ -340,7 +340,7 @@
           {#if range !== 'range'}
             <button
               aria-label={i18n.t.overview.later}
-              class="btn-icon size-9 preset-filled-surface-50-950 border border-surface-200-800 enabled:hover:border-primary-500"
+              class="btn-icon preset-filled-surface-50-950 border-surface-200-800 enabled:hover:border-primary-500 size-9 border"
               disabled={isLatest}
               onclick={(): void => step(1)}
               title={i18n.t.overview.later}

@@ -21,7 +21,7 @@
   {#snippet actions()}
     <button
       aria-label={i18n.t.common.refresh}
-      class="btn-icon size-11 preset-tonal"
+      class="btn-icon preset-tonal size-11"
       disabled={isLoading}
       onclick={(): void => {
         void table?.reload();
@@ -36,7 +36,7 @@
       />
     </button>
     <button
-      class="btn h-11 min-w-44 preset-filled-primary-500"
+      class="btn preset-filled-primary-500 h-11 min-w-44"
       onclick={(): void => table?.create()}
       type="button"
     >

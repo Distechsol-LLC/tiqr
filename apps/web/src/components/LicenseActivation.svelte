@@ -11,7 +11,6 @@
   import { auth } from '%/useAuth.svelte.ts';
   import { license } from '%/useLicense.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
-  import { type RequestType, requestTypeSchema } from '$/license.ts';
 
   type LicenseActivationProps = {
     // Anyone can request a code; only an admin can activate a key
@@ -22,9 +21,7 @@
 
   const ICON_SIZE = 18;
   const COPIED_FOR = 2000;
-  const REQUEST_TYPES = requestTypeSchema.options;
 
-  let requestType = $state<RequestType>('standard');
   let code = $state('');
   let key = $state('');
   let isRequesting = $state(false);
@@ -33,9 +30,6 @@
   let refusal = $state('');
   // Counts the requests, so a slow code can't land over a newer choice
   let requestId = 0;
-
-  const typeLabel = (type: RequestType): string =>
-    type === 'trial' ? i18n.t.license.requestTrial : i18n.t.license.requestStandard;
 
   // The server's codes, in the showing language; anything else falls back to its own message
   const refusalMessage = (serverCode: string | null, detail: string | null): string => {
@@ -50,19 +44,21 @@
         return text.alreadyExpired;
       case 'license_trial_over_paid':
         return text.trialOverPaid;
+      case 'license_already_active':
+        return text.alreadyActive;
       default:
         return detail ?? i18n.t.errors.server;
     }
   };
 
-  const loadCode = async (type: RequestType): Promise<void> => {
+  const loadCode = async (): Promise<void> => {
     requestId += 1;
 
     const id = requestId;
 
     isRequesting = true;
 
-    const result = await fetchRequestCode(type);
+    const result = await fetchRequestCode();
 
     if (id !== requestId) return;
 
@@ -117,44 +113,26 @@
   };
 
   $effect(() => {
-    const type = requestType;
-
     untrack(() => {
-      void loadCode(type);
+      void loadCode();
     });
   });
 </script>
 
 <section class="space-y-3">
   <h2 class="h6">{i18n.t.license.requestCode}</h2>
-  <p class="text-sm text-surface-600-400">{i18n.t.license.requestHint}</p>
-
-  <fieldset class="flex flex-wrap gap-4">
-    <legend class="sr-only">{i18n.t.license.requestType}</legend>
-    {#each REQUEST_TYPES as type (type)}
-      <label class="flex items-center gap-2">
-        <input
-          class="radio"
-          name="request-type"
-          type="radio"
-          value={type}
-          bind:group={requestType}
-        />
-        <span>{typeLabel(type)}</span>
-      </label>
-    {/each}
-  </fieldset>
+  <p class="text-surface-600-400 text-sm">{i18n.t.license.requestHint}</p>
 
   <div class="flex items-start gap-2">
     <p
-      class="min-h-12 flex-1 rounded-container bg-surface-100-900 p-3 font-mono text-xs break-all select-all"
+      class="rounded-container bg-surface-100-900 min-h-12 flex-1 p-3 font-mono text-xs break-all select-all"
       data-testid="request-code"
     >
       {code}
     </p>
     <button
       aria-label={i18n.t.license.copy}
-      class="btn-icon size-12 preset-tonal"
+      class="btn-icon preset-tonal size-12"
       disabled={!code || isRequesting}
       onclick={copy}
       title={isCopied ? i18n.t.license.copied : i18n.t.license.copy}
@@ -188,7 +166,7 @@
         <p class="text-error-600-400 text-sm" role="alert">{refusal}</p>
       {/if}
       <button
-        class="btn h-12 w-full preset-filled-primary-500"
+        class="btn preset-filled-primary-500 h-12 w-full"
         disabled={isActivating || !key.trim()}
         type="submit"
       >
@@ -201,6 +179,6 @@
       </button>
     </form>
   {:else}
-    <p class="text-sm text-surface-600-400">{i18n.t.license.notAdmin}</p>
+    <p class="text-surface-600-400 text-sm">{i18n.t.license.notAdmin}</p>
   {/if}
 </section>

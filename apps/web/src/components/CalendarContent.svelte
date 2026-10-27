@@ -30,9 +30,7 @@
   <DatePicker.Content class="z-30 shadow-xl">
     <DatePicker.View view="day">
       <DatePicker.Context>
-        {#snippet children(
-          datePicker
-        )}
+        {#snippet children(datePicker)}
           {@render viewControl()}
           <DatePicker.Table>
             <DatePicker.TableHead>
@@ -60,9 +58,7 @@
 
     <DatePicker.View view="month">
       <DatePicker.Context>
-        {#snippet children(
-          datePicker
-        )}
+        {#snippet children(datePicker)}
           {@render viewControl()}
           <DatePicker.Table>
             <DatePicker.TableBody>
@@ -86,9 +82,7 @@
 
     <DatePicker.View view="year">
       <DatePicker.Context>
-        {#snippet children(
-          datePicker
-        )}
+        {#snippet children(datePicker)}
           {@render viewControl()}
           <DatePicker.Table>
             <DatePicker.TableBody>
