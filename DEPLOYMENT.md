@@ -348,10 +348,12 @@ through FastAPI's TestClient, never against a live BioStar. The PyInstaller smok
 The program refuses every API request without a valid license, and the web app shows a wall
 until one is activated. There is no license server and no telemetry.
 
-1. The customer opens the app, copies the **request code** from the wall (trial or standard) and
-   sends it to the vendor. The code carries this install's machine ID and a random request ID.
+1. The customer opens the app, copies the **request code** from the wall and sends it to the
+   vendor. The code carries this install's machine ID and a random request ID; it always asks for
+   a standard license.
 2. The vendor runs `tools/issue_license.py --request CODE --type trial`, or
-   `--licensedTo "Company" --days 365`, and sends back the key.
+   `--type standard --licensedTo "Company" --days 365`, and sends back the key. The vendor's
+   `--type` decides the license. A machine gets only one trial; the tool refuses a second.
 3. An admin pastes the key into the wall (or **License** in the admin menu). The key is
    `base64(payload).base64(signature)`: RSA-2048, PKCS#1 v1.5, SHA-256 over the payload bytes.
 

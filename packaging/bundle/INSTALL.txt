@@ -12,7 +12,7 @@ Edit tiqr_brand.jsonc before installing if you need your own name, logo or langu
 Activating the license
 ----------------------
 TiQR refuses all work until it has a license. At the end of the install it prints a REQUEST CODE.
-1. Send that code to your vendor. (Again later: tiqr license request-code --type standard.)
+1. Send that code to your vendor. (Again later: tiqr license request-code.)
 2. Open the address it printed in a browser, sign in as the admin, and paste the key the vendor
    sends back into the License page.
    Without a browser: tiqr license activate --as <admin> <key>   (or --file key.txt)

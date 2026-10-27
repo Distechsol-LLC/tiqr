@@ -51,7 +51,6 @@ from tiqr.api.schemas import (
 )
 from tiqr.api.security import clear_session_cookie, cookie_name, set_session_cookie
 from tiqr.core.auth import WEB_SESSION_IDLE, AuthenticationError
-from tiqr.core.license import RequestType
 from tiqr.core.localtime import parse_input_datetime
 from tiqr.core.models import Currency, Ticket, TicketState
 
@@ -178,13 +177,9 @@ def license_status(_: Signed, server: Server) -> LicenseStatusOut:
 
 
 @router.get("/license/request-code", tags=["license"], responses=_refusals(401, 422))
-def license_request_code(
-    me: Signed,
-    server: Server,
-    type: Annotated[RequestType, Query()] = "standard",  # noqa: A002
-) -> RequestCodeOut:
+def license_request_code(me: Signed, server: Server) -> RequestCodeOut:
     """A code to send the vendor, for any signed-in role."""
-    return RequestCodeOut(code=server.service.license_request_code(me.user, type))
+    return RequestCodeOut(code=server.service.license_request_code(me.user))
 
 
 @router.post("/license/activate", tags=["license"], responses=_refusals(400, 401, 403, 409, 422))

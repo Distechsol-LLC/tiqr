@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 const licenseStateSchema = z.enum(['active', 'expired', 'invalid', 'none']);
 const licenseTypeSchema = z.enum(['standard', 'trial']);
-const requestTypeSchema = z.enum(['standard', 'trial']);
 
 const licenseStatusSchema = z.object({
   days_remaining: z.number().int().nonnegative().nullable(),
@@ -17,7 +16,6 @@ const licenseStatusSchema = z.object({
 const requestCodeSchema = z.object({ code: z.string() });
 
 type LicenseStatus = z.infer<typeof licenseStatusSchema>;
-type RequestType = z.infer<typeof requestTypeSchema>;
 
-export type { LicenseStatus, RequestType };
-export { licenseStatusSchema, requestCodeSchema, requestTypeSchema };
+export type { LicenseStatus };
+export { licenseStatusSchema, requestCodeSchema };

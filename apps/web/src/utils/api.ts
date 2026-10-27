@@ -18,12 +18,7 @@ import {
   ticketTypeSchema,
   visitorTypeSchema,
 } from '$/catalog.ts';
-import {
-  type LicenseStatus,
-  type RequestType,
-  licenseStatusSchema,
-  requestCodeSchema,
-} from '$/license.ts';
+import { type LicenseStatus, licenseStatusSchema, requestCodeSchema } from '$/license.ts';
 import { type Config, type Stats, configSchema, countSchema, statsSchema } from '$/operations.ts';
 import { MAX_SIZE, type Page, type PageRequest, pageSchema } from '$/pagination.ts';
 import {
@@ -165,9 +160,9 @@ const fetchBranding = (): Promise<ApiResult<Branding>> => request('/branding', b
 const fetchLicense = (): Promise<ApiResult<LicenseStatus>> =>
   request('/license/status', licenseStatusSchema);
 
-const fetchRequestCode = (type: RequestType): Promise<ApiResult<string>> =>
+const fetchRequestCode = (): Promise<ApiResult<string>> =>
   request(
-    `/license/request-code?${new URLSearchParams({ type })}`,
+    '/license/request-code',
     requestCodeSchema.transform(({ code }) => code)
   );
 

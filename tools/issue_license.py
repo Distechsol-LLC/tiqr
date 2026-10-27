@@ -80,12 +80,9 @@ def main(argv: list[str] | None = None) -> int:
     if public.read_text().strip() != PUBLIC_KEY.strip():
         parser.exit(1, "The vendor public key differs from the one built into the program\n")
 
+    # The request's type is what the customer clicked; the vendor's --type decides the license.
     request = parse_request_code(args.request)
     kind = args.type
-    if request.request_type == "trial" and kind != "trial":
-        parser.exit(
-            1, "The customer asked for a trial; issue --type trial or ask for a new request\n"
-        )
 
     history_path = VENDOR_DIR / "issued.json"
     history = _read_history(history_path)

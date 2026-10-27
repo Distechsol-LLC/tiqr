@@ -13,10 +13,12 @@ with `type: 'trial'` and a 30-day `expiresAt`, so the expiry lives inside the si
 
 **Limit:** This is not tamper-proof against someone with root on the customer's machine. See section 9.
 
-**What changed from v2:** The payload has no `maxUsers` (no seat limit is enforced, so the field was
-removed). The machine is checked on every status read, not only at activation. Error codes are
-lowercase slugs. The vendor tool, the history view, and the wall are described as built. Section 9
-records the trade-off that the every-read machine check creates.
+**What changed from v2:** The payload has no seat-limit field, and no seat limit is enforced. Section 10
+describes an optional active-user limit clause, which is not implemented. The machine is checked on
+every status read, not only at activation. Error codes are lowercase slugs. The request code always
+asks for a standard license, and the vendor decides the type. The vendor tool, the history endpoint,
+and the wall are described as built. Section 9 records the trade-off that the every-read machine
+check creates.
 
 ---
 
@@ -108,8 +110,9 @@ machineId = uppercase(first 32 hex chars of SHA-256(join(parts, "|")))
 - **Sort and de-duplicate the addresses.** Enumeration order is not guaranteed between boots.
 - **Drop the zero address.** It adds nothing and varies between runtimes.
 - **Ignore a random placeholder address.** Some runtimes invent an address when the OS reports none. A
-  placeholder has the multicast bit set; skip it. If no address remains, the fingerprint uses the
-  other fields alone.
+  placeholder has the multicast bit set. Use the runtime's address only as a fallback when the OS
+  lists no interface, and skip it if it is a placeholder. If no address remains, the fingerprint uses
+  the other fields alone.
 - **Interfaces are read, not chosen.** The reference includes every interface the OS lists, virtual
   ones too (container bridges, VPN tunnels, VM adapters). Creating or removing one changes the
   fingerprint. Section 9 covers the consequence.
@@ -137,6 +140,7 @@ code = base64(utf8(JSON.stringify(request)))
 ```
 
 Any signed-in role can generate a code, so a viewer who sees the wall can pass it to an administrator.
+The command-line tool prints a code without signing in, since it runs on the machine itself.
 
 The request code is untrusted input. The vendor validates every field strictly: `product` must match,
 `machineId` must be 32 uppercase hex, `requestId` must be 16 uppercase hex, `requestType` must be one
@@ -150,7 +154,8 @@ Only an administrator may activate. Steps, in order:
 1. Verify the key (section 2). Failure: `license_bad_signature`, 400.
 2. Check the machine (section 4, activation). Failure: `license_wrong_machine`, 400.
 3. Reject a key whose `expiresAt` is not in the future. Failure: `license_already_expired`, 400.
-4. In one transaction: if the key is a trial and the stored license is a live paid one, refuse with
+4. In one transaction: if the key is the one already active, refuse with `license_already_active`,
+   409. If the key is a trial and the stored license is a paid one, live or expired, refuse with
    `license_trial_over_paid`, 409. Otherwise deactivate every stored key, then store the new one as
    active, caching `expiresAt` and `licensedTo`.
 
@@ -222,6 +227,10 @@ forgets a decorator.
 A refusal returns 403 with code `license_required` and the state in the detail, for example
 `A valid license is required (expired)`.
 
+The command-line tool applies the same check to every command that signs in. Activation is the
+exception, since it must work on an unlicensed install. Status and request-code commands don't sign
+in and don't need a license.
+
 ### Client: the gate
 
 The app shell decides what to show, in this order:
@@ -244,8 +253,8 @@ refreshes the status, and the wall appears without a reload.
 - **Banner:** the reason. `none` says activation is needed. `expired` and `invalid` give a red banner;
   `invalid` says the stored license couldn't be verified. When an expired key is still readable, show
   the holder and the expiry.
-- **Request area:** a trial or standard choice (default trial), the request code in monospace with a
-  Copy button, and a visible error if the code can't be fetched.
+- **Request area:** the request code in monospace with a Copy button, and a visible error if the code
+  can't be fetched. There is no trial choice: every code asks for standard, and the vendor decides.
 - **Activation area:** a paste box and an Activate button for administrators only. Everyone else sees
   the request area and a note that an administrator must activate.
 - **Machine ID:** shown so that the customer can quote it.
@@ -262,7 +271,7 @@ log statement.
 | Route | Access | Purpose |
 |---|---|---|
 | `GET /license/status` | any signed-in role | The status above, including `machine_id` |
-| `GET /license/request-code?type=trial\|standard` | any signed-in role | A request code to send to the vendor; default `standard` |
+| `GET /license/request-code` | any signed-in role | A standard request code to send to the vendor |
 | `POST /license/activate` | admin, with CSRF | Submit a key; returns the new status. A refused key leaves the current license in place |
 | `POST /license/deactivate` | admin, with CSRF | Retire the active key for a manual swap. Resets nothing else; returns 204 |
 | `GET /license/history` | admin | Every stored row, newest first. Each key is shown as its first 8 and last 6 characters |
@@ -275,7 +284,8 @@ Error codes are lowercase slugs in the response's `code` field. The client trans
 | `license_bad_signature` | 400 | The key doesn't verify, or isn't for this product |
 | `license_wrong_machine` | 400 | The key is for another machine; the message has the first 8 characters of both IDs |
 | `license_already_expired` | 400 | The key's expiry is not in the future |
-| `license_trial_over_paid` | 409 | A trial was pasted over a live paid license |
+| `license_trial_over_paid` | 409 | A trial was pasted over a paid license, live or expired |
+| `license_already_active` | 409 | The pasted key is the one already active |
 
 ---
 
@@ -289,7 +299,7 @@ Error codes are lowercase slugs in the response's `code` field. The client trans
 - **Standard:** the operator sets `licensedTo` and the number of days. Both are required,
   and days must not be negative. Use a real parser for numbers, so that `0` means zero days, not
   "unset".
-- **A trial request** must be answered with a trial. Refuse any other type for it.
+- **The request's `requestType`** is informational. The operator's `--type` decides the license.
 - **Always** validate the request code strictly and echo its `requestId` into the payload.
 - **Before issuing**, check that the signing key's public half matches the one compiled into the
   product. Refuse on a mismatch. Never generate a key pair silently; fail if the key folder is missing.
@@ -344,7 +354,7 @@ These can't be closed offline. You can raise their cost, but not drive it to zer
   which is the intent. But any change to the fingerprint inputs ends a valid license until it is
   reissued: a hostname change, an interface added or removed, a VPN or container bridge or VM adapter
   that appears or disappears, or a hardware swap. Section 3 lists the virtual interfaces the reference
-  includes. This is the current behaviour, and the tolerance rule is an open decision (section 10).
+  includes. This is the current behaviour, and the tolerance rule is an open decision (section 11).
 - **Machine-ID rotation gets a new trial.** A changed hostname or address looks like a new machine.
   Mitigate on the vendor side: one trial per contact or company, and manual review of repeat requests.
 - **Clock rollback extends a license.** Expiry is compared against the local clock. A monotonic "latest
@@ -359,7 +369,29 @@ These can't be closed offline. You can raise their cost, but not drive it to zer
 
 ---
 
-## 10. Porting checklist
+## 10. Optional clause: active-user limit (not implemented)
+
+A vendor may sell a key that caps the number of active users. This clause defines that limit so it
+can be added later without guessing. The reference implementation does not have it: the payload has
+no such field, and no limit is enforced. Don't ship it until the open decision below is settled.
+
+- **Payload:** an optional `maxActiveUsers` integer, at least 1. It is covered by the signature like
+  every other field, so the customer can't raise it. When the field is absent, there is no limit. A
+  present value that is not an integer of at least 1 makes the key invalid.
+- **Counting:** count the enabled accounts, the same set the product lists as active. Whether service
+  or system accounts count is an open decision.
+- **Enforcement:** refuse any action that would make the active count exceed the limit: creating an
+  account, or re-enabling a deactivated one. Enforce it in the product's own code path, not only in
+  message text. The refusal is 409 with code `license_seat_limit`, a reserved slug not yet in the
+  error table.
+- **Activation:** refuse a key whose `maxActiveUsers` is below the current active count, with
+  `license_seat_limit`, 409. A refused key leaves the current license in place, as in section 4.
+- **Status:** when the clause is implemented, `status` may report `max_active_users`, or `null` when
+  the key has no limit.
+
+---
+
+## 11. Porting checklist
 
 **Core**
 - [ ] New RSA-2048 pair; private key only on the vendor's machine
@@ -370,6 +402,7 @@ These can't be closed offline. You can raise their cost, but not drive it to zer
 - [ ] Request code with random `requestId`, validated on the vendor side
 - [ ] `requestId` echoed into the signed payload
 - [ ] Machine fingerprint sorted, de-duplicated, and free of placeholder addresses
+- [ ] Copyright notice `© {current_year} Distechsol LLC` printed on start (section 12)
 
 **Status and enforcement**
 - [ ] `status()` verifies signature, product, and machine on every read; columns are cache only
@@ -393,6 +426,17 @@ These can't be closed offline. You can raise their cost, but not drive it to zer
 - [ ] Revocation strategy
 - [ ] Clock tolerance and monotonic check
 - [ ] Trial clock starts at issuance (current design) or at activation (needs an extra signed field)
-- [ ] Seat limits: none in v3. If one is added, enforce it at user creation, not only in message text,
-      and add the field back to the payload
-- [ ] Which users count as seats, if seat limits are added
+- [ ] Active-user limit (section 10): none in v3. Before implementing, decide which accounts count
+      as active, then add the payload field and enforce it at user creation and re-enabling
+- [ ] Whether the active-user limit is sold at all; if not, drop section 10
+
+---
+
+## 12. Copyright notice
+
+Both the web app and the CLI print a one-line notice on start. The text is `© {current_year} Distechsol LLC`.
+The year is hardcoded, not read from the clock, so it changes only when someone edits the string.
+
+- **Web:** `console.log` in `apps/web/src/main.ts`, on every page load.
+- **CLI:** the root command callback in `apps/cli/src/tiqr/cli/commands.py`, written to stderr so
+  JSON on stdout stays clean.

@@ -571,7 +571,7 @@ renders a sample badge to prove the bundled assets are intact.
 The program does nothing until a license is activated. The install ends by printing a request
 code. Send it to the vendor, who answers with a key (`tools/issue_license.py`); the admin pastes
 it into the **License** page, or runs `tiqr license activate --as <admin> <key>` (or `--file`).
-`tiqr license request-code [--type standard]` prints a new code and `tiqr license status` shows the
+`tiqr license request-code` prints a new code and `tiqr license status` shows the
 holder and expiry. Every CLI command that touches tickets or the BioStar link checks the license, as
 the API does; `user`, `setup`, `reset`, `install`, `selftest` and the `license` commands do not.
 

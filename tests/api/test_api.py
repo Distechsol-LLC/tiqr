@@ -9,6 +9,7 @@ import pytest
 from tiqr.api import __version__
 from tiqr.core.auth import WEB_SESSION_IDLE
 from tiqr.core.biostar import BioStarError
+from tiqr.core.license import parse_request_code
 from tiqr.core.models import RawEvent
 from tiqr.core.printer import PrinterError
 
@@ -684,9 +685,9 @@ def test_license_gate_status_and_activation(make_client, service, accounts, issu
         assert status["is_valid"] is False
         assert len(status["machine_id"]) == 32
 
-        code = client.get("/api/license/request-code", params={"type": "trial"}).json()["code"]
+        code = client.get("/api/license/request-code").json()["code"]
         assert code
-        assert client.get("/api/license/request-code", params={"type": "x"}).status_code == 422
+        assert parse_request_code(code).request_type == "standard"
 
         bad = client.post("/api/license/activate", json={"license_key": "a.b"})
         assert bad.status_code == 400

@@ -361,6 +361,7 @@ ErrorCode = Literal[
     "license_wrong_machine",
     "license_already_expired",
     "license_trial_over_paid",
+    "license_already_active",
     "internal",
 ]
 

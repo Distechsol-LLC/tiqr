@@ -73,6 +73,7 @@ const az: Messages = {
   license: {
     activate: 'Lisenziyanı aktivləşdir',
     activated: 'Lisenziya aktivləşdirildi',
+    alreadyActive: 'Bu açar artıq aktivdir.',
     alreadyExpired: 'Bu açarın müddəti artıq bitib.',
     badSignature: 'Bu açar bu məhsul üçün etibarlı deyil.',
     banner: {
@@ -96,9 +97,6 @@ const az: Messages = {
       'Sorğu kodunu administratora göndərin: açarı yalnız administrator aktivləşdirə bilər.',
     requestCode: 'Sorğu kodu',
     requestHint: 'Bu quraşdırma üçün açar almaq məqsədilə bu kodu təchizatçıya göndərin.',
-    requestStandard: 'Standart',
-    requestTrial: 'Sınaq (30 gün)',
-    requestType: 'Sorğulanan lisenziya',
     retry: 'Yenidən cəhd et',
     states: {
       active: 'Aktiv',

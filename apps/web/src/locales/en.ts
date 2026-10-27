@@ -70,6 +70,7 @@ const en = {
   license: {
     activate: 'Activate license',
     activated: 'License activated',
+    alreadyActive: 'This key is already active.',
     alreadyExpired: 'This key has already expired.',
     badSignature: 'This key is not valid for this product.',
     banner: {
@@ -93,9 +94,6 @@ const en = {
       'Send the request code to your administrator: only an administrator can activate a key.',
     requestCode: 'Request code',
     requestHint: 'Send this code to the vendor to receive a key for this install.',
-    requestStandard: 'Standard',
-    requestTrial: 'Trial (30 days)',
-    requestType: 'License requested',
     retry: 'Try again',
     states: {
       active: 'Active',

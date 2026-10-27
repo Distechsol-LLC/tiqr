@@ -33,5 +33,8 @@ const registerSW = (): void => {
     });
 };
 
+// Copyright Notice
+console.log('© 2026 Distechsol LLC');
+
 registerSW();
 void start();
