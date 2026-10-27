@@ -65,6 +65,7 @@ _BOLD_STROKE = 0.035
 _TITLE_SIZES = (3.6, 3.0, 2.5)
 _NAME_SIZES = (8, 7, 6, 5, 4.2)
 _TYPE_SIZES = (3.0, 2.6, 2.2)
+_DETAIL_SIZES = (3.4, 3.0, 2.6)
 
 
 def _asset(folder: str, name: str) -> bytes:
@@ -316,6 +317,15 @@ def _draw_header(surface: _Surface, logos: list[ImageReader], title: str) -> flo
     return top + logo_height + 4
 
 
+def _draw_detail(
+    surface: _Surface, left: float, top: float, lines: list[str], size: float, step: float
+) -> None:
+    """Draw the ticket type's lines in the muted colour, one line every `step`."""
+    for line in lines:
+        surface.text(left, top, line, size, _MUTED)
+        top += step
+
+
 def _draw_face(
     surface: _Surface,
     ticket: Ticket,
@@ -350,25 +360,46 @@ def _draw_face(
     chip_height = 6.2
     type_size, visitor_type = _fit_line(ticket.visitor_type, _TYPE_SIZES, text_width - 6, tracking)
     chip_width = _width(visitor_type, type_size, tracking) + 6
-    label_step = chip_height + 3.5
+    # The back's name sits closer to its type chip, so the two read as one label.
+    label_gap = 1.5 if back else 3.5
+    label_step = chip_height + label_gap
     # The front leaves room for the QR code, so its name gets two lines.
     name_size, name_lines = _fit(ticket.visitor_name, _NAME_SIZES, text_width, 3 if back else 2)
     name_step = name_size * 1.2
-    block_height = label_step + name_step * len(name_lines)
+    # The back shows the ticket type under the name, in the muted colour, wrapping if it is long.
+    detail_lines: list[str] = []
+    detail_size = _DETAIL_SIZES[0]
+    if back and ticket.ticket_type:
+        detail_size, detail_lines = _fit(ticket.ticket_type, _DETAIL_SIZES, text_width * 0.66, 4)
+    detail_step = detail_size * 1.2
+    detail_gap = 2 if detail_lines else 0
+    block_height = (
+        label_step + name_step * len(name_lines) + detail_gap + detail_step * len(detail_lines)
+    )
 
     top = header_bottom
+    # On the back, the chip and name rise a little, so the locations text sits further below them.
+    lift = 0
     if back:
         # No QR code below, so center the block instead of leaving a gap under it.
         top += max(0, (rule - header_bottom - block_height) / 2)
-    surface.rect(left, top, chip_width, chip_height, _CRIMSON, radius=1.2)
+        lift = 2
+    surface.rect(left, top - lift, chip_width, chip_height, _CRIMSON, radius=1.2)
     surface.text(
-        left + 3, top + 1.3, visitor_type, type_size, colors.white, bold=True, tracking=tracking
+        left + 3,
+        top - lift + 1.3,
+        visitor_type,
+        type_size,
+        colors.white,
+        bold=True,
+        tracking=tracking,
     )
     top += label_step
     for line in name_lines:
-        surface.text(left, top, line, name_size, _NAVY, bold=True)
+        surface.text(left, top - lift, line, name_size, _NAVY, bold=True)
         top += name_step
     if back:
+        _draw_detail(surface, left, top + detail_gap, detail_lines, detail_size, detail_step)
         return
 
     window_top = rule - 2.5 - 4.4
@@ -429,7 +460,7 @@ def render_pdf(ticket: Ticket, output_dir: Path, timezone: str, title: str = DEF
     zone = ZoneInfo(timezone)
     logos = [ImageReader(BytesIO(_asset("images", name))) for name in _LOGOS]
     # Validate before creating any file, so a failure leaves no debris.
-    _require_glyphs(ticket.visitor_name + ticket.visitor_type + title)
+    _require_glyphs(ticket.visitor_name + ticket.visitor_type + (ticket.ticket_type or "") + title)
     output_dir.mkdir(parents=True, exist_ok=True)
     destination = output_dir / f"{ticket.id}.pdf"
     descriptor, temporary_name = tempfile.mkstemp(
