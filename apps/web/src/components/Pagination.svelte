@@ -26,7 +26,7 @@
 
 <!-- The footer bar, colored like the header above the table -->
 <footer
-  class="flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-3 border-surface-200-800 border-t bg-surface-100-900 px-4 py-3 text-sm md:px-8 md:pt-4 md:pb-5"
+  class="border-surface-200-800 bg-surface-100-900 flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t px-4 py-3 text-sm md:px-8 md:pt-4 md:pb-5"
 >
   <div class="flex items-center gap-2">
     <label class="text-surface-700-300" for={SELECT_ID}>{i18n.t.common.rowsPerPage}</label>
@@ -48,7 +48,7 @@
     <div class="flex items-center gap-2">
       <button
         aria-label={i18n.t.common.previousPage}
-        class="btn-icon size-9 preset-tonal"
+        class="btn-icon preset-tonal size-9"
         disabled={isLoading || page <= 1}
         onclick={(): void => onPage(page - 1)}
         title={i18n.t.common.previousPage}
@@ -58,7 +58,7 @@
       </button>
       <button
         aria-label={i18n.t.common.nextPage}
-        class="btn-icon size-9 preset-tonal"
+        class="btn-icon preset-tonal size-9"
         disabled={isLoading || page >= pages}
         onclick={(): void => onPage(page + 1)}
         title={i18n.t.common.nextPage}

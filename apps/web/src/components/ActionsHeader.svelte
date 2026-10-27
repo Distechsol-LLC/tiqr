@@ -14,6 +14,6 @@
 
 <!-- A fixed table can't fit a column to its buttons, so it's sized to them; the width leaves out
      the padding, which differs at the table's edge -->
-<th class="box-content" style:width="{count * BUTTON_REM + (count - 1) * GAP_REM}rem">
+<th class="box-content" data-fixed style:width="{count * BUTTON_REM + (count - 1) * GAP_REM}rem">
   <span class="sr-only">{i18n.t.common.actions}</span>
 </th>

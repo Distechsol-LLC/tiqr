@@ -1,6 +1,6 @@
 [project]
 name = "tiqr-api"
-version = "1.0.1"
+version = "1.1.0"
 description = "TiQR HTTP API over the core service, hosting the bundled web app"
 requires-python = ">=3.14"
 dependencies = ["tiqr-core", "fastapi>=0.143.2", "uvicorn>=0.54.0"]

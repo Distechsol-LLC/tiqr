@@ -23,7 +23,7 @@
     <select
       aria-describedby={error ? errorId : undefined}
       aria-invalid={error ? 'true' : undefined}
-      class="peer select h-12 aria-invalid:ring-error-500"
+      class="peer select aria-invalid:ring-error-500 h-12 truncate"
       {id}
       required
       bind:value
@@ -36,10 +36,10 @@
     <!-- Floats onto the top border like FloatingInput's, once focused or picked -->
     <label
       class={[
-        'pointer-events-none absolute top-4 left-[calc((var(--text-base)-var(--spacing)*0.5)/2)] origin-left rounded-sm px-1 text-base text-surface-600-400 leading-none',
+        'text-surface-600-400 pointer-events-none absolute top-4 left-[calc((var(--text-base)-var(--spacing)*0.5)/2)] origin-left rounded-sm px-1 text-base leading-none',
         'from-surface-50-950 bg-[linear-gradient(transparent_40%,var(--tw-gradient-from)_40%,var(--tw-gradient-from)_56%,transparent_56%)]',
         'dark:bg-surface-950 dark:bg-none',
-        'peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:from-[var(--floating-label-notch,var(--color-surface-100-900))] peer-focus:text-primary-600-400',
+        'peer-focus:text-primary-600-400 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:from-[var(--floating-label-notch,var(--color-surface-100-900))]',
         'peer-valid:-translate-y-6 peer-valid:scale-75 peer-valid:from-[var(--floating-label-notch,var(--color-surface-100-900))]',
         'peer-aria-invalid:text-error-600-400',
         'motion-safe:transition-[translate,scale,color,--tw-gradient-from] motion-safe:duration-200 motion-safe:ease-out',

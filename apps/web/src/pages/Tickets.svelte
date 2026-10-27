@@ -286,7 +286,7 @@
   {#snippet actions()}
     <button
       aria-label={i18n.t.common.refresh}
-      class="btn-icon size-11 preset-tonal"
+      class="btn-icon preset-tonal size-11"
       disabled={isLoading}
       onclick={refresh}
       title={i18n.t.common.refresh}
@@ -299,7 +299,7 @@
       />
     </button>
     <button
-      class="btn h-11 min-w-36 preset-filled-primary-500"
+      class="btn preset-filled-primary-500 h-11 min-w-36"
       onclick={(): void => {
         isCreating = true;
       }}
@@ -334,7 +334,7 @@
           size={ICON_SIZE}
         />
         <input
-          class="input bg-surface-50-950 px-10 ring-surface-200-800 [--field-placeholder:light-dark(var(--color-surface-300),var(--color-surface-400))] [&::-webkit-search-cancel-button]:appearance-none"
+          class="input bg-surface-50-950 ring-surface-200-800 px-10 [--field-placeholder:light-dark(var(--color-surface-300),var(--color-surface-400))] [&::-webkit-search-cancel-button]:appearance-none"
           maxlength={SEARCH_MAX}
           placeholder={i18n.t.tickets.searchPlaceholder}
           type="search"
@@ -343,7 +343,7 @@
         {#if query}
           <button
             aria-label={i18n.t.tickets.clearSearch}
-            class="btn-icon absolute top-1/2 right-2 -translate-y-1/2 hover:preset-tint-primary"
+            class="btn-icon hover:preset-tint-primary absolute top-1/2 right-2 -translate-y-1/2"
             onclick={(): void => {
               query = '';
             }}
@@ -413,7 +413,7 @@
           <!-- The usage as an icon, so the column stays narrow; the tooltip names it -->
           <span
             aria-label={i18n.t.usage[ticket.usage_type]}
-            class="inline-flex shrink-0 text-surface-600-400"
+            class="text-surface-600-400 inline-flex shrink-0"
             role="img"
             title={i18n.t.usage[ticket.usage_type]}
           >
@@ -441,7 +441,7 @@
       <td>
         <StateBadge state={ticket.state} />
         {#if ticket.passed_at}
-          <p class="mt-1 text-surface-600-400 text-xs" title={i18n.t.tickets.firstPassage}>
+          <p class="text-surface-600-400 mt-1 text-xs" title={i18n.t.tickets.firstPassage}>
             {formatDatetime(ticket.passed_at, ticket.timezone)}
           </p>
         {/if}
@@ -463,7 +463,7 @@
       </td>
       <td>
         <!-- Prints and uses, each with an icon that the tooltip names -->
-        <p class="flex items-center gap-3 text-surface-600-400 text-xs tabular-nums">
+        <p class="text-surface-600-400 flex items-center gap-3 text-xs tabular-nums">
           <span class="inline-flex items-center gap-1" title={i18n.t.tickets.columns.prints}>
             <Printer aria-hidden="true" size={SMALL_ICON_SIZE} />
             {ticket.print_count}

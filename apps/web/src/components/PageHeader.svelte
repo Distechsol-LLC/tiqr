@@ -20,13 +20,13 @@
 
 <!-- A bar across the top of the page, colored like the sidebar; the table below fills the rest -->
 <header
-  class="shrink-0 space-y-4 border-surface-200-800 border-b bg-surface-100-900 p-4 md:px-8 md:py-5"
+  class="border-surface-200-800 bg-surface-100-900 shrink-0 space-y-4 border-b p-4 md:px-8 md:py-5"
 >
   <div class="flex flex-wrap items-center justify-between gap-4">
     <div class="space-y-1">
       <h1 class="h4">{title}</h1>
       {#if description}
-        <p class="text-sm text-surface-600-400">{description}</p>
+        <p class="text-surface-600-400 text-sm">{description}</p>
       {/if}
     </div>
     {#if actions}

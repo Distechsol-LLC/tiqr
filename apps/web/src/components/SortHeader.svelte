@@ -24,7 +24,7 @@
   class={[isEnd && 'text-right', className]}
 >
   <button
-    class="group inline-flex max-w-full cursor-pointer items-center gap-1.5 font-semibold hover:text-surface-950-50"
+    class="group hover:text-surface-950-50 inline-flex max-w-full cursor-pointer items-center gap-1.5 font-semibold"
     onclick={onSort}
     title={label}
     type="button"

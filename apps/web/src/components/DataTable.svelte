@@ -2,6 +2,7 @@
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
   import type { Component, Snippet } from 'svelte';
 
+  import { resizableColumns } from '%/resizableColumns.ts';
   import { i18n } from '%/useLocale.svelte.ts';
 
   type DataTableProps = {
@@ -47,16 +48,17 @@
   <table
     class={[
       isEmpty && 'h-full [&_tbody_td]:border-b-0',
-      'table table-fixed border-separate border-spacing-0 [&_:is(th,td)]:truncate [&_td>p]:truncate [&_:is(th,td)]:border-b [&_:is(th,td)]:[border-color:light-dark(var(--color-surface-200),var(--color-surface-800))] [&_:is(th,td):not(:first-child)]:border-s [&_:is(th,td)]:px-4 [&_:is(th,td)]:py-3 [&_:is(th,td):first-child]:ps-4 md:[&_:is(th,td):first-child]:ps-8 [&_:is(th,td):last-child]:pe-4 md:[&_:is(th,td):last-child]:pe-8',
+      'relative table table-fixed border-separate border-spacing-0 [&_:is(th,td)]:truncate [&_:is(th,td)]:border-b [&_:is(th,td)]:[border-color:light-dark(var(--color-surface-200),var(--color-surface-800))] [&_:is(th,td)]:px-4 [&_:is(th,td)]:py-3 [&_:is(th,td):first-child]:ps-4 md:[&_:is(th,td):first-child]:ps-8 [&_:is(th,td):last-child]:pe-4 md:[&_:is(th,td):last-child]:pe-8 [&_:is(th,td):not(:first-child)]:border-s [&_td>p]:truncate',
     ]}
     style:min-width={minWidth}
+    {@attach resizableColumns}
   >
     <caption class="sr-only">
       {caption}
     </caption>
     <!-- The head wears the sidebar's panel shade -->
     <thead
-      class="sticky top-0 z-10 bg-surface-100-900 text-surface-700-300 [&_th]:font-semibold [&_th]:text-sm"
+      class="bg-surface-100-900 text-surface-700-300 sticky top-0 z-10 [&_th]:text-sm [&_th]:font-semibold"
     >
       <tr>
         {@render head()}
@@ -65,19 +67,19 @@
     <!-- Empty or loading, the lone row is a message, not a record, so it doesn't highlight -->
     <tbody
       class={[
-        '[--tint-base:var(--color-surface-50-950)] [&>tr]:even:bg-surface-100-900',
+        '[&>tr]:even:bg-surface-100-900 [--tint-base:var(--color-surface-50-950)]',
         !isEmpty && '[&>tr]:hover:bg-surface-200-800/70',
       ]}
     >
       {#if isLoading && isEmpty}
         <tr class="h-full">
-          <td class="py-36 text-center text-surface-600-400" colspan={columns}>
+          <td class="text-surface-600-400 py-36 text-center" colspan={columns}>
             <LoaderCircle aria-label={i18n.t.common.loading} class="mx-auto animate-spin" />
           </td>
         </tr>
       {:else if isEmpty}
         <tr class="h-full">
-          <td class="py-36 text-center text-surface-600-400" colspan={columns}>
+          <td class="text-surface-600-400 py-36 text-center" colspan={columns}>
             <EmptyIcon
               aria-hidden="true"
               class="mx-auto mb-3 opacity-60"

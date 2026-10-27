@@ -121,18 +121,18 @@
 
 <section class="space-y-3">
   <h2 class="h6">{i18n.t.license.requestCode}</h2>
-  <p class="text-sm text-surface-600-400">{i18n.t.license.requestHint}</p>
+  <p class="text-surface-600-400 text-sm">{i18n.t.license.requestHint}</p>
 
   <div class="flex items-start gap-2">
     <p
-      class="min-h-12 flex-1 rounded-container bg-surface-100-900 p-3 font-mono text-xs break-all select-all"
+      class="rounded-container bg-surface-100-900 min-h-12 flex-1 p-3 font-mono text-xs break-all select-all"
       data-testid="request-code"
     >
       {code}
     </p>
     <button
       aria-label={i18n.t.license.copy}
-      class="btn-icon size-12 preset-tonal"
+      class="btn-icon preset-tonal size-12"
       disabled={!code || isRequesting}
       onclick={copy}
       title={isCopied ? i18n.t.license.copied : i18n.t.license.copy}
@@ -166,7 +166,7 @@
         <p class="text-error-600-400 text-sm" role="alert">{refusal}</p>
       {/if}
       <button
-        class="btn h-12 w-full preset-filled-primary-500"
+        class="btn preset-filled-primary-500 h-12 w-full"
         disabled={isActivating || !key.trim()}
         type="submit"
       >
@@ -179,6 +179,6 @@
       </button>
     </form>
   {:else}
-    <p class="text-sm text-surface-600-400">{i18n.t.license.notAdmin}</p>
+    <p class="text-surface-600-400 text-sm">{i18n.t.license.notAdmin}</p>
   {/if}
 </section>

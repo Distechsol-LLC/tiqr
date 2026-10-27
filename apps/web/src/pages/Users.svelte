@@ -221,7 +221,7 @@
   {#snippet actions()}
     <button
       aria-label={i18n.t.common.refresh}
-      class="btn-icon size-11 preset-tonal"
+      class="btn-icon preset-tonal size-11"
       disabled={isLoading}
       onclick={load}
       title={i18n.t.common.refresh}
@@ -235,7 +235,7 @@
     </button>
     {#if isStaff}
       <button
-        class="btn h-11 min-w-36 preset-filled-primary-500"
+        class="btn preset-filled-primary-500 h-11 min-w-36"
         onclick={(): void => {
           isCreating = true;
         }}
@@ -285,7 +285,7 @@
       <td class="font-semibold">
         {user.username}
         {#if user.id === selfId}
-          <span class="badge ml-1 border border-surface-400-600 text-surface-700-300"
+          <span class="badge border-surface-400-600 text-surface-700-300 ml-1 border"
             >{i18n.t.users.you}</span
           >
         {/if}
@@ -295,7 +295,7 @@
         {#if isAdmin && user.id !== selfId}
           <select
             aria-label={i18n.t.users.roleOf(user.username)}
-            class="select h-10 w-full"
+            class="select h-10 w-full truncate"
             disabled={pendingId === user.id}
             onchange={(event): Promise<void> => changeRole(user, event)}
             value={user.role}

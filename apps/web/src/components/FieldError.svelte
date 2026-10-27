@@ -13,7 +13,7 @@
 
 <!-- Matches the message under FloatingInput, for fields it can't float a label in -->
 {#if error}
-  <p class="mt-1.5 flex items-center gap-1.5 text-error-600-400 text-sm" {id}>
+  <p class="text-error-600-400 mt-1.5 flex items-center gap-1.5 text-sm" {id}>
     <CircleAlert aria-hidden="true" class="shrink-0" size={ERROR_ICON_SIZE} />
     {error}
   </p>

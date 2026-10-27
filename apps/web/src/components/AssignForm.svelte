@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
 
-  import FieldError from '@/components/FieldError.svelte';
+  import FloatingSelect from '@/components/FloatingSelect.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
   import { assignTicket } from '%/api.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
@@ -26,6 +26,15 @@
 
   // Deactivated accounts can't take tickets
   const candidates = $derived(accounts.filter((account) => account.active));
+  const candidateUsernames = $derived(candidates.map((account) => account.username));
+  const assigneeLabels = $derived(
+    Object.fromEntries(
+      candidates.map((account) => [
+        account.username,
+        `${account.username} (${i18n.t.roles[account.role]})`,
+      ])
+    )
+  );
   const validation = $derived(assignInputSchema.safeParse({ assignee }));
   const error = $derived(
     isSubmitted && !validation.success ? validation.error.issues[0]?.message : undefined
@@ -82,20 +91,12 @@
     <p class="text-surface-600-400">{ticket.visitor_name} · {ticket.visitor_type}</p>
   {/if}
 
-  <label class="label">
-    <span class="label-text text-base">{i18n.t.assign.assignee}</span>
-    <select
-      aria-describedby={error ? 'assignee-error' : undefined}
-      aria-invalid={error ? 'true' : undefined}
-      class="select h-12 aria-invalid:ring-error-500"
-      required
-      bind:value={assignee}
-    >
-      <option disabled value="">{i18n.t.assign.pick}</option>
-      {#each candidates as account (account.id)}
-        <option value={account.username}>{account.username} ({i18n.t.roles[account.role]})</option>
-      {/each}
-    </select>
-    <FieldError {error} id="assignee-error" />
-  </label>
+  <FloatingSelect
+    {error}
+    id="assignee"
+    label={i18n.t.assign.assignee}
+    labels={assigneeLabels}
+    options={candidateUsernames}
+    bind:value={assignee}
+  />
 </FormDialog>

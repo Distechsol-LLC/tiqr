@@ -113,7 +113,7 @@
       <!-- Named with its value: Zag's own label is a fixed "Open calendar" -->
       <DatePicker.Trigger
         aria-label="{label}: {text}"
-        class="btn static h-9 w-72 translate-none justify-start preset-filled-surface-50-950 border border-surface-200-800 tabular-nums hover:border-primary-500"
+        class="btn preset-filled-surface-50-950 border-surface-200-800 hover:border-primary-500 static h-9 w-72 translate-none justify-start border tabular-nums"
         title={label}
       >
         <CalendarDays aria-hidden="true" class="shrink-0" size={ICON_SIZE} />

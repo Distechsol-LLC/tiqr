@@ -56,13 +56,13 @@
     <Menu.Trigger
       aria-label={`${i18n.t.nav.account}: ${user.username}`}
       class={variant === 'full'
-        ? 'btn w-full justify-start gap-3 p-0.5 text-start hover:preset-tint-primary data-[state=open]:preset-tint-primary'
-        : 'btn-icon size-10 rounded-full p-0 hover:ring-2 hover:ring-primary-500/40 data-[state=open]:ring-2 data-[state=open]:ring-primary-500'}
+        ? 'btn hover:preset-tint-primary data-[state=open]:preset-tint-primary w-full justify-start gap-3 p-0.5 text-start'
+        : 'btn-icon hover:ring-primary-500/40 data-[state=open]:ring-primary-500 size-10 rounded-full p-0 hover:ring-2 data-[state=open]:ring-2'}
       disabled={isPending}
     >
       <span
         aria-hidden="true"
-        class="grid size-9 shrink-0 place-items-center rounded-full bg-primary-500 font-semibold text-primary-contrast-500"
+        class="bg-primary-500 text-primary-contrast-500 grid size-9 shrink-0 place-items-center rounded-full font-semibold"
       >
         {initials}
       </span>
@@ -71,11 +71,11 @@
           class={['min-w-0 flex-1 leading-tight transition-opacity', isCondensed && 'opacity-0']}
         >
           <span class="block truncate font-semibold">{user.username}</span>
-          <span class="block truncate text-sm text-surface-600-400">{i18n.t.roles[user.role]}</span>
+          <span class="text-surface-600-400 block truncate text-sm">{i18n.t.roles[user.role]}</span>
         </span>
         <ChevronsUpDown
           aria-hidden="true"
-          class={['shrink-0 text-surface-600-400 transition-opacity', isCondensed && 'opacity-0']}
+          class={['text-surface-600-400 shrink-0 transition-opacity', isCondensed && 'opacity-0']}
           size={ICON_SIZE}
         />
       {/if}
@@ -87,7 +87,7 @@
             <!-- The trigger shows only the avatar here, so name who is signed in -->
             <div class="px-2 py-1 leading-tight">
               <p class="truncate font-semibold">{user.username}</p>
-              <p class="text-sm text-surface-600-400">{i18n.t.roles[user.role]}</p>
+              <p class="text-surface-600-400 text-sm">{i18n.t.roles[user.role]}</p>
             </div>
             <Menu.Separator />
           {/if}
@@ -122,7 +122,7 @@
             <Menu.ItemText class="flex-1 text-start">{themeLabel}</Menu.ItemText>
           </Menu.Item>
 
-          <Menu.Item class="justify-start text-error-700-300" value={SIGN_OUT_VALUE}>
+          <Menu.Item class="text-error-700-300 justify-start" value={SIGN_OUT_VALUE}>
             <span class="me-3 flex w-6 shrink-0 justify-center">
               <LogOut aria-hidden="true" size={ICON_SIZE} />
             </span>

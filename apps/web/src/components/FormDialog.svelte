@@ -39,7 +39,7 @@
 <Modal ariaLabel={title} isClosable={!isPending} {isOpen} {onClose}>
   <form
     aria-busy={isPending}
-    class="card space-y-5 border border-surface-200-800 bg-surface-50-950 p-6 shadow-xl [--floating-label-notch:var(--color-surface-50-950)]"
+    class="card border-surface-200-800 bg-surface-50-950 space-y-5 border p-6 shadow-xl [--floating-label-notch:var(--color-surface-50-950)]"
     novalidate
     onsubmit={handleSubmit}
   >
@@ -49,7 +49,7 @@
 
     <footer class="flex justify-end gap-2 pt-2">
       <button
-        class="btn h-11 min-w-36 preset-tonal"
+        class="btn preset-tonal h-11 min-w-36"
         disabled={isPending}
         onclick={onClose}
         type="button"

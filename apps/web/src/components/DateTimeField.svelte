@@ -96,12 +96,12 @@
       <DatePicker.Input
         aria-describedby={error ? errorId : undefined}
         aria-invalid={error ? 'true' : undefined}
-        class="pr-11 aria-invalid:ring-error-500"
+        class="aria-invalid:ring-error-500 pr-11"
         placeholder={i18n.t.dateField.placeholder}
       />
       <DatePicker.Trigger
         aria-label={i18n.t.dateField.openCalendar}
-        class="top-1/2 right-1 size-8 -translate-y-1/2 bg-transparent text-surface-600-400 hover:preset-tint-primary"
+        class="text-surface-600-400 hover:preset-tint-primary top-1/2 right-1 size-8 -translate-y-1/2 bg-transparent"
       >
         <CalendarDays aria-hidden="true" size={ICON_SIZE} />
       </DatePicker.Trigger>
