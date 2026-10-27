@@ -829,7 +829,7 @@ def test_license_activate_takes_a_file_and_refuses_bad_keys(cli_env, unlicensed,
 def test_license_request_code_needs_no_account(cli_env, unlicensed):
     result = runner.invoke(cli.app, ["license", "request-code"])
     assert result.exit_code == 0
-    request = parse_request_code(result.output.strip())
+    request = parse_request_code(result.stdout.strip())
     assert request.request_type == "standard"
 
 
