@@ -115,10 +115,6 @@ def winsw_config(executable: Path, home: Path) -> str:
   <resetfailure>1 hour</resetfailure>
   <logpath>{escape(str(home / "logs"))}</logpath>
   <log mode="roll"/>
-  <serviceaccount>
-    <username>NT SERVICE\\{SERVICE_NAME}</username>
-    <allowservicelogon>true</allowservicelogon>
-  </serviceaccount>
 </service>
 """
 
@@ -182,6 +178,27 @@ WantedBy=timers.target
 """
 
 
+def _remove_old_service(target: Path) -> None:
+    """Remove an installed TiQR service, so WinSW can register it again."""
+    if target.exists():
+        # Stop and remove the old service first, so its wrapper is not in use when replaced.
+        subprocess.run([str(target), "stop"], capture_output=True, check=False)  # noqa: S603 - our wrapper
+        subprocess.run([str(target), "uninstall"], capture_output=True, check=False)  # noqa: S603 - our wrapper
+    if not _succeeds(["sc.exe", "query", SERVICE_NAME]):
+        return
+    # The wrapper's uninstall can fail without a word, so the service manager removes the service
+    # instead. WinSW refuses a name that is still being deleted, so wait until it is gone.
+    _succeeds(["sc.exe", "stop", SERVICE_NAME])
+    _run(["sc.exe", "delete", SERVICE_NAME])
+    deadline = time.monotonic() + 30
+    while _succeeds(["sc.exe", "query", SERVICE_NAME]):
+        if time.monotonic() >= deadline:
+            raise RuntimeError(
+                f'the old "{SERVICE_NAME}" service is still registered; reboot and retry'
+            )
+        time.sleep(1)
+
+
 def _install_windows_service(executable: Path, home: Path, wrapper: Path) -> None:
     # The program folder holds the executable, WinSW and the scripts; `home` holds the data.
     program = executable.parent
@@ -190,17 +207,17 @@ def _install_windows_service(executable: Path, home: Path, wrapper: Path) -> Non
             f"{HEALTH_SCRIPT_WINDOWS} is not in {program}; the health probe needs it"
         )
     target = program / WINSW_NAME
-    if target.exists():
-        # Stop and remove the old service first, so its wrapper is not in use when replaced.
-        subprocess.run([str(target), "stop"], capture_output=True, check=False)  # noqa: S603 - our wrapper
-        subprocess.run([str(target), "uninstall"], capture_output=True, check=False)  # noqa: S603 - our wrapper
+    _remove_old_service(target)
     # Run from the program folder, the wrapper is already the target; copying it onto itself fails.
     if wrapper.resolve() != target.resolve():
         shutil.copyfile(wrapper, target)
     (program / WINSW_CONFIG).write_text(winsw_config(executable, home), encoding="utf-8")
     _run([str(target), "install"])
-    # The virtual service account exists only once the service is installed. Only the data folder
-    # is granted, so the service cannot write the program it runs, now or after an upgrade.
+    # WinSW installs the service as LocalSystem; set the virtual service account here, since the
+    # wrapper's configuration does not reliably apply it. The account exists once the service is.
+    _run(["sc.exe", "config", SERVICE_NAME, "obj=", f"NT SERVICE\\{SERVICE_NAME}"])
+    # Only the data folder is granted, so the service cannot write the program it runs, now or
+    # after an upgrade.
     _run(["icacls", str(home), "/grant", f"NT SERVICE\\{SERVICE_NAME}:(OI)(CI)M"])
     # Inheritance reaches only files created after the grant, so existing data gets it directly.
     for entry in home.iterdir():

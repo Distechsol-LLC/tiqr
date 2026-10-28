@@ -1,4 +1,5 @@
 import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -174,7 +175,9 @@ def test_windows_service_grants_only_the_data_folder(tmp_path, monkeypatch):
     (data / installer.BRANDING_FILE).write_text("{}")
     commands_run = []
     monkeypatch.setattr(installer, "_run", lambda argv: commands_run.append(argv) or "")
-    monkeypatch.setattr(installer.subprocess, "run", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        installer.subprocess, "run", lambda argv, **kwargs: subprocess.CompletedProcess(argv, 1)
+    )
 
     installer._install_windows_service(program / "tiqr.exe", data, wrapper)
 
@@ -192,6 +195,70 @@ def test_windows_service_grants_only_the_data_folder(tmp_path, monkeypatch):
         if argv[0] == "powershell" and argv[-2:] == ["-DataFolder", str(data)]
     )
     assert commands_run.index([str(wrapper), "start"]) < probe
+
+
+def test_windows_service_runs_as_its_virtual_account(tmp_path, monkeypatch):
+    monkeypatch.setattr(installer.sys, "platform", "win32")
+    program = tmp_path / "program"
+    data = tmp_path / "data"
+    program.mkdir()
+    data.mkdir()
+    wrapper = program / installer.WINSW_NAME
+    wrapper.write_bytes(b"winsw")
+    (program / installer.HEALTH_SCRIPT_WINDOWS).write_text("")
+    commands_run = []
+    monkeypatch.setattr(installer, "_run", lambda argv: commands_run.append(argv) or "")
+    monkeypatch.setattr(
+        installer.subprocess, "run", lambda argv, **kwargs: subprocess.CompletedProcess(argv, 1)
+    )
+
+    installer._install_windows_service(program / "tiqr.exe", data, wrapper)
+
+    account = [
+        "sc.exe",
+        "config",
+        installer.SERVICE_NAME,
+        "obj=",
+        f"NT SERVICE\\{installer.SERVICE_NAME}",
+    ]
+    assert account in commands_run
+    assert commands_run.index([str(wrapper), "install"]) < commands_run.index(account)
+    assert commands_run.index(account) < commands_run.index([str(wrapper), "start"])
+
+
+def test_windows_reinstall_clears_a_service_its_uninstall_left_behind(tmp_path, monkeypatch):
+    monkeypatch.setattr(installer.sys, "platform", "win32")
+    program = tmp_path / "program"
+    data = tmp_path / "data"
+    program.mkdir()
+    data.mkdir()
+    wrapper = program / installer.WINSW_NAME
+    wrapper.write_bytes(b"winsw")
+    (program / installer.HEALTH_SCRIPT_WINDOWS).write_text("")
+    registered = {installer.SERVICE_NAME}
+
+    def service_manager(argv, **kwargs):
+        if argv[0] == "sc.exe" and argv[1] == "query":
+            code = 0 if installer.SERVICE_NAME in registered else 1060
+            return subprocess.CompletedProcess(argv, code)
+        if argv[0] == "sc.exe" and argv[1] == "delete":
+            registered.discard(installer.SERVICE_NAME)
+        if argv[0] == str(wrapper) and argv[1] == "uninstall":
+            return subprocess.CompletedProcess(argv, 1)
+        if argv[0] == str(wrapper) and argv[1] == "install":
+            if installer.SERVICE_NAME in registered:
+                return subprocess.CompletedProcess(
+                    argv, 1, "", "A service with ID 'TiQR' already exists."
+                )
+            registered.add(installer.SERVICE_NAME)
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setattr(installer.subprocess, "run", service_manager)
+    monkeypatch.setattr(installer.time, "sleep", lambda seconds: None)
+
+    installer._install_windows_service(program / "tiqr.exe", data, wrapper)
+
+    assert installer.SERVICE_NAME in registered
 
 
 def test_health_unit_reads_the_install_settings(tmp_path):
