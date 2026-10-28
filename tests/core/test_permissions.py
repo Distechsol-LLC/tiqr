@@ -123,7 +123,6 @@ def test_unlimited_reprints_count_only_success(service, accounts, clock, tmp_pat
     with pytest.raises(OSError):
         service.print_ticket(accounts["operator"], ticket.id, tmp_path, renderer=failure)
     assert service.repository.get_ticket(ticket.id).print_count == 5
-    assert service.stats(accounts["admin"])["prints"] == 5
 
 
 def test_operator_cannot_print_unassigned_ticket(service, accounts, clock, tmp_path):

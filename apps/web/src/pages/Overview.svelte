@@ -15,28 +15,29 @@
   import PeriodPicker from '@/components/PeriodPicker.svelte';
   import SortHeader from '@/components/SortHeader.svelte';
   import { type ApiResult, fetchStats, runCleanup, runSync } from '%/api.ts';
-  import { downloadCsv, toCsv } from '%/csv.ts';
   import { toLocalInput } from '%/formatters.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
-  import { type SortValues, sortRows } from '%/sort.ts';
+  import { type Sort, type SortValues, sortRows } from '%/sort.ts';
   import { type DateRange, type Span, moveAnchor, shiftAnchor, spanOf } from '%/statsRange.ts';
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { createSortParams } from '%/useSortParams.svelte.ts';
+  import { type Sheet, downloadXlsx, toXlsx } from '%/xlsx.ts';
   import { type Counts, METRICS, type Stats } from '$/operations.ts';
 
   type Operation = 'cleanup' | 'sync';
   type Range = Span | 'all' | 'range';
-  type Metric = keyof Counts;
+  type Metric = (typeof METRICS)[number];
   type SortKey = 'count';
 
   const ICON_SIZE = 18;
+  const PERCENT = 100;
   const COLUMNS = 3;
-  // The fixed columns and room for the meanings, then each visitor type's column on top
+  // The fixed columns and room for the meanings, then each ticket type's column on top
   const MIN_REM = 40;
-  const VISITOR_TYPE_REM = 8;
+  const TICKET_TYPE_REM = 8;
 
   const RANGES: Range[] = ['all', 'day', 'month', 'year', 'range'];
 
@@ -76,11 +77,14 @@
   let running = $state<Operation | null>(null);
   let isExporting = $state(false);
 
-  const sortValues: SortValues<Metric, SortKey> = {
-    count: (metric) => stats?.[metric] ?? 0,
+  const DEFAULT_SORT: Sort<SortKey> = { direction: 'desc', key: 'count' };
+
+  // The sort params only need the keys; the rows are ordered by the figures they show
+  const sortKeys: SortValues<Metric, SortKey> = {
+    count: (metric) => metric,
   };
 
-  const sorting = createSortParams(sortValues, { direction: 'desc', key: 'count' });
+  const sorting = createSortParams(sortKeys, DEFAULT_SORT);
 
   // Days are the server's, as are the tickets' creation times it counts by
   const timeZone = $derived(
@@ -102,9 +106,21 @@
     range !== 'all' && range !== 'range' && spanOf(range, anchor || today).until >= today
   );
 
-  const rows = $derived(sortRows(METRICS, sorting.sort, sortValues));
-  // One column per visitor type, in the order the server sends them
+  const countValues = (figures: Counts): SortValues<Metric, SortKey> => ({
+    count: (metric) => figures[metric],
+  });
+  // Each block's metrics are ordered by its own counts, so its column reads in the chosen order
+  const rowsOf = (figures: Counts, sort: Sort<SortKey> = sorting.sort): Metric[] =>
+    sortRows(METRICS, sort, countValues(figures));
+  // One block of rows per visitor type, in the order the server sends them
   const visitorTypes = $derived(stats ? Object.keys(stats.visitor_types) : []);
+  // One column per ticket type; tickets made without one sit under an empty name
+  const ticketTypes = $derived(stats ? Object.keys(stats.ticket_types) : []);
+  const columns = $derived(COLUMNS + ticketTypes.length);
+  const typeLabel = (name: string): string => name || '—';
+  // A share of the whole, rounded to a whole percentage
+  const shareOf = (count: number, total: number): string =>
+    `${total === 0 ? 0 : Math.round((count / total) * PERCENT)}%`;
 
   const keyOf = (requested: DateRange | undefined): string =>
     requested ? `${requested.since}/${requested.until}` : 'all';
@@ -168,8 +184,8 @@
     await load();
   };
 
-  // The period showing, as the table has it; the file names the day, month or year
-  const exportCsv = async (): Promise<void> => {
+  // The period showing, as the table has it: one sheet for all visitors, then one per visitor type
+  const exportWorkbook = async (): Promise<void> => {
     isExporting = true;
 
     const result = await fetchStats(dates);
@@ -182,20 +198,27 @@
     }
 
     const figures = result.data;
-    const types = Object.keys(figures.visitor_types);
-    const csvRows = [
+    const tickets = Object.keys(figures.ticket_types);
+    const sheetRows = (group: Counts & { ticket_types: Record<string, Counts> }): Sheet['rows'] => [
       [
         i18n.t.overview.columns.metric,
         i18n.t.overview.columns.count,
-        ...types,
+        ...tickets.map(typeLabel),
         i18n.t.overview.columns.meaning,
       ],
       ...METRICS.map((metric) => [
         i18n.t.overview.metrics[metric].label,
-        String(figures[metric]),
-        ...types.map((name) => String(figures.visitor_types[name][metric])),
+        group[metric],
+        ...tickets.map((ticket) => group.ticket_types[ticket]?.[metric] ?? 0),
         i18n.t.overview.metrics[metric].description,
       ]),
+    ];
+    const sheets: Sheet[] = [
+      { name: i18n.t.overview.export.total, rows: sheetRows(figures) },
+      ...Object.keys(figures.visitor_types).map((name) => ({
+        name,
+        rows: sheetRows(figures.visitor_types[name]),
+      })),
     ];
     const period =
       !dates || range === 'all'
@@ -204,7 +227,7 @@
           ? `${dates.since}_${dates.until}`
           : dates.since.slice(0, SCOPE_LENGTH[range]);
 
-    downloadCsv(`tiqr-stats-${period}.csv`, toCsv(csvRows));
+    downloadXlsx(`tiqr-stats-${period}.xlsx`, toXlsx(sheets));
   };
 
   const pick = (option: Range): void => {
@@ -268,7 +291,7 @@
       aria-label={i18n.t.overview.export.hint}
       class="btn-icon preset-tonal size-11"
       disabled={isExporting}
-      onclick={exportCsv}
+      onclick={exportWorkbook}
       title={i18n.t.overview.export.hint}
       type="button"
     >
@@ -355,14 +378,31 @@
   {/snippet}
 </PageHeader>
 
+{#snippet metricRow(metric: Metric, figures: Counts & { ticket_types: Record<string, Counts> })}
+  <tr>
+    <td class="font-semibold">{i18n.t.overview.metrics[metric].label}</td>
+    <td class="text-right text-lg tabular-nums">{figures[metric]}</td>
+    {#each ticketTypes as name, index (name)}
+      <td
+        class={index === 0
+          ? 'border-surface-200-800 border-l text-right tabular-nums'
+          : 'text-right tabular-nums'}
+      >
+        {figures.ticket_types[name]?.[metric] ?? '—'}
+      </td>
+    {/each}
+    <td class="text-surface-600-400">{i18n.t.overview.metrics[metric].description}</td>
+  </tr>
+{/snippet}
+
 <DataTable
   caption={i18n.t.overview.caption}
-  columns={COLUMNS + visitorTypes.length}
+  {columns}
   emptyIcon={ChartColumn}
   emptyMessage={i18n.t.overview.empty}
   isEmpty={stats === null}
   {isLoading}
-  minWidth="{MIN_REM + VISITOR_TYPE_REM * visitorTypes.length}rem"
+  minWidth="{MIN_REM + TICKET_TYPE_REM * ticketTypes.length}rem"
 >
   {#snippet head()}
     <th class="w-44">{i18n.t.overview.columns.metric}</th>
@@ -373,9 +413,12 @@
       label={i18n.t.overview.columns.count}
       onSort={(): void => sorting.sortBy('count')}
     />
-    {#each visitorTypes as name (name)}
-      <th class="w-32 text-right" title={name}>
-        <span class="inline-block max-w-full truncate align-bottom">{name}</span>
+    {#each ticketTypes as name, index (name)}
+      <th
+        class={index === 0 ? 'border-surface-200-800 w-32 border-l text-right' : 'w-32 text-right'}
+        title={typeLabel(name)}
+      >
+        <span class="inline-block max-w-full truncate align-bottom">{typeLabel(name)}</span>
       </th>
     {/each}
     <!-- Without a set width, it takes the spare width, so the figures stay beside their labels -->
@@ -383,15 +426,26 @@
   {/snippet}
 
   {#if stats}
-    {#each rows as metric (metric)}
+    {#each rowsOf(stats) as metric (metric)}
+      {@render metricRow(metric, stats)}
+    {/each}
+    {#each visitorTypes as visitor (visitor)}
       <tr>
-        <td class="font-semibold">{i18n.t.overview.metrics[metric].label}</td>
-        <td class="text-right text-lg tabular-nums">{stats[metric]}</td>
-        {#each visitorTypes as name (name)}
-          <td class="text-right tabular-nums">{stats.visitor_types[name][metric]}</td>
-        {/each}
-        <td class="text-surface-600-400">{i18n.t.overview.metrics[metric].description}</td>
+        <th class="bg-surface-100-900 text-left font-semibold" colspan={columns}>
+          <div class="flex items-center gap-2">
+            <span
+              class="text-surface-600-400 font-normal tabular-nums"
+              title={i18n.t.overview.share}
+            >
+              {shareOf(stats.visitor_types[visitor].total, stats.total)}
+            </span>
+            <span>{visitor}</span>
+          </div>
+        </th>
       </tr>
+      {#each rowsOf(stats.visitor_types[visitor]) as metric (metric)}
+        {@render metricRow(metric, stats.visitor_types[visitor])}
+      {/each}
     {/each}
   {/if}
 </DataTable>

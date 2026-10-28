@@ -154,13 +154,15 @@ const kk: Messages = {
       count: 'Саны',
       meaning: 'Мағынасы',
       metric: 'Көрсеткіш',
+      visitor: 'Қонақ түрі',
     },
     description: 'Билет көрсеткіштері және талап бойынша BioStar күтімі',
     earlier: 'Бұрынғы',
     empty: 'Статистика жоқ',
     export: {
       failed: 'Экспорттау сәтсіз аяқталды',
-      hint: 'CSV ретінде экспорттау',
+      hint: 'Excel ретінде экспорттау',
+      total: 'Барлық қонақтар',
     },
     later: 'Кейінгі',
     metrics: {
@@ -173,12 +175,7 @@ const kk: Messages = {
         description: 'Кемінде бір рет өткен, әлі жарамды',
         label: 'Өтті',
       },
-      prints: { description: 'Дайындалған немесе басылған бейдждер', label: 'Басулар' },
       total: { description: 'Кезеңде берілген әрбір билет', label: 'Барлығы' },
-      uses: {
-        description: 'Билеттерге есептелген рұқсат етілген өтулер',
-        label: 'Өтулер',
-      },
     },
     notLoaded: 'Статистика жүктелмеді',
     pick: 'Күндерді таңдау',
@@ -190,6 +187,7 @@ const kk: Messages = {
       range: 'Аралық',
       year: 'Жыл',
     },
+    share: 'Барлық билеттердегі үлес',
     sync: {
       action: 'Синхрондау',
       done: (count: number): string => `${count} жаңа кіру оқиғасы қолданылды.`,

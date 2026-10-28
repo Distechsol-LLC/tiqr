@@ -158,13 +158,15 @@ const ru: Messages = {
       count: 'Количество',
       meaning: 'Значение',
       metric: 'Показатель',
+      visitor: 'Тип посетителя',
     },
     description: 'Показатели билетов и обслуживание BioStar по запросу',
     earlier: 'Раньше',
     empty: 'Нет статистики',
     export: {
       failed: 'Экспорт не выполнен',
-      hint: 'Экспорт в CSV',
+      hint: 'Экспорт в Excel',
+      total: 'Все посетители',
     },
     later: 'Позже',
     metrics: {
@@ -174,15 +176,7 @@ const ru: Messages = {
         description: 'Пройдены хотя бы раз, ещё действуют',
         label: 'Пройдены',
       },
-      prints: {
-        description: 'Пропуска сформированы или напечатаны',
-        label: 'Печать',
-      },
       total: { description: 'Все билеты, выданные за период', label: 'Всего' },
-      uses: {
-        description: 'Разрешённые проходы, учтённые в билетах',
-        label: 'Проходы',
-      },
     },
     notLoaded: 'Статистика не загружена',
     pick: 'Выбрать даты',
@@ -194,6 +188,7 @@ const ru: Messages = {
       range: 'Диапазон',
       year: 'Год',
     },
+    share: 'Доля от всех билетов',
     sync: {
       action: 'Синхронизировать',
       done: (count: number): string =>

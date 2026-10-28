@@ -254,13 +254,23 @@ class CountsOut(BaseModel):
     issued: int
     passed: int
     expired: int
-    uses: int
-    prints: int
+
+
+class VisitorStatsOut(CountsOut):
+    ticket_types: Annotated[
+        dict[str, CountsOut],
+        Field(description="The same counts for each ticket type of this visitor type"),
+    ]
 
 
 class StatsOut(CountsOut):
     visitor_types: Annotated[
-        dict[str, CountsOut], Field(description="The same counts for each visitor type")
+        dict[str, VisitorStatsOut],
+        Field(description="The same counts for each visitor type, split by ticket type"),
+    ]
+    ticket_types: Annotated[
+        dict[str, CountsOut],
+        Field(description="The same counts for each ticket type; empty name for none"),
     ]
 
 

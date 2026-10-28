@@ -153,13 +153,15 @@ const en = {
       count: 'Count',
       meaning: 'Meaning',
       metric: 'Metric',
+      visitor: 'Visitor type',
     },
     description: 'Ticket figures, and BioStar maintenance on demand',
     earlier: 'Earlier',
     empty: 'No statistics',
     export: {
       failed: 'Export failed',
-      hint: 'Export as CSV',
+      hint: 'Export as Excel',
+      total: 'All visitors',
     },
     later: 'Later',
     metrics: {
@@ -172,12 +174,7 @@ const en = {
         description: 'Passed at least once, still valid',
         label: 'Passed',
       },
-      prints: { description: 'Badges rendered or printed', label: 'Prints' },
       total: { description: 'Every ticket issued in the period', label: 'Total' },
-      uses: {
-        description: 'Granted passages applied to tickets',
-        label: 'Uses',
-      },
     },
     notLoaded: 'Statistics not loaded',
     pick: 'Pick dates',
@@ -189,6 +186,7 @@ const en = {
       range: 'Range',
       year: 'Year',
     },
+    share: 'Share of all tickets',
     sync: {
       action: 'Sync',
       done: (count: number): string =>
