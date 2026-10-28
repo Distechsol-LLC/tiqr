@@ -326,7 +326,7 @@
         selected={filter}
       />
 
-      <label class="relative order-first sm:order-none sm:w-72">
+      <label class="relative order-first sm:order-0 sm:w-72">
         <span class="sr-only">{i18n.t.tickets.search}</span>
         <Search
           aria-hidden="true"

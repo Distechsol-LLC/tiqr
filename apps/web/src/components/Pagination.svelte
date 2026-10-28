@@ -26,7 +26,7 @@
 
 <!-- The footer bar, colored like the header above the table -->
 <footer
-  class="border-surface-200-800 bg-surface-100-900 flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t px-4 py-3 text-sm md:px-8 md:pt-4 md:pb-5"
+  class="border-surface-200-800 bg-surface-100-900 flex h-18 shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t px-4 py-3 text-sm md:px-8"
 >
   <div class="flex items-center gap-2">
     <label class="text-surface-700-300" for={SELECT_ID}>{i18n.t.common.rowsPerPage}</label>
