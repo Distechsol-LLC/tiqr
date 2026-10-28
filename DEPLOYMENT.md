@@ -285,7 +285,7 @@ These were decided in the backend phase and shape deployment:
      CLI's print path, when the site sets `TIQR_SERVER_PRINTING=true`.
   3. Later, a small desktop client or agent on operator PCs that prints silently at 100%.
 - **Scheduling.** `tiqr serve` runs `sync` and `cleanup` on a background thread, on
-  `TIQR_SYNC_INTERVAL` and `TIQR_CLEANUP_INTERVAL`. Run **one** server process: the schedule,
+  a built-in interval (sync every 60 seconds, cleanup hourly). Run **one** server process: the schedule,
   the login limits and the lock that keeps runs apart are per process.
 - **Authentication.** Server-side sessions in SQLite with `HttpOnly` cookies, a CSRF token on
   every write, `Origin` checks, and login rate limiting; see [Web API](README.md#web-api).

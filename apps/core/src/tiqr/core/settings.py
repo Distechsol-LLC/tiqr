@@ -85,17 +85,7 @@ _BRANDING_KEYS = frozenset({"app_name", "logo_path", "theme", "languages"})
 # The rest of the file's keys are the TIQR_* settings of the same name. The signing key and the
 # BioStar password are not among them: those stay in .env.local, out of a file that gets shared.
 _SETTING_KEYS = frozenset(
-    {
-        "prefix",
-        "default_tz",
-        "host",
-        "port",
-        "tls_cert",
-        "tls_key",
-        "server_printing",
-        "sync_interval",
-        "cleanup_interval",
-    }
+    {"prefix", "default_tz", "host", "port", "tls_cert", "tls_key", "server_printing"}
 )
 _BIOSTAR_KEYS = frozenset(
     {

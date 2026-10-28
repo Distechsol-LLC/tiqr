@@ -229,6 +229,27 @@ def test_linux_service_chowns_only_the_data_folder(tmp_path, monkeypatch):
     assert f'ExecStart="{(program / installer.HEALTH_SCRIPT_LINUX).as_posix()}"' in health
 
 
+def test_restore_gives_root_written_data_back_only_with_a_service(tmp_path, monkeypatch):
+    monkeypatch.setattr(installer.sys, "platform", "linux")
+    monkeypatch.setattr(installer.os, "geteuid", lambda: 0)
+    data = tmp_path / "var"
+    data.mkdir()
+    (data / "tiqr.db-wal").write_bytes(b"")
+    (data / installer.BRANDING_FILE).write_text("{}")
+    commands_run = []
+    monkeypatch.setattr(installer, "_run", lambda argv: commands_run.append(argv) or "")
+    monkeypatch.setattr(installer, "UNIT_PATH", tmp_path / "tiqr.service")
+
+    installer.restore_service_ownership(data)
+    assert commands_run == []
+
+    (tmp_path / "tiqr.service").write_text("")
+    installer.restore_service_ownership(data)
+    chowned = [argv[-1] for argv in commands_run if argv[0] == "chown"]
+    assert str(data / "tiqr.db-wal") in chowned
+    assert str(data / installer.BRANDING_FILE) not in chowned
+
+
 def test_systemd_unit_runs_serve_as_the_service_user(tmp_path):
     unit = installer.systemd_unit(Path("/srv/tiqr/tiqr"), Path("/srv/tiqr"))
 

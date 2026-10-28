@@ -46,8 +46,6 @@ def test_defaults_are_the_constructors() -> None:
     assert _constant("DefaultPrefix") == DEFAULT_PREFIX
     assert _constant("DefaultHost") == "127.0.0.1"
     assert _constant("DefaultPort") == "7102"
-    assert _constant("DefaultSyncInterval") == "60"
-    assert _constant("DefaultCleanupInterval") == "3600"
     assert _constant("DefaultBioTimeout") == "30"
     assert _constant("DefaultBioDoorDuration") == "3"
     assert _constant("DefaultBioDoorTimeout") == "10"

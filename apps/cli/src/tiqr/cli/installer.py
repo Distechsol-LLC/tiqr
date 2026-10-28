@@ -225,6 +225,23 @@ def _install_windows_service(executable: Path, home: Path, wrapper: Path) -> Non
     _run([str(target), "start"])
 
 
+def give_data_to_service(home: Path) -> None:
+    owner = f"{SERVICE_USER}:{SERVICE_USER}"
+    _run(["chown", owner, str(home)])
+    for entry in home.iterdir():
+        if entry.name != BRANDING_FILE:
+            _run(["chown", "-R", owner, str(entry)])
+
+
+def restore_service_ownership(home: Path) -> None:
+    """After a root run on Linux, hand the data back to the service, which must still write it."""
+    if sys.platform == "win32" or not UNIT_PATH.exists() or not home.is_dir():
+        return
+    if os.geteuid() != 0:
+        return
+    give_data_to_service(home)
+
+
 def _install_linux_service(executable: Path, home: Path) -> None:
     # The program folder holds the executable and the health probe; `home` holds only the data.
     program = executable.parent
@@ -244,11 +261,7 @@ def _install_linux_service(executable: Path, home: Path) -> None:
         )
     # The service writes its database, key and PDFs here. The program folder stays root-owned, so
     # the service cannot replace the executable it runs. The branding stays root-owned too.
-    owner = f"{SERVICE_USER}:{SERVICE_USER}"
-    _run(["chown", owner, str(home)])
-    for entry in home.iterdir():
-        if entry.name != BRANDING_FILE:
-            _run(["chown", "-R", owner, str(entry)])
+    give_data_to_service(home)
     UNIT_PATH.write_text(systemd_unit(executable, home), encoding="utf-8")
     HEALTH_UNIT_PATH.write_text(health_unit(program, home), encoding="utf-8")
     HEALTH_TIMER_PATH.write_text(HEALTH_TIMER, encoding="utf-8")

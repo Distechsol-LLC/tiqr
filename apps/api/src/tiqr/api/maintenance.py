@@ -10,6 +10,9 @@ from tiqr.core.service import TicketService
 
 logger = logging.getLogger("tiqr.api")
 
+SYNC_INTERVAL = 60
+CLEANUP_INTERVAL = 3600
+
 
 @dataclass(slots=True)
 class _Job:
@@ -29,9 +32,9 @@ class Maintenance:
     def __init__(
         self,
         service: TicketService,
-        sync_interval: float,
-        cleanup_interval: float,
         *,
+        sync_interval: float = SYNC_INTERVAL,
+        cleanup_interval: float = CLEANUP_INTERVAL,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.lock = threading.Lock()

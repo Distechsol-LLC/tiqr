@@ -1,5 +1,6 @@
 from contextlib import nullcontext
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -7,11 +8,14 @@ from fastapi.testclient import TestClient
 
 from tiqr.api.app import create_app
 from tiqr.api.config import ServerConfig
+from tiqr.api.maintenance import Maintenance
 from tiqr.api.runtime import Runtime
 from tiqr.core.settings import Settings
 
-# Plain HTTP, as installs default to, with the scheduler off so tests drive sync themselves.
-PLAIN = ServerConfig(sync_interval=0, cleanup_interval=0, server_printing=False)
+# Plain HTTP, as installs default to.
+PLAIN = ServerConfig(server_printing=False)
+# The scheduler stays off unless a test asks for one, so tests drive sync themselves.
+IDLE = partial(Maintenance, sync_interval=0, cleanup_interval=0)
 # The paths are never opened: TLS is the server's job, and TestClient talks ASGI directly.
 TLS = {"tls_cert": Path("cert.pem"), "tls_key": Path("key.pem")}
 
@@ -38,10 +42,19 @@ def make_client(service, tmp_path, printed):
     )
     runtime = Runtime(settings, service, printer=printed.append)
 
-    def make(*, web_root=tmp_path / "no-web", raise_server_exceptions=True, tls=False, **config):
+    def make(
+        *,
+        web_root=tmp_path / "no-web",
+        raise_server_exceptions=True,
+        tls=False,
+        scheduler=IDLE,
+        **config,
+    ):
         # Keyword arguments override the plain config's fields; tls adds a certificate.
         config = replace(PLAIN, **(TLS if tls else {}), **config)
-        app = create_app(config, runtime=lambda: nullcontext(runtime), web_root=web_root)
+        app = create_app(
+            config, runtime=lambda: nullcontext(runtime), web_root=web_root, scheduler=scheduler
+        )
         base = "https://testserver" if config.secure else "http://testserver"
         return TestClient(app, base_url=base, raise_server_exceptions=raise_server_exceptions)
 

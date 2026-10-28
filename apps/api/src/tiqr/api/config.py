@@ -10,8 +10,6 @@ from tiqr.core import settings
 _LOOPBACK_NAMES = frozenset({"localhost"})
 _HOST = "127.0.0.1"
 _PORT = 7102
-_SYNC_INTERVAL = 60
-_CLEANUP_INTERVAL = 3600
 
 
 def _value(environment: Mapping[str, str], name: str) -> str:
@@ -60,9 +58,6 @@ class ServerConfig:
     dev: bool = False
     # Whether operators may print on the server's own default printer, besides downloading.
     server_printing: bool = False
-    # Seconds between scheduled runs; 0 turns that job off.
-    sync_interval: int = _SYNC_INTERVAL
-    cleanup_interval: int = _CLEANUP_INTERVAL
 
     def __post_init__(self) -> None:
         if not 0 < self.port < 65536:  # noqa: PLR2004 - the TCP port range
@@ -72,8 +67,6 @@ class ServerConfig:
         # The docs describe every endpoint, so they never face the network.
         if self.dev and not _is_loopback(self.host):
             raise ValueError("--dev only listens on a loopback address, such as 127.0.0.1")
-        if self.sync_interval < 0 or self.cleanup_interval < 0:
-            raise ValueError("Sync and cleanup intervals must not be negative")
 
     @property
     def secure(self) -> bool:
@@ -99,6 +92,4 @@ class ServerConfig:
             tls_key=tls_key or _path(environment, "TLS_KEY"),
             dev=dev,
             server_printing=_flag(environment, "SERVER_PRINTING", default=False),
-            sync_interval=_number(environment, "SYNC_INTERVAL", _SYNC_INTERVAL),
-            cleanup_interval=_number(environment, "CLEANUP_INTERVAL", _CLEANUP_INTERVAL),
         )

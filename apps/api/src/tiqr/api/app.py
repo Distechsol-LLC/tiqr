@@ -16,6 +16,7 @@ from tiqr.api.maintenance import Maintenance
 from tiqr.api.runtime import Runtime, open_runtime
 from tiqr.api.security import DOCS_PREFIX, LoginThrottle, install_guard
 from tiqr.api.web import WEB_ROOT, install_web
+from tiqr.core.service import TicketService
 
 
 def create_app(
@@ -23,11 +24,12 @@ def create_app(
     *,
     runtime: Callable[[], AbstractContextManager[Runtime]] = open_runtime,
     web_root: Path = WEB_ROOT,
+    scheduler: Callable[[TicketService], Maintenance] = Maintenance,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         with runtime() as opened:
-            maintenance = Maintenance(opened.service, config.sync_interval, config.cleanup_interval)
+            maintenance = scheduler(opened.service)
             app.state.tiqr = AppState(config, opened, LoginThrottle(), maintenance)
             maintenance.start()
             try:

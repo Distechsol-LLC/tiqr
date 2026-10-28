@@ -21,8 +21,6 @@
   "tls_cert": null, // default: none (plain HTTP)
   "tls_key": null, // default: none (plain HTTP)
   "server_printing": null, // default: false
-  "sync_interval": null, // default: 60 seconds; 0 turns it off
-  "cleanup_interval": null, // default: 3600 seconds; 0 turns it off
 
   // BioStar (leave all null for local mode; a partly filled block is an error)
   "biostar": {
