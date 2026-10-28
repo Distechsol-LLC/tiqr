@@ -25,9 +25,15 @@ def _project_root() -> Path:
     if home:
         return Path(home).expanduser().resolve()
     # A frozen build unpacks into a temporary directory, so config and data sit beside the
-    # executable. Source checkouts keep them at the workspace root, never in the working
-    # directory: this file is apps/core/src/tiqr/core/settings.py under that root.
+    # executable. Installed programs sit where the service account cannot write, so they keep
+    # config and data in ProgramData on Windows and /var/lib on Linux instead. Source checkouts
+    # keep them at the workspace root, never in the working directory: this file is
+    # apps/core/src/tiqr/core/settings.py under that root.
     if getattr(sys, "frozen", False):
+        if sys.platform == "win32":
+            return Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "TiQR"
+        if sys.platform.startswith("linux"):
+            return Path("/var/lib/tiqr")
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[5]
 

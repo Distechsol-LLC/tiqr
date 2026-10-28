@@ -47,6 +47,16 @@ def test_install_copies_branding_into_tiqr_home(home, release):
     assert "Copied" in result.output
 
 
+def test_reinstall_keeps_the_branding_already_in_place(home, release):
+    (home / BRANDING_FILE).write_text(BRANDING.replace("TiQR", "Edited"))
+
+    result = CliRunner().invoke(app, ["install", "--source", str(release), *QUIET])
+
+    assert result.exit_code == 0, result.output
+    assert '"Edited"' in (home / BRANDING_FILE).read_text()
+    assert "Keeping the branding" in result.output
+
+
 def test_install_ends_with_the_license_request_code(home, release):
     result = CliRunner().invoke(
         app, ["install", "--source", str(release), "--host", "10.0.0.5", "--port", "7200", *QUIET]
@@ -142,6 +152,81 @@ def test_winsw_config_names_the_executable_home_and_logs(tmp_path):
     assert f"<executable>{str(executable).replace('&', '&amp;')}</executable>" in config
     assert f'<env name="TIQR_HOME" value="{home}"/>' in config
     assert f"<logpath>{home / 'logs'}</logpath>" in config
+
+
+def test_winsw_config_waits_for_the_network_stack():
+    config = installer.winsw_config(Path("C:/TiQR/tiqr.exe"), Path("C:/TiQR"))
+
+    assert "<depend>Tcpip</depend>" in config
+
+
+def test_windows_service_grants_only_the_data_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(installer.sys, "platform", "win32")
+    program = tmp_path / "program"
+    data = tmp_path / "data"
+    program.mkdir()
+    data.mkdir()
+    wrapper = program / installer.WINSW_NAME
+    wrapper.write_bytes(b"winsw")
+    (program / "tiqr.exe").write_bytes(b"")
+    (program / installer.HEALTH_SCRIPT_WINDOWS).write_text("")
+    (data / "tiqr.db").write_bytes(b"")
+    (data / installer.BRANDING_FILE).write_text("{}")
+    commands_run = []
+    monkeypatch.setattr(installer, "_run", lambda argv: commands_run.append(argv) or "")
+    monkeypatch.setattr(installer.subprocess, "run", lambda *args, **kwargs: None)
+
+    installer._install_windows_service(program / "tiqr.exe", data, wrapper)
+
+    assert wrapper.read_bytes() == b"winsw"
+    assert [str(wrapper), "install"] in commands_run
+    grant = f"NT SERVICE\\{installer.SERVICE_NAME}:(OI)(CI)M"
+    granted = [argv[1] for argv in commands_run if argv[0] == "icacls"]
+    assert ["icacls", str(data / "tiqr.db"), "/grant", grant] in commands_run
+    assert str(data) in granted
+    assert str(program) not in granted
+    assert str(data / installer.BRANDING_FILE) not in granted
+    assert any(
+        argv[0] == "powershell" and argv[-2:] == ["-DataFolder", str(data)] for argv in commands_run
+    )
+
+
+def test_health_unit_reads_the_install_settings(tmp_path):
+    unit = installer.health_unit(Path("/opt/tiqr"), Path("/var/lib/tiqr"))
+
+    assert "EnvironmentFile=-/var/lib/tiqr/.env.local" in unit
+    assert 'ExecStart="/opt/tiqr/tiqr-health.sh"' in unit
+    assert "User=tiqr" in unit
+
+
+def test_linux_service_chowns_only_the_data_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(installer.sys, "platform", "linux")
+    program = tmp_path / "opt"
+    data = tmp_path / "var"
+    program.mkdir()
+    data.mkdir()
+    executable = program / "tiqr"
+    executable.write_bytes(b"")
+    (program / installer.HEALTH_SCRIPT_LINUX).write_text("")
+    (data / "tiqr.db").write_bytes(b"")
+    (data / installer.BRANDING_FILE).write_text("{}")
+    monkeypatch.setattr(installer, "UNIT_PATH", tmp_path / "tiqr.service")
+    monkeypatch.setattr(installer, "HEALTH_UNIT_PATH", tmp_path / "tiqr-health.service")
+    monkeypatch.setattr(installer, "HEALTH_TIMER_PATH", tmp_path / "tiqr-health.timer")
+    commands_run = []
+    monkeypatch.setattr(installer, "_run", lambda argv: commands_run.append(argv) or "")
+    monkeypatch.setattr(installer, "_succeeds", lambda argv: True)
+
+    installer._install_linux_service(executable, data)
+
+    chowned = [argv[-1] for argv in commands_run if argv[0] == "chown"]
+    assert str(data) in chowned
+    assert str(data / "tiqr.db") in chowned
+    assert str(data / installer.BRANDING_FILE) not in chowned
+    assert str(program) not in chowned
+    assert str(program / "tiqr") not in chowned
+    health = (tmp_path / "tiqr-health.service").read_text()
+    assert f'ExecStart="{(program / installer.HEALTH_SCRIPT_LINUX).as_posix()}"' in health
 
 
 def test_systemd_unit_runs_serve_as_the_service_user(tmp_path):

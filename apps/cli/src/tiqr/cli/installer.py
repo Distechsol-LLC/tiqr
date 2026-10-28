@@ -24,6 +24,11 @@ UNIT_PATH = Path("/etc/systemd/system/tiqr.service")
 # WinSW reads its configuration from the wrapper's base name, so the two sit side by side.
 WINSW_NAME = "tiqr-service.exe"
 WINSW_CONFIG = "tiqr-service.xml"
+# The health probes ship beside the executable; the installer registers them to run every minute.
+HEALTH_SCRIPT_WINDOWS = "tiqr-health.ps1"
+HEALTH_SCRIPT_LINUX = "tiqr-health.sh"
+HEALTH_UNIT_PATH = Path("/etc/systemd/system/tiqr-health.service")
+HEALTH_TIMER_PATH = Path("/etc/systemd/system/tiqr-health.timer")
 
 
 def is_administrator() -> bool:
@@ -102,6 +107,8 @@ def winsw_config(executable: Path, home: Path) -> str:
   <arguments>serve</arguments>
   <env name="TIQR_HOME" value="{escape(str(home))}"/>
   <startmode>Automatic</startmode>
+  <!-- Tcpip starts before the server, which binds the LAN address; a restart covers the rest. -->
+  <depend>Tcpip</depend>
   <onfailure action="restart" delay="5 sec"/>
   <onfailure action="restart" delay="30 sec"/>
   <onfailure action="restart" delay="1 min"/>
@@ -142,21 +149,87 @@ WantedBy=multi-user.target
 """
 
 
+def health_unit(program: Path, home: Path) -> str:
+    return f"""[Unit]
+Description=TiQR health probe
+After=tiqr.service
+
+[Service]
+Type=oneshot
+User={SERVICE_USER}
+Group={SERVICE_USER}
+# The same settings the server reads; a missing file is fine.
+EnvironmentFile=-{home.as_posix()}/.env
+EnvironmentFile=-{home.as_posix()}/.env.local
+StateDirectory=tiqr-health
+ExecStart="{(program / HEALTH_SCRIPT_LINUX).as_posix()}"
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateTmp=yes
+"""
+
+
+HEALTH_TIMER = """[Unit]
+Description=Probe the TiQR health check every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target
+"""
+
+
 def _install_windows_service(executable: Path, home: Path, wrapper: Path) -> None:
-    target = home / WINSW_NAME
+    # The program folder holds the executable, WinSW and the scripts; `home` holds the data.
+    program = executable.parent
+    if not (program / HEALTH_SCRIPT_WINDOWS).exists():
+        raise RuntimeError(
+            f"{HEALTH_SCRIPT_WINDOWS} is not in {program}; the health probe needs it"
+        )
+    target = program / WINSW_NAME
     if target.exists():
         # Stop and remove the old service first, so its wrapper is not in use when replaced.
         subprocess.run([str(target), "stop"], capture_output=True, check=False)  # noqa: S603 - our wrapper
         subprocess.run([str(target), "uninstall"], capture_output=True, check=False)  # noqa: S603 - our wrapper
-    shutil.copyfile(wrapper, target)
-    (home / WINSW_CONFIG).write_text(winsw_config(executable, home), encoding="utf-8")
+    # Run from the program folder, the wrapper is already the target; copying it onto itself fails.
+    if wrapper.resolve() != target.resolve():
+        shutil.copyfile(wrapper, target)
+    (program / WINSW_CONFIG).write_text(winsw_config(executable, home), encoding="utf-8")
     _run([str(target), "install"])
-    # The virtual service account exists only once the service is installed.
+    # The virtual service account exists only once the service is installed. Only the data folder
+    # is granted, so the service cannot write the program it runs, now or after an upgrade.
     _run(["icacls", str(home), "/grant", f"NT SERVICE\\{SERVICE_NAME}:(OI)(CI)M"])
+    # Inheritance reaches only files created after the grant, so existing data gets it directly.
+    for entry in home.iterdir():
+        if entry.name == BRANDING_FILE:
+            continue
+        recurse = ["/T"] if entry.is_dir() else []
+        _run(["icacls", str(entry), *recurse, "/grant", f"NT SERVICE\\{SERVICE_NAME}:(OI)(CI)M"])
+    # The script registers its scheduled task and event log source, which need administrator rights.
+    _run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(program / HEALTH_SCRIPT_WINDOWS),
+            "-Install",
+            "-DataFolder",
+            str(home),
+        ]
+    )
     _run([str(target), "start"])
 
 
 def _install_linux_service(executable: Path, home: Path) -> None:
+    # The program folder holds the executable and the health probe; `home` holds only the data.
+    program = executable.parent
+    if not (program / HEALTH_SCRIPT_LINUX).exists():
+        raise RuntimeError(f"{HEALTH_SCRIPT_LINUX} is not in {program}; the health probe needs it")
     if not _succeeds(["id", "-u", SERVICE_USER]):
         _run(
             [
@@ -169,17 +242,22 @@ def _install_linux_service(executable: Path, home: Path) -> None:
                 SERVICE_USER,
             ]
         )
-    # The service writes its database, key and PDFs here. The program itself stays root-owned.
+    # The service writes its database, key and PDFs here. The program folder stays root-owned, so
+    # the service cannot replace the executable it runs. The branding stays root-owned too.
     owner = f"{SERVICE_USER}:{SERVICE_USER}"
     _run(["chown", owner, str(home)])
     for entry in home.iterdir():
-        if entry.name not in (executable.name, BRANDING_FILE):
+        if entry.name != BRANDING_FILE:
             _run(["chown", "-R", owner, str(entry)])
     UNIT_PATH.write_text(systemd_unit(executable, home), encoding="utf-8")
+    HEALTH_UNIT_PATH.write_text(health_unit(program, home), encoding="utf-8")
+    HEALTH_TIMER_PATH.write_text(HEALTH_TIMER, encoding="utf-8")
     _run(["systemctl", "daemon-reload"])
     _run(["systemctl", "enable", "tiqr.service"])
     # Restart rather than start, so a reinstall picks up the new unit and executable.
     _run(["systemctl", "restart", "tiqr.service"])
+    _run(["systemctl", "enable", "tiqr-health.timer"])
+    _run(["systemctl", "restart", "tiqr-health.timer"])
 
 
 def register_service(executable: Path, home: Path, source: Path) -> str:

@@ -5,9 +5,11 @@ updated. The customer never receives source code. Everything runs on their netwo
 or Windows server at an address they choose.
 
 Status: the repository is restructured for this design (see [Layout](README.md#layout)), and the
-backend API and `tiqr serve` are implemented (see [Web API](README.md#web-api)). The frontend,
-Nuitka builds, installer and release pipeline described here are **not implemented yet**;
-[Implementation plan](#implementation-plan) lists the order.
+backend API and `tiqr serve` are implemented (see [Web API](README.md#web-api)). The local-mode
+installer works on Linux and Windows, but its Windows steps have not yet been run on a Windows
+host. The frontend, Nuitka builds, remote installer, signed releases and automatic backups
+described here are **not implemented yet**; [Implementation plan](#implementation-plan) lists the
+order.
 
 ## Recommendation in brief
 
@@ -100,99 +102,110 @@ are the real protection.
 
 ### Modes
 
+Today the installer runs from the unpacked bundle:
+
 ```text
-tiqr-install                                   # interactive wizard; asks for everything below
-tiqr-install --host 10.0.0.5 --ssh-user admin  # remote: Linux or Windows target, detected
-tiqr-install --local                           # run on the target server itself
-tiqr-install --answers site.toml               # unattended; secrets are prompted or read from env
+sudo ./install.sh [tiqr install options]   # Linux: copies the program to /opt/tiqr, data to /var/lib/tiqr, then installs
+tiqr_setup.exe                             # Windows: wizard that writes the branding file and logo, copies the program to C:\Program Files\TiQR, then runs tiqr install
+tiqr install [options]                     # the program itself, run as admin from its own folder
 ```
 
-Remote mode is thin. It verifies the bundle, uses system OpenSSH to copy the bundle and connect,
-detects the target OS (`uname`, or `$env:OS` on Windows), copies the matching payload with `scp`,
-and runs `tiqr install --local` there over `ssh -t`, so `sudo` and prompts work. All install
-logic therefore exists once, in local mode.
+`tiqr install` takes `--source` (where `tiqr_brand.jsonc` and WinSW are; default the executable's
+folder), `--host`, `--port`, `--service/--no-service` and `--firewall/--no-firewall`. At a terminal
+it asks for anything missing; scripts take the defaults. `--no-service --no-firewall` runs on any
+machine and is what the CI smoke test uses.
 
-System OpenSSH ships with Windows 10+ and Linux. Using it means the customer's keys,
-agent, `known_hosts` and jump hosts all work, and host-key checking stays OpenSSH's job. Windows
-targets need the OpenSSH Server feature, available on Windows Server 2019 and later. Where a
-customer can't enable it, they copy the bundle over and use `--local`. WinRM is deliberately not
-supported: it would add a second transport, NTLM/Kerberos handling and different firewall rules.
+Planned, not built: remote mode, the interactive wizard, `--answers` files and the signed
+`tiqr-install` workstation tool. Remote mode would copy the bundle over system OpenSSH and run the
+local steps there, so host-key checking stays OpenSSH's job. WinRM is deliberately not supported:
+it would add a second transport, NTLM/Kerberos handling and different firewall rules.
 
-### What local mode does
+### What the install does
 
-1. Check prerequisites: OS version, admin rights, free disk space, and that the port is free.
-2. Create a service account: system user `tiqr` on Linux, a virtual service account on Windows.
-   Never root or LocalSystem.
-3. Unpack the payload into a versioned release folder and point `current` at it.
-4. Write the configuration (see [Configuration](#configuration)) and run `tiqr setup` as the
-   service account, which generates the signing key **on the server** and initializes the
-   database.
-5. Optionally set up TLS (see [Frontend and backend](#frontend-and-backend)).
-6. Register and start the service. On Linux, open the firewall port if `ufw` or `firewalld` is
-   active; on Windows, add a `New-NetFirewallRule`.
-7. Create the first admin account interactively, then poll `http://<ip>:<port>/api/health`
-   (`https://` with TLS)
-   until it reports the installed version.
+1. Refuses to register a service or firewall rule without administrator rights (sudo on Linux).
+2. Checks `tiqr_brand.jsonc`, asks for the address operators use (default: this machine's LAN
+   address) and the port (default 7102), and writes `TIQR_HOST` and `TIQR_PORT` to `.env.local`.
+3. Runs `tiqr setup`: creates `TIQR_SECRET_KEY` if it is missing, creates or migrates the database,
+   and provisions the BioStar group when BioStar is configured.
+4. Creates the first admin account if none exists. At a terminal it asks; otherwise it prints the
+   command to run.
+5. Opens the port: `ufw` or `firewalld` on Linux when active, or a `TiQR-<port>` rule in Windows
+   Firewall. Otherwise it reports that nothing needs opening.
+6. Registers and starts the service (see [Server layout](#server-layout)), then waits up to 30
+   seconds for `/api/health`.
+7. Prints the license request code if the program is not licensed yet.
+
+The service runs as a system user `tiqr` on Linux, or the virtual account `NT SERVICE\TiQR` on
+Windows, never root or LocalSystem.
 
 ### Server layout
 
 | | Linux (systemd) | Windows (service) |
 |---|---|---|
-| Program | `/opt/tiqr/releases/<version>/`, `/opt/tiqr/current` symlink | `C:\Program Files\TiQR\releases\<version>\`, `current` directory junction |
-| Config | `/etc/tiqr/tiqr.env`, `root:tiqr 0640` | `C:\ProgramData\TiQR\tiqr.env`, ACL: SYSTEM, Administrators, service account |
-| Data (DB, key, PDFs, backups) | `/var/lib/tiqr/`, `tiqr:tiqr 0700` | `C:\ProgramData\TiQR\data\`, same ACL |
+| Program | `/opt/tiqr/`, root-owned: `tiqr`, the notices, the health probe. The service cannot write it | `C:\Program Files\TiQR\`: `tiqr.exe`, WinSW and the scripts. No grant to the service account |
+| Config | `/var/lib/tiqr/.env` and `.env.local`, owned by `tiqr` | `C:\ProgramData\TiQR\.env` and `.env.local`, granted to the service account |
+| Data (DB, key, PDFs, backups) | `/var/lib/tiqr/`, owned by `tiqr` (`TIQR_HOME`) | `C:\ProgramData\TiQR\`, granted to the service account (`TIQR_HOME`) |
 | Logs | journald | Rotated files under `C:\ProgramData\TiQR\logs\` |
-| Service | `tiqr.service` unit, enabled at boot, restarted on failure (`packaging/systemd/tiqr.service`) | [WinSW](https://github.com/winsw/winsw) wrapper, automatic start, restarted on failure with delays of 5 seconds, 30 seconds, then 1 minute (`packaging/winsw/tiqr-service.xml`) |
+| Service | `tiqr.service` unit written by `tiqr install`, enabled at boot, restarted on failure | [WinSW](https://github.com/winsw/winsw) wrapper written by `tiqr install`, automatic start, restarted on failure with delays of 5 seconds, 30 seconds, then 1 minute |
 
-The Linux unit runs `ExecStart=/opt/tiqr/current/tiqr serve` as `User=tiqr` with
-`EnvironmentFile=/etc/tiqr/tiqr.env`. The default port 7102 needs no privilege; a site that picks
-one below 1024, such as 443, adds `AmbientCapabilities=CAP_NET_BIND_SERVICE` rather than running
-as root. The unit also sets `NoNewPrivileges`, `ProtectSystem=strict`,
-`ReadWritePaths=/var/lib/tiqr`, `ProtectHome` and `PrivateTmp`. It starts at boot
-(`WantedBy=multi-user.target`) and restarts after a crash or non-zero exit; a clean stop stays stopped.
+The installer writes the Linux unit, which runs `ExecStart=/opt/tiqr/tiqr serve` as `User=tiqr`
+with `TIQR_HOME=/var/lib/tiqr`. The default port 7102 needs no privilege;
+a site that picks one below 1024, such as 443, must add `AmbientCapabilities=CAP_NET_BIND_SERVICE`
+by hand rather than run as root. The unit also sets `NoNewPrivileges`, `ProtectSystem=strict`,
+`ReadWritePaths` on `/var/lib/tiqr`, `ProtectHome` and `PrivateTmp`. It starts at boot
+(`WantedBy=multi-user.target`) and restarts after a crash or non-zero exit; a clean stop stays
+stopped.
 
-On Linux, `packaging/systemd/tiqr-health.timer` runs `packaging/tiqr-health.sh` every minute.
-The script polls `/api/health` and exits non-zero on each failure, so `systemctl --failed` shows
-an outage. After three failures in a row it logs a critical journal entry (`tiqr-health`) for the
-customer's monitoring to pick up, and a notice once the server answers again. The installer copies
-the script to `/opt/tiqr/current/` and enables the timer.
+The program folder gives the service no rights, on Linux and Windows alike, so the service cannot
+change the program it runs, including after an upgrade. On Linux only `/var/lib/tiqr` is owned by
+`tiqr`. On Windows only `C:\ProgramData\TiQR` is granted Modify, and the files already there are
+granted directly, since inheritance reaches only files created later. `tiqr_brand.jsonc` is not
+granted on either, so the service cannot change it.
 
-On Windows, `packaging/tiqr-health.ps1 -Install` registers a scheduled task, `TiQR Health Probe`,
-that runs the same probe every minute as the TiQR service account. It reads
-`C:\ProgramData\TiQR\tiqr.env`, keeps its failure count in `C:\ProgramData\TiQR\data\`, and logs
-to the Application event log under source `TiQR-Health` (event 1 after three failures in a row,
-event 2 on recovery). The install step registers that source, since only an administrator can.
+On Linux, `tiqr install` writes `tiqr-health.timer` and `tiqr-health.service` and enables the timer.
+The timer runs `tiqr-health.sh` every minute as the service user, with the settings from `.env`
+and `.env.local`. The script polls `/api/health` and exits non-zero on each failure, so
+`systemctl --failed` shows an outage. After three failures in a row it logs a critical journal
+entry (`tiqr-health`) for the customer's monitoring to pick up, and a notice once the server
+answers again.
+
+On Windows, `tiqr install` runs `tiqr-health.ps1 -Install`, which registers a scheduled task,
+`TiQR Health Probe`, that runs the same probe every minute as the TiQR service account. It reads
+`.env` and `.env.local` from the data folder, keeps its failure count in
+`health-failures.txt` there, and logs to the Application event log under source `TiQR-Health`
+(event 1 after three failures in a row, event 2 on recovery). The install step registers that
+source, since only an administrator can.
 
 Admin commands on the server run as the service account against the same configuration, for
-example `sudo -u tiqr /opt/tiqr/current/tiqr user add ...`. The installer drops a small
-`tiqr-admin` wrapper that does this.
+example `sudo -u tiqr /opt/tiqr/tiqr user add ...`.
 
 ## Configuration
 
-The installer collects, then writes `tiqr.env`:
+The settings live in `.env` and `.env.local` in the data folder: `/var/lib/tiqr` on Linux,
+`C:\ProgramData\TiQR` on Windows. `.env.local` wins, and it is the file the installer writes. Real
+environment variables override both.
 
-| Setting | Source |
+| Setting | Set by |
 |---|---|
-| Bind address and port (`TIQR_HOST`, `TIQR_PORT`), for example `10.0.0.5:7102` | The target IP the customer gave; port defaults to 7102 |
-| Data folder (`TIQR_HOME`) | Fixed by the server layout |
-| `TIQR_BIOSTAR_*` block and `TIQR_BIOSTAR_REQUIRED=true` | Prompted; the password is never written to an answers file or logged |
-| `TIQR_BIOSTAR_VERIFY_TLS` | Prompted, defaulting to `true` for installs. The library's `false` default suits development only |
-| `TIQR_DEFAULT_TZ` | Prompted, defaulting to the server's zone |
-| TLS certificate and key paths (`TIQR_TLS_CERT`, `TIQR_TLS_KEY`) | Optional; customer-provided or installer-generated |
-| `TIQR_SERVER_PRINTING` | Prompted: whether operators may print on the server's printer |
+| `TIQR_HOST`, `TIQR_PORT` | `tiqr install`: asked for, defaulting to this machine's LAN address and 7102 |
+| `TIQR_SECRET_KEY` | `tiqr setup`, on the server. It never leaves the server, and the installer never reads it back |
+| `TIQR_HOME` | The service definition, set to the data folder. It must be a real environment variable, because `.env` files are found through it |
+| `TIQR_BIOSTAR_*`, `TIQR_BIOSTAR_VERIFY_TLS` | By hand in `.env.local`. Keep the BioStar password out of shared files. The library's `false` for `VERIFY_TLS` suits development only; installs should set `true` |
+| `TIQR_DEFAULT_TZ`, `TIQR_SERVER_PRINTING` | By hand in `.env.local` |
+| `TIQR_TLS_CERT`, `TIQR_TLS_KEY` | By hand: the customer's certificate. The installer does not generate one yet |
 
-`TIQR_SECRET_KEY` is generated on the server by `tiqr setup` and never leaves it. The installer
-never reads it back. `TIQR_HOME` must reach the process as a real environment variable, through the unit's
-`Environment=` or `EnvironmentFile=` or the Windows service definition. TiQR finds its `.env`
-files through it, so a `.env` file cannot set it. With it set, data and config stay put while
-release folders change.
+With `TIQR_HOME` set, data and config stay in the data folder when the program is replaced.
 
-The server reads `tiqr_brand.jsonc` from `TIQR_HOME` at every start and refuses to run without
-it. Before the service starts, run `tiqr install` from the release folder (or pass `--source`) to
-copy the file there. It checks the file first, so a broken copy never replaces a working one.
+The server reads `tiqr_brand.jsonc` from the data folder at every start and refuses to run without
+it. `tiqr install` checks the bundle's file, copies it there the first time, and keeps the copy
+already there on later runs. The Windows installer (`tiqr_setup.exe`) is the exception: it writes the
+file from its wizard, saves the file it replaces as `tiqr_brand.jsonc.bak`, and copies the chosen
+logo beside it. Branding changes take effect on restart: edit the file in the data folder and
+restart the service.
 
-Reconfiguring is `tiqr install --reconfigure`. It edits `tiqr.env`, restarts the service and
-runs the health check. A hand edit followed by a service restart works too.
+To change the address, port or any other setting, edit `.env.local` and restart the service. Or run
+`tiqr install` again: at a terminal it asks for the address and port, re-registers the service and
+runs the health check. A script takes the defaults unless `--host` and `--port` are given.
 
 ## Frontend and backend
 
@@ -224,23 +237,37 @@ a reverse proxy. Certificates, in order of preference:
 
 ## Updates
 
+Run the install script from the newer bundle, on the same machine:
+
 ```text
-tiqr-install --host 10.0.0.5 --upgrade      # or --local --upgrade on the server
+sudo ./install.sh     # Linux
+install.cmd           # Windows, as administrator
 ```
 
-1. Verify `SHA256SUMS.sig` and every checksum. Refuse the upgrade on any mismatch.
-2. Unpack the new release beside the current one. Nothing running changes yet.
-3. Stop the service and back up the database with SQLite's online backup API to
-   `backups/<timestamp>-<old version>.db`.
-4. Run schema migrations with the new binary: `tiqr setup` applies them. Every other command,
-   `tiqr serve` included, refuses an outdated schema, so a skipped step fails loudly.
-5. Repoint `current`, start the service, and wait for `/api/health` to report the new version.
-6. If any step after 3 fails: stop, restore the backup, repoint `current` to the old release, and
-   start again. Keep the last two releases and a bounded number of backups.
+1. The script stops the running service. `install.cmd` stops the TiQR service itself, and
+   `install.sh` stops `tiqr.service`.
+2. It copies the new program, notices and health probe over the program folder. The existing
+   `tiqr_brand.jsonc` in the data folder is kept. `.env.local` and the database are not in the
+   bundle, so they stay.
+   Windows copies with robocopy, which does not delete files the new bundle no longer ships.
+3. It runs `tiqr install` as on a first install. `tiqr setup` migrates the database, and the
+   service and health probe are registered again. The health check then waits for the answer.
 
-Downgrades past a schema change are refused. Updates are offline by design, from a bundle
-delivered by download or USB, because many sites have no internet access. An optional "update
-available" check can come later. It is never needed to run.
+Migrations are numbered, forward-only steps, each in one transaction with its version bump. A
+failed step rolls back alone. The steps before it stay applied, and the next install resumes from
+there. `tiqr serve` refuses a database that is older than the program until `tiqr setup` has run.
+An older program refuses a newer database, so going back needs the saved database copy below.
+
+The database is not backed up automatically yet. Before an upgrade, stop the service and copy
+`tiqr.db` from the data folder to a dated name, then start the service again. To go back, stop
+the service, reinstall the previous bundle, restore the saved `tiqr.db`, and start the service.
+
+Updates are offline by design, from a bundle delivered by download or USB, because many sites have
+no internet access.
+
+Planned, not built: checking `SHA256SUMS.sig` and every checksum before anything is replaced, a
+backup taken automatically before migrations, rollback when the health check fails after an
+upgrade, and keeping the last two releases.
 
 The repository has a forward-only migration runner: numbered steps, each run once in one
 transaction with its version bump. Version 2 added the web session table, version 3 the users'
@@ -263,7 +290,8 @@ These were decided in the backend phase and shape deployment:
 - **Authentication.** Server-side sessions in SQLite with `HttpOnly` cookies, a CSRF token on
   every write, `Origin` checks, and login rate limiting; see [Web API](README.md#web-api).
 - **Backups.** The database is now the customer's production record and holds the never-reused
-  BioStar ID range. Schedule the same online backup the upgrade uses, and document restoring it.
+  BioStar ID range. Backups are not automated yet: copy `tiqr.db` while the service is stopped,
+  and document restoring it.
 
 ## Security risks
 
@@ -327,10 +355,9 @@ through FastAPI's TestClient, never against a live BioStar. The PyInstaller smok
    Linux build on an old-glibc base. Include `tiqr-api`'s distribution metadata, which its
    version is read from, and Uvicorn's dynamically imported protocol modules, as the PyInstaller
    spec does. Port the CI smoke test. Retire the PyInstaller spec once it passes.
-3. **Installer, local mode.**
-   - Linux: systemd unit, service user, layout, firewall, TLS generation, `tiqr setup`, first
-     admin, health check.
-   - Windows: WinSW, virtual account, ACLs, firewall rule.
+3. **Installer, local mode.** Written for Linux and Windows: service, service user, layout,
+   firewall, `tiqr setup`, first admin, health check and health timer.
+   - Not done: TLS generation, and the Windows steps have not run on a Windows host.
    - Test on throwaway VMs: Ubuntu 22.04 and 24.04, Windows Server 2022 and 2025.
 4. **Installer, remote mode.** OS detection, `scp` and `ssh -t` into local mode, and the
    interactive wizard plus the `--answers` file.

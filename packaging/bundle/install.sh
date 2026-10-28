@@ -1,7 +1,8 @@
 #!/bin/sh
 # Installs TiQR as a service from this folder: sudo ./install.sh [tiqr install options]
-# The folder is copied to /opt/tiqr (data and settings there survive an upgrade), then
-# `tiqr install` sets up the address, database, first admin, firewall and systemd unit.
+# The program is copied to /opt/tiqr. Its data (database, settings, branding) lives in /var/lib/tiqr,
+# which upgrades leave alone. Then `tiqr install` sets up the address, database, first admin,
+# firewall, service and health timer.
 set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -24,11 +25,11 @@ chmod 755 "$target/tiqr"
 for file in THIRD-PARTY-NOTICES.txt INSTALL.txt; do
     if [ -f "$here/$file" ]; then cp "$here/$file" "$target/$file"; fi
 done
-# A reinstall keeps the branding the site has already edited.
-if [ ! -f "$target/tiqr_brand.jsonc" ]; then
-    [ -f "$here/tiqr_brand.jsonc" ] || { echo "tiqr_brand.jsonc is missing" >&2; exit 1; }
-    cp "$here/tiqr_brand.jsonc" "$target/tiqr_brand.jsonc"
-fi
+cp "$here/tiqr-health.sh" "$target/tiqr-health.sh"
+chmod 755 "$target/tiqr-health.sh"
+# The bundle's branding is only the default for a first install; the data folder keeps its own.
+[ -f "$here/tiqr_brand.jsonc" ] || { echo "tiqr_brand.jsonc is missing" >&2; exit 1; }
+cp "$here/tiqr_brand.jsonc" "$target/tiqr_brand.jsonc"
 
 cd "$target"
 exec ./tiqr install "$@"

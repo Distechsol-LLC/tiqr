@@ -103,9 +103,10 @@ jobs:
           if [ "$RUNNER_OS" = "Windows" ]; then
             cp packaging/bundle/install.cmd "bundle/$name/"
             cp WinSW-x64.exe "bundle/$name/tiqr-service.exe"
+            cp packaging/tiqr-health.ps1 "bundle/$name/"
             (cd bundle && 7z a -tzip "../release/$name.zip" "$name" > /dev/null)
           else
-            cp packaging/bundle/install.sh "bundle/$name/"
+            cp packaging/bundle/install.sh packaging/tiqr-health.sh "bundle/$name/"
             chmod +x "bundle/$name/install.sh" "bundle/$name/$exe"
             tar -C bundle -czf "release/$name.tar.gz" "$name"
           fi
@@ -122,7 +123,7 @@ jobs:
           fi
           cd "$customer/$name"
           for file in INSTALL.txt THIRD-PARTY-NOTICES.txt tiqr_brand.jsonc; do test -s "$file"; done
-          if [ "$RUNNER_OS" = "Windows" ]; then test -f install.cmd; test -f tiqr-service.exe; else test -x install.sh; fi
+          if [ "$RUNNER_OS" = "Windows" ]; then test -f install.cmd; test -f tiqr-service.exe; test -s tiqr-health.ps1; else test -x install.sh; test -s tiqr-health.sh; fi
           exe=$(ls tiqr tiqr.exe 2>/dev/null | head -1)
           # The service and firewall steps need a real host; everything else runs as installed.
           ./"$exe" install --no-service --no-firewall --host 127.0.0.1 --port 8766 > install.log
