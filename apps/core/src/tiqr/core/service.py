@@ -96,9 +96,15 @@ def _counts(tickets: list[Ticket]) -> Counts:
         issued=states[TicketState.ISSUED],
         passed=states[TicketState.PASSED],
         expired=states[TicketState.EXPIRED],
-        uses=sum(ticket.use_count for ticket in tickets),
-        prints=sum(ticket.print_count for ticket in tickets),
     )
+
+
+def _by_ticket_type(tickets: list[Ticket]) -> dict[str, Counts]:
+    groups: dict[str, list[Ticket]] = {}
+    for ticket in tickets:
+        # Tickets made without a ticket type are grouped under an empty name
+        groups.setdefault(ticket.ticket_type or "", []).append(ticket)
+    return {name: _counts(group) for name, group in sorted(groups.items())}
 
 
 class PermissionDeniedError(PermissionError):
@@ -118,12 +124,15 @@ class Counts(TypedDict):
     issued: int
     passed: int
     expired: int
-    uses: int
-    prints: int
+
+
+class VisitorStats(Counts):
+    ticket_types: dict[str, Counts]
 
 
 class Stats(Counts):
-    visitor_types: dict[str, Counts]
+    visitor_types: dict[str, VisitorStats]
+    ticket_types: dict[str, Counts]
 
 
 class TicketService:
@@ -827,10 +836,14 @@ class TicketService:
         if until is not None:
             end = day_start(until + timedelta(days=1), timezone)
             tickets = [ticket for ticket in tickets if ticket.created_at < end]
-        by_type: dict[str, list[Ticket]] = {}
+        by_visitor: dict[str, list[Ticket]] = {}
         for ticket in tickets:
-            by_type.setdefault(ticket.visitor_type, []).append(ticket)
+            by_visitor.setdefault(ticket.visitor_type, []).append(ticket)
         return Stats(
             **_counts(tickets),
-            visitor_types={name: _counts(group) for name, group in sorted(by_type.items())},
+            visitor_types={
+                name: VisitorStats(**_counts(group), ticket_types=_by_ticket_type(group))
+                for name, group in sorted(by_visitor.items())
+            },
+            ticket_types=_by_ticket_type(tickets),
         )

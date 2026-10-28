@@ -11,28 +11,24 @@ const countsSchema = z.object({
   expired: z.number().int().nonnegative(),
   issued: z.number().int().nonnegative(),
   passed: z.number().int().nonnegative(),
-  prints: z.number().int().nonnegative(),
   total: z.number().int().nonnegative(),
-  uses: z.number().int().nonnegative(),
+});
+
+const visitorStatsSchema = countsSchema.extend({
+  ticket_types: z.record(z.string(), countsSchema),
 });
 
 const statsSchema = countsSchema.extend({
-  visitor_types: z.record(z.string(), countsSchema),
+  ticket_types: z.record(z.string(), countsSchema),
+  visitor_types: z.record(z.string(), visitorStatsSchema),
 });
 
 type Config = z.infer<typeof configSchema>;
 type Counts = z.infer<typeof countsSchema>;
 type Stats = z.infer<typeof statsSchema>;
 
-// The same figures as `tiqr stats`, in its order; each is labelled in the showing language
-const METRICS = [
-  'total',
-  'issued',
-  'passed',
-  'expired',
-  'uses',
-  'prints',
-] satisfies (keyof Counts)[];
+// The figures the stats page shows, in its order; each is labelled in the showing language
+const METRICS = ['total', 'issued', 'passed', 'expired'] satisfies (keyof Counts)[];
 
 export type { Config, Counts, Stats };
 export { METRICS, configSchema, countSchema, statsSchema };

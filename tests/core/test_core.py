@@ -393,7 +393,7 @@ def test_shipped_branding_file_is_valid(monkeypatch, tmp_path):
     shutil.copy(Path(__file__).resolve().parents[2] / BRANDING_FILE, tmp_path)
     monkeypatch.setenv("TIQR_SECRET_KEY", "d23bfaf431a349fea87c38ddcb62ff10")
     settings = Settings.from_env()
-    assert (settings.app_name, settings.theme, settings.prefix) == ("TiQR", "default", "TQR")
+    assert (settings.app_name, settings.theme, settings.prefix) == ("TiQR", "cerberus", "TQR")
     assert settings.languages == ("en-US", "ru-RU", "az-AZ")
     assert settings.biostar is None
 

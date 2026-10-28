@@ -6,14 +6,28 @@ const counts = {
   expired: 2,
   issued: 4,
   passed: 2,
-  prints: 0,
   total: 8,
-  uses: 3,
 };
 
 const stats = {
   ...counts,
-  visitor_types: { Guest: { ...counts, issued: 3, total: 5 }, Staff: counts },
+  ticket_types: {
+    '': { ...counts, issued: 1, total: 1 },
+    Day: counts,
+    Week: { ...counts, issued: 3, total: 5 },
+  },
+  visitor_types: {
+    Guest: {
+      ...counts,
+      issued: 3,
+      ticket_types: {
+        '': { ...counts, issued: 1, total: 1 },
+        Week: { ...counts, issued: 2, total: 4 },
+      },
+      total: 5,
+    },
+    Staff: { ...counts, ticket_types: { Day: counts } },
+  },
 };
 
 describe('operations schemas', () => {
@@ -33,14 +47,14 @@ describe('operations schemas', () => {
   });
 
   it('rejects statistics with a negative or fractional count', () => {
-    expect(statsSchema.safeParse({ ...stats, uses: -1 }).success).toBe(false);
+    expect(statsSchema.safeParse({ ...stats, issued: -1 }).success).toBe(false);
     expect(statsSchema.safeParse({ ...stats, issued: 1.5 }).success).toBe(false);
   });
 
   it('rejects statistics missing a field', () => {
-    const { prints: _prints, ...withoutPrints } = stats;
+    const { expired: _expired, ...withoutExpired } = stats;
 
-    expect(statsSchema.safeParse(withoutPrints).success).toBe(false);
+    expect(statsSchema.safeParse(withoutExpired).success).toBe(false);
   });
 
   it('parses a bare count, as sync and cleanup return', () => {

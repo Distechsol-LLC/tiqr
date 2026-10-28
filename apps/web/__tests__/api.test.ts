@@ -146,8 +146,12 @@ describe('api reads', () => {
   });
 
   it('reads the statistics for all time or for a date range', async () => {
-    const counts = { expired: 0, issued: 1, passed: 0, prints: 0, total: 1, uses: 0 };
-    const stats = { ...counts, visitor_types: { Guest: counts } };
+    const counts = { expired: 0, issued: 1, passed: 0, total: 1 };
+    const stats = {
+      ...counts,
+      ticket_types: { Day: counts },
+      visitor_types: { Guest: { ...counts, ticket_types: { Day: counts } } },
+    };
     const fetchMock = mockFetch(Response.json(stats), Response.json(stats));
 
     expect(await fetchStats()).toEqual({ data: stats, ok: true });

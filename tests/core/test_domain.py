@@ -374,5 +374,10 @@ def test_stats_count_only_tickets_created_within_the_dates(service, accounts, cl
     assert total(date(2026, 9, 17), date(2026, 9, 17), "Asia/Baku") == 2
     day = service.stats(admin, since=date(2026, 9, 17), until=date(2026, 9, 17))
     assert day["visitor_types"]["Student"]["total"] == 1
+    assert sum(counts["total"] for counts in day["ticket_types"].values()) == day["total"]
+    for visitor in day["visitor_types"].values():
+        assert (
+            sum(counts["total"] for counts in visitor["ticket_types"].values()) == visitor["total"]
+        )
     with pytest.raises(ValueError, match="before the start"):
         total(date(2026, 9, 2), date(2026, 9, 1))

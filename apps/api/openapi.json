@@ -2705,14 +2705,6 @@
           "expired": {
             "type": "integer",
             "title": "Expired"
-          },
-          "uses": {
-            "type": "integer",
-            "title": "Uses"
-          },
-          "prints": {
-            "type": "integer",
-            "title": "Prints"
           }
         },
         "type": "object",
@@ -2720,9 +2712,7 @@
           "total",
           "issued",
           "passed",
-          "expired",
-          "uses",
-          "prints"
+          "expired"
         ],
         "title": "CountsOut"
       },
@@ -3079,21 +3069,21 @@
             "type": "integer",
             "title": "Expired"
           },
-          "uses": {
-            "type": "integer",
-            "title": "Uses"
-          },
-          "prints": {
-            "type": "integer",
-            "title": "Prints"
-          },
           "visitor_types": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/VisitorStatsOut"
+            },
+            "type": "object",
+            "title": "Visitor Types",
+            "description": "The same counts for each visitor type, split by ticket type"
+          },
+          "ticket_types": {
             "additionalProperties": {
               "$ref": "#/components/schemas/CountsOut"
             },
             "type": "object",
-            "title": "Visitor Types",
-            "description": "The same counts for each visitor type"
+            "title": "Ticket Types",
+            "description": "The same counts for each ticket type; empty name for none"
           }
         },
         "type": "object",
@@ -3102,9 +3092,8 @@
           "issued",
           "passed",
           "expired",
-          "uses",
-          "prints",
-          "visitor_types"
+          "visitor_types",
+          "ticket_types"
         ],
         "title": "StatsOut"
       },
@@ -3650,6 +3639,43 @@
         "type": "object",
         "title": "UserPatch",
         "description": "Any of: a new role, an active state, a new password. Omitted fields stay as they are."
+      },
+      "VisitorStatsOut": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "issued": {
+            "type": "integer",
+            "title": "Issued"
+          },
+          "passed": {
+            "type": "integer",
+            "title": "Passed"
+          },
+          "expired": {
+            "type": "integer",
+            "title": "Expired"
+          },
+          "ticket_types": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CountsOut"
+            },
+            "type": "object",
+            "title": "Ticket Types",
+            "description": "The same counts for each ticket type of this visitor type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "issued",
+          "passed",
+          "expired",
+          "ticket_types"
+        ],
+        "title": "VisitorStatsOut"
       },
       "VisitorTypeIn": {
         "properties": {

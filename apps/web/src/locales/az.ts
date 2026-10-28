@@ -155,13 +155,15 @@ const az: Messages = {
       count: 'Say',
       meaning: 'Mənası',
       metric: 'Göstərici',
+      visitor: 'Ziyarətçi növü',
     },
     description: 'Bilet göstəriciləri və istəyə görə BioStar xidməti',
     earlier: 'Əvvəlki',
     empty: 'Statistika yoxdur',
     export: {
       failed: 'İxrac alınmadı',
-      hint: 'CSV kimi ixrac et',
+      hint: 'Excel kimi ixrac et',
+      total: 'Bütün ziyarətçilər',
     },
     later: 'Sonrakı',
     metrics: {
@@ -174,15 +176,7 @@ const az: Messages = {
         description: 'Ən azı bir dəfə keçib, hələ etibarlıdır',
         label: 'Keçib',
       },
-      prints: {
-        description: 'Yaradılan və ya çap olunan vəsiqələr',
-        label: 'Çaplar',
-      },
       total: { description: 'Dövr ərzində verilən bütün biletlər', label: 'Cəmi' },
-      uses: {
-        description: 'Biletlərə tətbiq olunan icazəli keçidlər',
-        label: 'İstifadələr',
-      },
     },
     notLoaded: 'Statistika yüklənmədi',
     pick: 'Tarix seçin',
@@ -194,6 +188,7 @@ const az: Messages = {
       range: 'Aralıq',
       year: 'İl',
     },
+    share: 'Bütün biletlərdə payı',
     sync: {
       action: 'Sinxronlaşdır',
       done: (count: number): string => `${count} yeni giriş hadisəsi tətbiq edildi.`,
