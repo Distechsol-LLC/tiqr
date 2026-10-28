@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import shutil
@@ -27,11 +28,11 @@ from tiqr.core.auth import AuthenticationError, Session
 from tiqr.core.biostar import ACCESS_GROUP_NAME, BioStarClient, BioStarError, BioStarXProvisioner
 from tiqr.core.license import build_request_code
 from tiqr.core.localtime import parse_input_datetime
-from tiqr.core.models import Role, Ticket, TicketState, UsageType, User
+from tiqr.core.models import ApiKey, Role, Ticket, TicketState, UsageType, User
 from tiqr.core.printer import send_to_printer
 from tiqr.core.repository import SQLiteRepository
 from tiqr.core.runtime import open_service
-from tiqr.core.service import TicketService
+from tiqr.core.service import SCOPES, IdempotencyConflictError, TicketService
 from tiqr.core.settings import (
     BRANDING_FILE,
     LOCAL_ENV_FILE,
@@ -61,6 +62,8 @@ _TICKET_FIELDS = (
     "assigned_operator",
     "print_count",
     "use_count",
+    "external_code",
+    "event_session",
 )
 _DB_SUFFIXES = ("-journal", "-wal", "-shm")
 
@@ -74,10 +77,12 @@ user_app = typer.Typer(no_args_is_help=True, help="Local, trusted-account user m
 ticket_app = typer.Typer(
     no_args_is_help=True, help="Create, inspect, assign, save and print tickets."
 )
+key_app = typer.Typer(no_args_is_help=True, help="Service API keys for the web API (admin).")
 license_app = typer.Typer(no_args_is_help=True, help="Request and activate this install's license.")
 app.add_typer(user_app, name="user")
 app.add_typer(license_app, name="license")
 app.add_typer(ticket_app, name="ticket")
+app.add_typer(key_app, name="key")
 
 
 @app.callback()
@@ -497,7 +502,7 @@ def user_password(username: Annotated[str, typer.Argument()]) -> None:
 
 
 @ticket_app.command("create")
-def ticket_create(
+def ticket_create(  # noqa: PLR0913, PLR0917 - one option per ticket field
     name: Annotated[str, typer.Option("--name", "-n")],
     visitor_type: Annotated[str, typer.Option("--type", "-t")],
     valid_from: Annotated[str, typer.Option("--from", "-f")],
@@ -505,20 +510,59 @@ def ticket_create(
     usage: Annotated[UsageType, typer.Option("--usage")],
     actor: Actor,
     timezone: Annotated[str | None, typer.Option("--tz")] = None,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option(help="Repeat safely: the same key and options return the first ticket."),
+    ] = None,
 ) -> None:
     """Issue a ticket using ISO datetimes (naive inputs use --tz or TIQR_DEFAULT_TZ)."""
     with _session() as runtime:
         user = runtime.authenticate(actor)
         zone = timezone or runtime.settings.default_tz
-        ticket = runtime.service.create_ticket(
-            user,
-            visitor_name=name,
-            visitor_type=visitor_type,
-            valid_from=parse_input_datetime(valid_from, zone),
-            valid_until=parse_input_datetime(valid_until, zone),
-            usage_type=usage,
-        )
+        definition: dict[str, object] = {
+            "visitor_name": name,
+            "visitor_type": visitor_type,
+            "valid_from": valid_from,
+            "valid_until": valid_until,
+            "usage_type": usage.value,
+            "timezone": zone,
+        }
+        ticket = _create_once(runtime, user, definition, idempotency_key)[0]
         _json(runtime.ticket_data(ticket))
+
+
+def _create_once(
+    runtime: _Runtime, user: User, definition: dict[str, object], key: str | None
+) -> tuple[Ticket, bool]:
+    """Create a ticket, or return the one this key made; the bool says it was a replay.
+
+    The same key with another definition is refused, as the API does with a 409.
+    """
+    service = runtime.service
+
+    def create() -> Ticket:
+        zone = str(definition["timezone"])
+        return service.create_ticket(
+            user,
+            visitor_name=str(definition["visitor_name"]),
+            visitor_type=str(definition["visitor_type"]),
+            valid_from=parse_input_datetime(str(definition["valid_from"]), zone),
+            valid_until=parse_input_datetime(str(definition["valid_until"]), zone),
+            usage_type=UsageType(definition["usage_type"]),
+        )
+
+    if key is None:
+        return create(), False
+    scoped = f"cli:{user.id}:{key}"
+    digest = hashlib.sha256(json.dumps(definition, sort_keys=True).encode()).hexdigest()
+    with service.idempotency_lock:
+        stored = service.idempotency_lookup(scoped, digest)
+        if stored is not None:
+            return service.get_ticket(user, UUID(json.loads(stored.body)["id"])), True
+        ticket = create()
+        ttl = timedelta(hours=int(os.environ.get("TIQR_IDEMPOTENCY_TTL_HOURS", "24")))
+        service.idempotency_store(scoped, digest, 201, json.dumps({"id": str(ticket.id)}), ttl)
+        return ticket, False
 
 
 @ticket_app.command("list")
@@ -581,6 +625,243 @@ def ticket_assign(
     with _session() as runtime:
         ticket = runtime.service.assign_ticket(runtime.authenticate(actor), ticket_id, operator)
         _json(runtime.ticket_data(ticket))
+
+
+@ticket_app.command("revoke")
+def ticket_revoke(
+    ticket_id: Annotated[UUID, typer.Argument()],
+    actor: Actor,
+    reason: Annotated[str | None, typer.Option(help="Kept in the audit log.")] = None,
+) -> None:
+    """Cancel a ticket and remove its BioStar access; revoking a revoked ticket changes nothing."""
+    with _session() as runtime:
+        ticket = runtime.service.revoke_ticket(runtime.authenticate(actor), ticket_id, reason)
+        _json(runtime.ticket_data(ticket))
+
+
+@ticket_app.command("update")
+def ticket_update(
+    ticket_id: Annotated[UUID, typer.Argument()],
+    actor: Actor,
+    valid_from: Annotated[str | None, typer.Option("--from", "-f")] = None,
+    valid_until: Annotated[str | None, typer.Option("--until", "-u")] = None,
+    timezone: Annotated[str | None, typer.Option("--tz")] = None,
+) -> None:
+    """Change the validity window, in BioStar too; the end must be after the start."""
+    with _session() as runtime:
+        user = runtime.authenticate(actor)
+        zone = timezone or runtime.settings.default_tz
+        ticket = runtime.service.update_validity(
+            user,
+            ticket_id,
+            valid_from=parse_input_datetime(valid_from, zone) if valid_from else None,
+            valid_until=parse_input_datetime(valid_until, zone) if valid_until else None,
+        )
+        _json(runtime.ticket_data(ticket))
+
+
+@ticket_app.command("reissue")
+def ticket_reissue(
+    ticket_id: Annotated[UUID, typer.Argument()],
+    actor: Actor,
+    valid_from: Annotated[str | None, typer.Option("--from", "-f")] = None,
+    valid_until: Annotated[str | None, typer.Option("--until", "-u")] = None,
+    timezone: Annotated[str | None, typer.Option("--tz")] = None,
+) -> None:
+    """Reissue a ticket in any state, as the same ticket; this is also how it is edited."""
+    with _session() as runtime:
+        user = runtime.authenticate(actor)
+        zone = timezone or runtime.settings.default_tz
+        ticket = runtime.service.reissue_ticket(
+            user,
+            ticket_id,
+            valid_from=parse_input_datetime(valid_from, zone) if valid_from else None,
+            valid_until=parse_input_datetime(valid_until, zone) if valid_until else None,
+        )
+        _json(runtime.ticket_data(ticket))
+
+
+@ticket_app.command("audit")
+def ticket_audit(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> None:
+    """Show every recorded change to a ticket, oldest first (admins and managers)."""
+    with _session() as runtime:
+        user = runtime.authenticate(actor)
+        runtime.service.get_ticket(user, ticket_id)
+        _json(
+            [
+                {
+                    "occurred_at": entry.occurred_at.isoformat(),
+                    "actor": entry.actor,
+                    "action": entry.action,
+                    "reason": entry.reason,
+                    "detail": entry.detail,
+                }
+                for entry in runtime.service.audit_trail(user, ticket_id)
+            ]
+        )
+
+
+@ticket_app.command("batch")
+def ticket_batch(
+    file: Annotated[
+        Path,
+        typer.Argument(
+            help="JSON list of tickets: visitor_name, visitor_type, valid_from, valid_until, "
+            "usage_type, and optionally timezone, idempotency_key."
+        ),
+    ],
+    actor: Actor,
+    *,
+    atomic: Annotated[
+        bool, typer.Option("--atomic", help="All or nothing: undo the created ones on a failure.")
+    ] = False,
+    idempotency_key: Annotated[
+        str | None, typer.Option(help="Item keys without their own become this plus :index.")
+    ] = None,
+) -> None:
+    """Create many tickets with a result for each; exits 1 if any item failed."""
+    with _errors():
+        items: list[dict[str, object]] = json.loads(file.read_text(encoding="utf-8"))
+        if not items:
+            raise ValueError("The file must hold a non-empty JSON list of tickets")
+        limit = int(os.environ.get("TIQR_BATCH_MAX_SIZE", "100"))
+        if len(items) > limit:
+            raise ValueError(f"A batch carries at most {limit} tickets")
+    with _session() as runtime:
+        user = runtime.authenticate(actor)
+        results = _run_batch(runtime, user, items, idempotency_key, atomic=atomic)
+        _json(
+            {
+                "atomic": atomic,
+                "committed": not (atomic and any(r["status"] == "error" for r in results)),
+                "results": results,
+            }
+        )
+    if any(result["status"] in {"error", "rolled_back"} for result in results):
+        raise typer.Exit(1)
+
+
+def _run_batch(
+    runtime: _Runtime,
+    user: User,
+    items: list[dict[str, object]],
+    header_key: str | None,
+    *,
+    atomic: bool,
+) -> list[dict[str, object]]:
+    results: list[dict[str, object]] = []
+    created: list[int] = []
+    failed = False
+    seen: set[str] = set()
+    for index, item in enumerate(items):
+        if failed:
+            results.append({"index": index, "status": "skipped"})
+            continue
+        try:
+            own = item.get("idempotency_key")
+            key = str(own) if own else (f"{header_key}:{index}" if header_key else None)
+            if key is not None and key in seen:
+                raise IdempotencyConflictError("Idempotency key repeated within the batch")  # noqa: TRY301
+            definition = {k: v for k, v in item.items() if k != "idempotency_key"}
+            definition.setdefault("timezone", runtime.settings.default_tz)
+            definition.setdefault("usage_type", UsageType.ONE_TIME.value)
+            ticket, replayed = _create_once(runtime, user, definition, key)
+        except Exception as exc:  # noqa: BLE001 - becomes this item's result
+            results.append({"index": index, "status": "error", "error": _describe(exc)})
+            failed = atomic
+            continue
+        if key is not None:
+            seen.add(str(key))
+        if not replayed:
+            created.append(index)
+        results.append(
+            {
+                "index": index,
+                "status": "replayed" if replayed else "created",
+                "ticket": runtime.ticket_data(ticket),
+            }
+        )
+    if atomic and failed:
+        for index in created:
+            ticket_id = UUID(str(results[index]["ticket"]["id"]))  # type: ignore[index]
+            try:
+                runtime.service.revoke_ticket(user, ticket_id, "Batch undone: an item failed")
+                results[index] = {"index": index, "status": "rolled_back", "ticket_id": ticket_id}
+            except Exception as exc:  # noqa: BLE001 - reported on the item
+                results[index] = {
+                    "index": index,
+                    "status": "error",
+                    "error": f"Rollback failed: {_describe(exc)}",
+                }
+    return results
+
+
+def _key_data(key: ApiKey) -> dict[str, object]:
+    return {
+        "id": key.id,
+        "name": key.name,
+        "scopes": list(key.scopes),
+        "acts_as": key.user_id,
+        "created_at": key.created_at.isoformat(),
+        "expires_at": key.expires_at.isoformat() if key.expires_at else None,
+        "revoked_at": key.revoked_at.isoformat() if key.revoked_at else None,
+        "replaced_by": key.replaced_by,
+    }
+
+
+@key_app.command("create")
+def key_create(
+    name: Annotated[str, typer.Argument()],
+    actor: Actor,
+    scope: Annotated[
+        list[str], typer.Option("--scope", help=f"One or more of: {', '.join(sorted(SCOPES))}.")
+    ],
+    acts_as: Annotated[str | None, typer.Option(help="Account it acts as; default you.")] = None,
+    expires_at: Annotated[
+        datetime | None, typer.Option(formats=["%Y-%m-%d"], help="Last day; default never.")
+    ] = None,
+) -> None:
+    """Issue a service API key (admin). The secret is shown once; only its hash is kept."""
+    with _session() as runtime:
+        user = runtime.authenticate(actor)
+        key, secret = runtime.service.create_api_key(
+            user,
+            name,
+            scope,
+            acts_as=acts_as,
+            expires_at=expires_at.replace(tzinfo=UTC) if expires_at else None,
+        )
+        _json(_key_data(key) | {"secret": secret})
+
+
+@key_app.command("list")
+def key_list(actor: Actor) -> None:
+    """List service keys, without secrets (admin)."""
+    with _session() as runtime:
+        _json(
+            [_key_data(key) for key in runtime.service.list_api_keys(runtime.authenticate(actor))]
+        )
+
+
+@key_app.command("rotate")
+def key_rotate(
+    key_id: Annotated[UUID, typer.Argument()],
+    actor: Actor,
+    grace_minutes: Annotated[int, typer.Option(min=0, max=10080)] = 60,
+) -> None:
+    """Issue a successor key; the old one keeps working for the grace period."""
+    with _session() as runtime:
+        key, secret = runtime.service.rotate_api_key(
+            runtime.authenticate(actor), key_id, timedelta(minutes=grace_minutes)
+        )
+        _json(_key_data(key) | {"secret": secret})
+
+
+@key_app.command("revoke")
+def key_revoke(key_id: Annotated[UUID, typer.Argument()], actor: Actor) -> None:
+    """End a key at once; revoking a revoked key changes nothing."""
+    with _session() as runtime:
+        _json(_key_data(runtime.service.revoke_api_key(runtime.authenticate(actor), key_id)))
 
 
 @app.command()

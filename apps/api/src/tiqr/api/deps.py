@@ -120,7 +120,6 @@ def scoped(scope: str, *more: str) -> Callable[..., Caller]:
 READER = Annotated[Caller, Depends(scoped(SCOPE_READ))]
 WRITER = Annotated[Caller, Depends(scoped(SCOPE_WRITE))]
 REVOKER = Annotated[Caller, Depends(scoped(SCOPE_REVOKE))]
-REISSUER = Annotated[Caller, Depends(scoped(SCOPE_WRITE, SCOPE_REVOKE))]
 IdempotencyKey = Annotated[
     str | None,
     Header(

@@ -116,7 +116,13 @@ def _can_view(actor: User, ticket: Ticket) -> bool:
 
 
 def _matches(ticket: Ticket, needle: str) -> bool:
-    fields = (ticket.readable_serial, ticket.visitor_name, ticket.visitor_type, ticket.ticket_type)
+    fields = (
+        ticket.readable_serial,
+        ticket.visitor_name,
+        ticket.visitor_type,
+        ticket.ticket_type,
+        ticket.external_code,
+    )
     return any(needle in (field or "").casefold() for field in fields)
 
 
@@ -878,16 +884,14 @@ class TicketService:
         valid_from: datetime | None = None,
         valid_until: datetime | None = None,
         event_session: str | _Unset | None = _UNSET,
-        reason: str | None = None,
     ) -> Ticket:
         actor, _ = self._staff_ticket(actor, ticket_id)
-        reason = _clean_reason(reason)
         try:
             return self._amend_stored(
-                actor, ticket_id, action, valid_from, valid_until, event_session, reason
+                actor, ticket_id, action, valid_from, valid_until, event_session
             )
         except Exception as exc:
-            self._failed(actor, action, ticket_id, exc, reason)
+            self._failed(actor, action, ticket_id, exc, None)
             raise
 
     def _amend_stored(
@@ -898,7 +902,6 @@ class TicketService:
         valid_from: datetime | None,
         valid_until: datetime | None,
         event_session: str | _Unset | None,
-        reason: str | None,
     ) -> Ticket:
         with self.repository.transaction():
             ticket = self._read_ticket(ticket_id)
@@ -934,7 +937,6 @@ class TicketService:
                     actor,
                     action,
                     updated,
-                    reason=reason,
                     detail=(
                         f"valid_from {ticket.valid_from.isoformat()} -> {start.isoformat()}; "
                         f"valid_until {ticket.valid_until.isoformat()} -> {end.isoformat()}; "
@@ -960,7 +962,6 @@ class TicketService:
         *,
         valid_from: datetime | None = None,
         valid_until: datetime | None = None,
-        reason: str | None = None,
     ) -> Ticket:
         """Move a ticket's validity window, in BioStar too. Admins and managers.
 
@@ -975,7 +976,6 @@ class TicketService:
             "ticket.update_validity",
             valid_from=valid_from,
             valid_until=valid_until,
-            reason=reason,
         )
 
     def transfer_ticket(
@@ -986,7 +986,6 @@ class TicketService:
         *,
         valid_from: datetime | None = None,
         valid_until: datetime | None = None,
-        reason: str | None = None,
     ) -> Ticket:
         """Move a ticket to another session or event, keeping its state, id and audit history.
 
@@ -1001,7 +1000,6 @@ class TicketService:
             valid_from=valid_from,
             valid_until=valid_until,
             event_session=event_session,
-            reason=reason,
         )
 
     def reissue_ticket(
@@ -1011,46 +1009,66 @@ class TicketService:
         *,
         valid_from: datetime | None = None,
         valid_until: datetime | None = None,
-        external_code: str | None = None,
-        reason: str | None = None,
-    ) -> tuple[Ticket, Ticket]:
-        """Replace a ticket: issue a copy, then revoke the old one. Returns `(old, new)`.
+    ) -> Ticket:
+        """Reissue a ticket in any state, as the same ticket; this is also how it is edited.
 
-        The copy comes first, so a refusal to create leaves the old ticket alone. If the revoke
-        then fails, the copy is revoked again (the compensation) and the error is raised; if
-        that also fails, the failure is noted on the error and the audit log. A revoked ticket
-        can be reissued, and is then not revoked twice. The copy takes `external_code` only
-        when given, since the old ticket keeps its own.
+        The ticket keeps its id, serial and QR code and returns to issued. The new window must
+        end in the future; BioStar is told of it and the account is enabled again. If BioStar
+        refuses, the ticket stays as it was.
         """
         actor, old = self._staff_ticket(actor, ticket_id)
-        reason = _clean_reason(reason)
-        new = self.create_ticket(
-            actor,
-            visitor_name=old.visitor_name,
-            visitor_type=old.visitor_type,
-            valid_from=valid_from or old.valid_from,
-            valid_until=valid_until or old.valid_until,
-            usage_type=old.usage_type,
-            ticket_type=old.ticket_type,
-            external_code=external_code,
-            event_session=old.event_session,
-        )
         try:
-            old = self.revoke_ticket(actor, old.id, reason or f"reissued as {new.readable_serial}")
+            return self._reissue_stored(actor, old.id, valid_from, valid_until)
         except Exception as exc:
-            try:
-                self.revoke_ticket(actor, new.id, "compensation: reissue failed")
-            except Exception as rollback_error:  # noqa: BLE001 - the original is re-raised
-                exc.add_note(f"Reissue compensation also failed: {rollback_error}")
+            self._failed(actor, "ticket.reissue", ticket_id, exc, None)
             raise
-        self._record(
-            actor,
-            "ticket.reissue",
-            old,
-            reason=reason,
-            detail=f"replaced by {new.id} ({new.readable_serial})",
-        )
-        return old, new
+
+    def _reissue_stored(
+        self,
+        actor: User,
+        ticket_id: UUID,
+        valid_from: datetime | None,
+        valid_until: datetime | None,
+    ) -> Ticket:
+        with self.repository.transaction():
+            ticket = self._read_ticket(ticket_id)
+            start = ticket.valid_from if valid_from is None else utc(valid_from)
+            end = ticket.valid_until if valid_until is None else utc(valid_until)
+            if end <= start:
+                raise ValueError("The end of the validity window must be after its start")
+            if start.microsecond or end.microsecond:
+                raise ValueError(
+                    "Access windows require whole-second precision for BioStar alignment"
+                )
+            if end < self._now():
+                raise ValueError("Access window is reversed or already expired")
+            updated = replace(ticket, state=TicketState.ISSUED, valid_from=start, valid_until=end)
+            if ticket.external_id:
+                self.registrar.set_window(ticket.external_id, start, end)
+                self.registrar.activate(ticket.external_id)
+            try:
+                self.repository.save_ticket(updated)
+                self._record(
+                    actor,
+                    "ticket.reissue",
+                    updated,
+                    detail=(
+                        f"state {ticket.state} -> {updated.state}; "
+                        f"valid_from {ticket.valid_from.isoformat()} -> {start.isoformat()}; "
+                        f"valid_until {ticket.valid_until.isoformat()} -> {end.isoformat()}"
+                    ),
+                )
+            except Exception as exc:
+                if ticket.external_id:
+                    try:
+                        self.registrar.deactivate(ticket.external_id)
+                        self.registrar.set_window(
+                            ticket.external_id, ticket.valid_from, ticket.valid_until
+                        )
+                    except Exception as rollback_error:  # noqa: BLE001 - the original is re-raised
+                        exc.add_note(f"BioStar reissue rollback also failed: {rollback_error}")
+                raise
+            return updated
 
     def idempotency_lookup(self, key: str, fingerprint: str) -> StoredResponse | None:
         """The saved answer for `key` if one is live; a different payload under it is a conflict."""

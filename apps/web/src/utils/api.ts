@@ -286,6 +286,26 @@ const assignTicket = (
 ): Promise<ApiResult<Ticket>> =>
   request(`/tickets/${id}/assign`, ticketSchema, write('POST', csrfToken, input));
 
+// Cancels the ticket and its BioStar access; revoking a revoked ticket returns it unchanged
+const revokeTicket = (csrfToken: string, id: string, reason?: string): Promise<ApiResult<Ticket>> =>
+  request(`/tickets/${id}/revoke`, ticketSchema, write('POST', csrfToken, { reason }));
+
+// Either end may be left out; the end must be after the start
+const updateTicketWindow = (
+  csrfToken: string,
+  id: string,
+  patch: { valid_from?: string; valid_until?: string }
+): Promise<ApiResult<Ticket>> =>
+  request(`/tickets/${id}`, ticketSchema, write('PATCH', csrfToken, patch));
+
+// Brings an expired or revoked ticket back to issued; it keeps its id and serial
+const reissueTicket = (
+  csrfToken: string,
+  id: string,
+  window: { valid_from?: string; valid_until?: string }
+): Promise<ApiResult<Ticket>> =>
+  request(`/tickets/${id}/reissue`, ticketSchema, write('POST', csrfToken, window));
+
 // A POST, since every render counts as a print
 const renderTicketPdf = async (csrfToken: string, id: string): Promise<ApiResult<Blob>> => {
   const result = await send(`/tickets/${id}/pdf`, {
@@ -352,10 +372,13 @@ export {
   login,
   logout,
   printTicket,
+  reissueTicket,
   renderTicketPdf,
+  revokeTicket,
   runCleanup,
   runSync,
   updateTicketType,
+  updateTicketWindow,
   updateUser,
   updateVisitorType,
 };

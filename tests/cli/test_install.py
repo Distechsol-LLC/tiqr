@@ -301,7 +301,7 @@ def test_linux_service_chowns_only_the_data_folder(tmp_path, monkeypatch):
 
 def test_restore_gives_root_written_data_back_only_with_a_service(tmp_path, monkeypatch):
     monkeypatch.setattr(installer.sys, "platform", "linux")
-    monkeypatch.setattr(installer.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(installer.os, "geteuid", lambda: 0, raising=False)
     data = tmp_path / "var"
     data.mkdir()
     (data / "tiqr.db-wal").write_bytes(b"")

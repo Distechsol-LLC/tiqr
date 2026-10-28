@@ -156,7 +156,7 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 | PATCH | `/tickets/{ticket_id}` | session + CSRF, or key `tickets:write` | Move `valid_from` / `valid_until` (end after start), synced to BioStar. Issued, or passed and multi-use, tickets only; otherwise `409`. |
 | POST | `/tickets/{ticket_id}/revoke` | session + CSRF, or key `tickets:revoke` | Cancel a ticket (`{"reason"}` optional, audited) and disable its BioStar user. Idempotent: a revoked ticket is returned as is. Expired is `409`; a BioStar failure is `502` and changes nothing. |
 | POST | `/tickets/{ticket_id}/transfer` | session + CSRF, or key `tickets:write` | Move to another `event_session` (and optionally a new window), keeping id, state and audit history. |
-| POST | `/tickets/{ticket_id}/reissue` | session + CSRF, or key with `tickets:write` and `tickets:revoke` | Issue a copy, then revoke the old one; if the revoke fails the copy is revoked again. Returns `{old, new}`. |
+| POST | `/tickets/{ticket_id}/reissue` | session + CSRF, or key `tickets:write` | Reissue a ticket in any state as the same ticket, back to issued; the window may move. This is also how a ticket is edited. Returns the ticket. |
 | POST | `/tickets/batch` | session + CSRF, or key `tickets:write` | `{items, atomic}`: per-item `created` / `replayed` / `error` / `rolled_back` / `skipped`. |
 | GET | `/tickets/{ticket_id}/audit` | session, or key `tickets:read` | The ticket's audit trail (admins and managers). |
 | POST, GET | `/service-keys` | admin session + CSRF | Issue (secret shown once) and list API keys. |

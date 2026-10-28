@@ -8,7 +8,7 @@ const NAME_MAX = 200;
 // Same bound as _Discount in apps/api/src/tiqr/api/schemas.py
 const DISCOUNT_MAX = 100;
 
-const ticketStateSchema = z.enum(['issued', 'passed', 'expired']);
+const ticketStateSchema = z.enum(['issued', 'passed', 'expired', 'revoked']);
 const usageTypeSchema = z.enum(['one_time', 'multi_use']);
 
 const offsetDatetime = z.iso.datetime({ offset: true });
@@ -78,11 +78,30 @@ const assignInputSchema = z.object({
   assignee: z.string().min(1, { error: () => i18n.t.errors.assigneeRequired }),
 });
 
+// What the edit dialog sends: a new window; the API wants the end after the start
+const editInputSchema = z
+  .object({
+    valid_from: z.string().min(1, { error: () => i18n.t.errors.validFromRequired }),
+    valid_until: z.string().min(1, { error: () => i18n.t.errors.validUntilRequired }),
+  })
+  .refine((input) => input.valid_until > input.valid_from, {
+    error: () => i18n.t.errors.validUntilBefore,
+    path: ['valid_until'],
+  });
+
+type EditInput = z.infer<typeof editInputSchema>;
 type AssignInput = z.infer<typeof assignInputSchema>;
 type Ticket = z.infer<typeof ticketSchema>;
 type TicketInput = z.infer<typeof ticketInputSchema>;
 type TicketState = z.infer<typeof ticketStateSchema>;
 type UsageType = z.infer<typeof usageTypeSchema>;
 
-export type { AssignInput, Ticket, TicketInput, TicketState, UsageType };
-export { assignInputSchema, ticketInputSchema, ticketSchema, ticketStateSchema, usageTypeSchema };
+export type { AssignInput, EditInput, Ticket, TicketInput, TicketState, UsageType };
+export {
+  assignInputSchema,
+  editInputSchema,
+  ticketInputSchema,
+  ticketSchema,
+  ticketStateSchema,
+  usageTypeSchema,
+};

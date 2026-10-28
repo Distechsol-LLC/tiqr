@@ -17,6 +17,11 @@ class FlakyRegistrar(InMemoryRegistrar):
             raise BioStarError("deactivate refused")
         super().deactivate(external_id)
 
+    def activate(self, external_id):
+        if "activate" in self.failing:
+            raise BioStarError("activate refused")
+        super().activate(external_id)
+
     def set_window(self, external_id, start, end):
         if "set_window" in self.failing:
             raise BioStarError("set_window refused")
@@ -300,35 +305,35 @@ def test_browser_writes_still_need_the_csrf_token(client):
     assert client.post("/api/tickets", json=ticket_body()).status_code == 403
 
 
-def test_reissue_replaces_the_ticket_and_replays_on_retry(admin, registrar):
-    old = create_ticket(admin, external_code="OLD")
-    headers = {"Idempotency-Key": "re-1"}
-    body = {"external_code": "NEW", "reason": "damaged"}
-    first = admin.post(f"/api/tickets/{old['id']}/reissue", json=body, headers=headers)
-    assert first.status_code == 201
-    assert first.json()["old"]["state"] == "revoked"
-    assert first.json()["new"]["state"] == "issued"
-    again = admin.post(f"/api/tickets/{old['id']}/reissue", json=body, headers=headers)
-    assert again.json() == first.json()
-    assert admin.get("/api/tickets").json()["total"] == 2
-
-
-def test_reissue_with_a_biostar_failure_leaves_the_visitor_with_the_old_ticket(admin, registrar):
+def test_reissue_brings_the_same_ticket_back_and_replays_on_retry(admin, registrar):
     old = create_ticket(admin)
-    registrar.failing.add("deactivate")
+    headers = {"Idempotency-Key": "re-1"}
+    viable = admin.post(f"/api/tickets/{old['id']}/reissue", json={})
+    assert viable.status_code == 200
+    assert admin.post(f"/api/tickets/{old['id']}/revoke").status_code == 200
+    first = admin.post(f"/api/tickets/{old['id']}/reissue", json={}, headers=headers)
+    assert first.status_code == 200
+    assert (first.json()["id"], first.json()["state"]) == (old["id"], "issued")
+    again = admin.post(f"/api/tickets/{old['id']}/reissue", json={}, headers=headers)
+    assert again.json() == first.json()
+    assert admin.get("/api/tickets").json()["total"] == 1
+
+
+def test_reissue_with_a_biostar_failure_leaves_the_ticket_revoked(admin, registrar):
+    old = create_ticket(admin)
+    admin.post(f"/api/tickets/{old['id']}/revoke")
+    registrar.failing.add("activate")
     response = admin.post(f"/api/tickets/{old['id']}/reissue", json={})
     assert response.status_code == 502
     registrar.failing.clear()
-    states = [t["state"] for t in admin.get("/api/tickets").json()["items"]]
-    assert states.count("revoked") == 0
-    assert len(states) == 2
+    assert admin.get(f"/api/tickets/{old['id']}").json()["state"] == "revoked"
 
 
 def test_transfer_moves_the_ticket_to_another_session(admin):
     ticket = create_ticket(admin, event_session="Evening")
     response = admin.post(
         f"/api/tickets/{ticket['id']}/transfer",
-        json={"event_session": "Matinee", "valid_until": "2026-09-17T16:00", "reason": "moved"},
+        json={"event_session": "Matinee", "valid_until": "2026-09-17T16:00"},
     )
     assert response.status_code == 200
     moved = response.json()

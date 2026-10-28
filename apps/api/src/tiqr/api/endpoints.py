@@ -23,7 +23,6 @@ from pydantic import BaseModel
 from tiqr.api import __version__
 from tiqr.api.deps import (
     READER,
-    REISSUER,
     REVOKER,
     WRITER,
     AppState,
@@ -52,7 +51,6 @@ from tiqr.api.schemas import (
     LicenseStatusOut,
     LoginIn,
     ReissueIn,
-    ReissueOut,
     RequestCodeOut,
     RevokeIn,
     ServiceKeyCreated,
@@ -661,7 +659,6 @@ def patch_ticket(ticket_id: UUID, body: TicketPatch, me: WRITER, server: Server)
             ticket_id,
             valid_from=_when(body.valid_from, timezone),
             valid_until=_when(body.valid_until, timezone),
-            reason=body.reason,
         )
     return _ticket(server, ticket)
 
@@ -699,7 +696,6 @@ def transfer_ticket(ticket_id: UUID, body: TransferIn, me: WRITER, server: Serve
             body.event_session,
             valid_from=_when(body.valid_from, timezone),
             valid_until=_when(body.valid_until, timezone),
-            reason=body.reason,
         )
     return _ticket(server, ticket)
 
@@ -707,33 +703,30 @@ def transfer_ticket(ticket_id: UUID, body: TransferIn, me: WRITER, server: Serve
 @router.post(
     "/tickets/{ticket_id}/reissue",
     tags=["tickets"],
-    status_code=201,
     responses=_refusals(401, 403, 404, 409, 422, 502),
 )
 def reissue_ticket(
     ticket_id: UUID,
     body: ReissueIn,
-    me: REISSUER,
+    me: WRITER,
     server: Server,
     idempotency_key: IdempotencyKey = None,
-) -> ReissueOut:
-    """Revoke a ticket and issue its replacement, undoing the new one if the revoke fails.
+) -> TicketOut:
+    """Reissue a ticket in any state, as the same ticket; this is also how it is edited.
 
-    Needs both the write and revoke scopes. A revoked ticket can be reissued. Send an
-    `Idempotency-Key` so a retry does not issue a second replacement.
+    The ticket returns to issued. The window may be moved; it must end in the future. Send an
+    `Idempotency-Key` so a retry is answered from the first attempt.
     """
     timezone = body.timezone or server.timezone
 
     def produce() -> tuple[int, BaseModel]:
-        old, new = server.service.reissue_ticket(
+        ticket = server.service.reissue_ticket(
             me.user,
             ticket_id,
             valid_from=_when(body.valid_from, timezone),
             valid_until=_when(body.valid_until, timezone),
-            external_code=body.external_code,
-            reason=body.reason,
         )
-        return 201, ReissueOut(old=_ticket(server, old), new=_ticket(server, new))
+        return 200, _ticket(server, ticket)
 
     with server.service.idempotency_lock, server.service.attributed(me.label):
         done = _keyed(

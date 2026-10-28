@@ -112,16 +112,12 @@ class TicketPatch(_Request):
     """Move the validity window; either end may be left out. The end must be after the start."""
 
     model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={
-            "examples": [{"valid_until": "2030-06-01T18:00", "reason": "Show overran"}]
-        },
+        extra="forbid", json_schema_extra={"examples": [{"valid_until": "2030-06-01T18:00"}]}
     )
 
     valid_from: _LocalDatetime | None = None
     valid_until: _LocalDatetime | None = None
     timezone: _Timezone = None
-    reason: _Reason = None
 
 
 class RevokeIn(_Request):
@@ -138,13 +134,7 @@ class TransferIn(_Request):
     model_config = ConfigDict(
         extra="forbid",
         json_schema_extra={
-            "examples": [
-                {
-                    "event_session": "Matinee",
-                    "valid_until": "2030-06-01T16:00",
-                    "reason": "Rebooked",
-                }
-            ]
+            "examples": [{"event_session": "Matinee", "valid_until": "2030-06-01T16:00"}]
         },
     )
 
@@ -152,22 +142,18 @@ class TransferIn(_Request):
     valid_from: _LocalDatetime | None = None
     valid_until: _LocalDatetime | None = None
     timezone: _Timezone = None
-    reason: _Reason = None
 
 
 class ReissueIn(_Request):
-    """Replace a ticket with a copy; give a new window or code, or keep the old ones."""
+    """Reissue a ticket in any state; give a new window, or keep the old one."""
 
     model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={"examples": [{"external_code": "BAR-0002", "reason": "Damaged badge"}]},
+        extra="forbid", json_schema_extra={"examples": [{"valid_until": "2030-06-01T18:00"}]}
     )
 
     valid_from: _LocalDatetime | None = None
     valid_until: _LocalDatetime | None = None
-    external_code: _Code = None
     timezone: _Timezone = None
-    reason: _Reason = None
 
 
 class BatchItemIn(TicketIn):
@@ -390,11 +376,6 @@ class TicketOut(BaseModel):
             external_code=ticket.external_code,
             event_session=ticket.event_session,
         )
-
-
-class ReissueOut(BaseModel):
-    old: TicketOut
-    new: TicketOut
 
 
 class BatchItemOut(BaseModel):

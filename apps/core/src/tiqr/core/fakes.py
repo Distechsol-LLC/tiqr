@@ -26,6 +26,10 @@ class InMemoryRegistrar(Registrar):
         if external_id not in self.deactivated:
             self.deactivated.append(external_id)
 
+    def activate(self, external_id: str) -> None:
+        if external_id in self.deactivated:
+            self.deactivated.remove(external_id)
+
     def remove(self, external_id: str) -> None:
         if external_id not in self.removed:
             self.removed.append(external_id)

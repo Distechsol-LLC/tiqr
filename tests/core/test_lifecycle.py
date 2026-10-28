@@ -31,6 +31,10 @@ class FlakyRegistrar(InMemoryRegistrar):
         self._call("deactivate")
         super().deactivate(external_id)
 
+    def activate(self, external_id):
+        self._call("activate")
+        super().activate(external_id)
+
     def set_window(self, external_id, start, end):
         self._call("set_window")
         super().set_window(external_id, start, end)
@@ -124,12 +128,10 @@ def test_update_validity_moves_the_window_in_biostar_and_audits_it(
 ):
     ticket = make()
     new_end = END + timedelta(hours=1)
-    updated = service.update_validity(
-        accounts["manager"], ticket.id, valid_until=new_end, reason="show overran"
-    )
+    updated = service.update_validity(accounts["manager"], ticket.id, valid_until=new_end)
     assert (updated.valid_from, updated.valid_until) == (START, new_end)
     assert registrar.windows[ticket.external_id] == (START, new_end)
-    assert service.repository.list_audit(ticket.id)[-1].reason == "show overran"
+    assert service.repository.list_audit(ticket.id)[-1].action == "ticket.update_validity"
 
 
 def test_update_validity_refuses_a_reversed_window_and_a_closed_ticket(
@@ -212,7 +214,6 @@ def test_transfer_keeps_state_id_and_history(service, accounts, registrar, make)
         "Matinee",
         valid_from=START - timedelta(hours=1),
         valid_until=END - timedelta(hours=1),
-        reason="rebooked",
     )
     assert (moved.id, moved.state, moved.event_session) == (
         ticket.id,
@@ -230,54 +231,49 @@ def test_transfer_of_a_revoked_ticket_is_refused(service, accounts, make):
         service.transfer_ticket(accounts["manager"], ticket.id, "Other")
 
 
-def test_reissue_revokes_the_old_ticket_and_creates_the_new_one(service, accounts, registrar, make):
-    old = make(external_code="OLD", event_session="Evening")
-    _, new = service.reissue_ticket(accounts["manager"], old.id, external_code="NEW", reason="x")
-    assert service.get_ticket(accounts["manager"], old.id).state == TicketState.REVOKED
-    assert (new.state, new.external_code, new.event_session) == (
+def test_reissue_brings_the_same_revoked_ticket_back(service, accounts, registrar, make):
+    ticket = make()
+    service.revoke_ticket(accounts["manager"], ticket.id, "lost")
+    assert ticket.external_id in registrar.deactivated
+    again = service.reissue_ticket(accounts["manager"], ticket.id)
+    assert (again.id, again.state, again.readable_serial) == (
+        ticket.id,
         TicketState.ISSUED,
-        "NEW",
-        "Evening",
+        ticket.readable_serial,
     )
-    assert new.id != old.id
-    assert "ticket.reissue" in actions(service, old)
+    assert ticket.external_id not in registrar.deactivated
+    assert len(service.list_tickets(accounts["manager"])) == 1
+    assert actions(service, ticket) == ["ticket.create", "ticket.revoke", "ticket.reissue"]
 
 
-def test_a_failed_revoke_during_reissue_undoes_the_new_ticket(service, accounts, registrar, make):
-    old = make()
-    registrar.failing.add("deactivate")
-    with pytest.raises(BioStarError) as raised:
-        service.reissue_ticket(accounts["manager"], old.id)
-    # The compensation also needed BioStar, so the failure is noted and nothing is lost.
-    assert any("compensation also failed" in note for note in raised.value.__notes__)
-    tickets = service.list_tickets(accounts["manager"])
-    assert len(tickets) == 2
-    assert {ticket.state for ticket in tickets} == {TicketState.ISSUED}
-    registrar.failing.clear()
-    # Reissuing again after BioStar recovers leaves exactly one live ticket for the visitor.
-    service.revoke_ticket(accounts["manager"], tickets[0].id)
-    service.revoke_ticket(accounts["manager"], tickets[1].id)
-
-
-def test_a_failed_revoke_during_reissue_revokes_the_copy_when_biostar_recovers_midway(
-    service, accounts, registrar, make, monkeypatch
+def test_reissue_of_an_expired_ticket_needs_a_future_window(
+    service, accounts, clock, registrar, make
 ):
-    old = make()
-    real = service.revoke_ticket
-    calls = []
+    ticket = make()
+    clock.now = END + timedelta(minutes=1)
+    with pytest.raises(ValueError, match="already expired"):
+        service.reissue_ticket(accounts["manager"], ticket.id)
+    new_end = END + timedelta(days=1)
+    again = service.reissue_ticket(accounts["manager"], ticket.id, valid_until=new_end)
+    assert (again.state, again.valid_until) == (TicketState.ISSUED, new_end)
+    assert registrar.windows[ticket.external_id] == (START, new_end)
 
-    def revoke(actor, ticket_id, reason=None):
-        calls.append(ticket_id)
-        if len(calls) == 1:
-            raise BioStarError("first revoke refused")
-        return real(actor, ticket_id, reason)
 
-    monkeypatch.setattr(service, "revoke_ticket", revoke)
-    with pytest.raises(BioStarError, match="first revoke refused"):
-        service.reissue_ticket(accounts["manager"], old.id)
-    states = {t.id: t.state for t in service.list_tickets(accounts["manager"])}
-    assert states[old.id] == TicketState.ISSUED
-    assert [s for i, s in states.items() if i != old.id] == [TicketState.REVOKED]
+def test_a_viable_ticket_can_be_reissued_with_a_new_window(service, accounts, registrar, make):
+    ticket = make()
+    new_end = END + timedelta(days=1)
+    again = service.reissue_ticket(accounts["manager"], ticket.id, valid_until=new_end)
+    assert (again.id, again.state, again.valid_until) == (ticket.id, TicketState.ISSUED, new_end)
+    assert registrar.windows[ticket.external_id] == (START, new_end)
+
+
+def test_a_failed_biostar_reissue_leaves_the_ticket_revoked(service, accounts, registrar, make):
+    ticket = make()
+    service.revoke_ticket(accounts["manager"], ticket.id)
+    registrar.failing.add("activate")
+    with pytest.raises(BioStarError):
+        service.reissue_ticket(accounts["manager"], ticket.id)
+    assert service.get_ticket(accounts["manager"], ticket.id).state == TicketState.REVOKED
 
 
 def test_api_keys_authenticate_rotate_and_revoke(service, accounts, clock):

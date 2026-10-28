@@ -2562,7 +2562,7 @@
           "tickets"
         ],
         "summary": "Reissue Ticket",
-        "description": "Revoke a ticket and issue its replacement, undoing the new one if the revoke fails.\n\nNeeds both the write and revoke scopes. A revoked ticket can be reissued. Send an\n`Idempotency-Key` so a retry does not issue a second replacement.",
+        "description": "Reissue a ticket in any state, as the same ticket; this is also how it is edited.\n\nThe ticket returns to issued. The window may be moved; it must end in the future. Send an\n`Idempotency-Key` so a retry is answered from the first attempt.",
         "operationId": "reissue_ticket",
         "parameters": [
           {
@@ -2606,12 +2606,12 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReissueOut"
+                  "$ref": "#/components/schemas/TicketOut"
                 }
               }
             }
@@ -4479,19 +4479,6 @@
             ],
             "title": "Valid Until"
           },
-          "external_code": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 128
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "External Code",
-            "description": "Your own ticket code or barcode value; unique per tenant"
-          },
           "timezone": {
             "anyOf": [
               {
@@ -4504,47 +4491,17 @@
             ],
             "title": "Timezone",
             "description": "IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason",
-            "description": "Why; stored in the audit log"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "ReissueIn",
-        "description": "Replace a ticket with a copy; give a new window or code, or keep the old ones.",
+        "description": "Reissue a ticket in any state; give a new window, or keep the old one.",
         "examples": [
           {
-            "external_code": "BAR-0002",
-            "reason": "Damaged badge"
+            "valid_until": "2030-06-01T18:00"
           }
         ]
-      },
-      "ReissueOut": {
-        "properties": {
-          "old": {
-            "$ref": "#/components/schemas/TicketOut"
-          },
-          "new": {
-            "$ref": "#/components/schemas/TicketOut"
-          }
-        },
-        "type": "object",
-        "required": [
-          "old",
-          "new"
-        ],
-        "title": "ReissueOut"
       },
       "RequestCodeOut": {
         "properties": {
@@ -5277,19 +5234,6 @@
             ],
             "title": "Timezone",
             "description": "IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason",
-            "description": "Why; stored in the audit log"
           }
         },
         "additionalProperties": false,
@@ -5298,7 +5242,6 @@
         "description": "Move the validity window; either end may be left out. The end must be after the start.",
         "examples": [
           {
-            "reason": "Show overran",
             "valid_until": "2030-06-01T18:00"
           }
         ]
@@ -5503,19 +5446,6 @@
             ],
             "title": "Timezone",
             "description": "IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason",
-            "description": "Why; stored in the audit log"
           }
         },
         "additionalProperties": false,
@@ -5528,7 +5458,6 @@
         "examples": [
           {
             "event_session": "Matinee",
-            "reason": "Rebooked",
             "valid_until": "2030-06-01T16:00"
           }
         ]
