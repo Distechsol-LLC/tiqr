@@ -8,7 +8,8 @@ const HANDLE_SELECTOR = 'span[data-resize-handle]';
 
 // Columns move as others are dragged, so each handle is put back on its cell's right edge
 const placeHandles = (table: HTMLTableElement): void => {
-  for (const cell of table.tHead?.rows[0]?.cells ?? []) {
+  const cells = table.tHead?.rows[0]?.cells ?? [];
+  for (const cell of cells) {
     const handle = cell.querySelector<HTMLElement>(HANDLE_SELECTOR);
     if (!handle) {
       continue;
@@ -20,7 +21,8 @@ const placeHandles = (table: HTMLTableElement): void => {
 };
 
 const addHandles = (table: HTMLTableElement): void => {
-  for (const cell of table.tHead?.rows[0]?.cells ?? []) {
+  const cells = table.tHead?.rows[0]?.cells ?? [];
+  for (const cell of cells) {
     // The actions column is sized to its buttons, so it can't be dragged
     if (cell.hasAttribute('data-fixed') || cell.querySelector(HANDLE_SELECTOR)) {
       continue;

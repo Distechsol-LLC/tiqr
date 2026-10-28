@@ -15,6 +15,10 @@
 - [Errors](#errors)
 - [Endpoints](#endpoints)
 - [Roles](#roles)
+- [Example](#example)
+- [OpenAPI](#openapi)
+- [Postman and HTTP client](#postman-and-http-client)
+- [Database](#database)
 - [Develop](#develop)
 
 ## Install
@@ -25,22 +29,28 @@ uv sync --locked
 
 ## Configuration
 
-`tiqr serve` reads the `TIQR_*` variables from the environment and from `.env` / `.env.local` in the project root. Blank means unset. Command-line flags override the matching variables.
+`tiqr serve` reads `tiqr_brand.jsonc` from the project root, then `.env` and `.env.local` (later files override earlier ones), then the real environment. The brand file is required: the server refuses to start without it. Blank means unset. Command-line flags override the matching variables.
+
+`tiqr_brand.jsonc` (comments allowed) holds the branding and the non-secret settings. Its `host`, `port`, `tls_cert`, `tls_key`, `server_printing`, `default_tz`, `prefix` and `biostar` keys map to the `TIQR_*` variables below; a `null` leaves the lower layer in place. Restart the server to apply changes. Keep `TIQR_SECRET_KEY` and the BioStar password out of it.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `TIQR_SECRET_KEY` | none, required | Secret for the server. Must be non-empty and not a placeholder. `tiqr setup` generates one. |
+| `TIQR_HOME` | unset | Set in the real environment by an installed service. Holds the data, `.env` files and brand file, and must be a real environment variable, not one set in a `.env` file. |
 | `TIQR_DEFAULT_TZ` | machine zone, or `UTC` | IANA zone for offset-less input and for all displayed times. |
+| `TIQR_PREFIX` | `TQR` | Prefix of each ticket's readable serial. |
 | `TIQR_HOST` | `127.0.0.1` | Bind address. Set to the server's LAN address for operators' PCs. |
 | `TIQR_PORT` | `7102` | Listen port, 1 to 65535. |
 | `TIQR_TLS_CERT`, `TIQR_TLS_KEY` | unset | PEM certificate and key. Set both to serve HTTPS, or neither for plain HTTP. |
 | `TIQR_SERVER_PRINTING` | `false` | When `true`, operators may print on the server's default printer as well as download the PDF. Leave `false` to allow download only. |
 | `TIQR_IDEMPOTENCY_TTL_HOURS` | `24` | How long an `Idempotency-Key` remembers its answer. |
 | `TIQR_BATCH_MAX_SIZE` | `100` | Most tickets one `POST /tickets/batch` may carry; more is a `422`. |
-| `TIQR_BIOSTAR_BASE_URL`, `_USERNAME`, `_PASSWORD` | unset | BioStar connection. Leave all three unset for local mode. |
-| `TIQR_BIOSTAR_DEVICE_IDS` | unset | Comma-separated reader IDs, all added to the TiQR access group. |
-| `TIQR_BIOSTAR_ACCESS_GROUP_ID` | unset | Optional. If blank, `tiqr setup` creates an access group named TiQR. |
+| `TIQR_BIOSTAR_BASE_URL`, `_USERNAME`, `_PASSWORD`, `_DEVICE_IDS` | unset | BioStar connection. Set all four, or none for local mode; a partial set is an error. `_PASSWORD` belongs in `.env.local`, not the brand file. |
+| `TIQR_BIOSTAR_ACCESS_GROUP_ID` | unset | Optional. If blank, TiQR uses its own access group named `TiQR AG`, which `tiqr setup` creates. |
 | `TIQR_BIOSTAR_VERIFY_TLS` | `false` | `true` verifies BioStar's TLS certificate. |
+| `TIQR_BIOSTAR_TIMEOUT` | `30` | Seconds to wait for a BioStar reply. |
+| `TIQR_BIOSTAR_DOOR_OPEN_DURATION` | `3` | Seconds a reader keeps its door open after a valid tap. |
+| `TIQR_BIOSTAR_DOOR_OPEN_TIMEOUT` | `10` | Seconds a reader waits for the door to open. |
 | `TIQR_BIOSTAR_REQUIRED` | `false` | `true` refuses to start unless BioStar is configured. |
 
 Keep private values, especially the password and secret key, in `.env.local`, which is not committed.
@@ -83,14 +93,19 @@ Refusals use one shape:
 
 | HTTP | `code` | Meaning |
 | --- | --- | --- |
+| 400 | `license_bad_signature`, `license_wrong_machine`, `license_already_expired`, `license_trial_over_paid` | `POST /license/activate` refused the key: not valid for this product, for another machine, expired, or a trial over a paid license |
 | 401 | `unauthenticated` | Not signed in, session expired, or sign-in refused |
 | 403 | `forbidden` | The role may not do this |
+| 403 | `scope` | The service key lacks a scope the endpoint needs |
 | 403 | `csrf` | Missing or wrong `X-CSRF-Token` |
 | 403 | `cross_origin` | Write request from another origin |
-| 404 | `not_found` | Ticket or user not found |
-| 409 | `conflict` | The ticket or account is not in a state that allows this |
+| 403 | `license_required` | No valid license; every endpoint not marked "no license needed" below is refused |
+| 404 | `not_found` | Ticket, user, ticket type, visitor type, service key or logo not found |
+| 409 | `conflict` | The ticket or account is not in a state that allows this, or an `external_code` or `Idempotency-Key` clashes |
 | 409 | `server_printing_off` | Server printing is off; download the PDF instead |
+| 409 | `license_already_active` | That key is already the active license |
 | 422 | `invalid` | A value the server refuses |
+| 422 | `batch_too_large` | A batch carries more than `TIQR_BATCH_MAX_SIZE` tickets |
 | 422 | (validation) | A malformed request. `detail` is a list of per-field errors, as FastAPI reports them |
 | 429 | `rate_limited` | Too many failed logins; wait `Retry-After` seconds |
 | 502 | `printer` | The server's printer failed |
@@ -101,26 +116,42 @@ Responses never include password hashes, secrets, or stack traces.
 
 ## Endpoints
 
-All paths are relative to `/api`. Times are ISO 8601 with an offset. Input without an offset is read in the ticket's `timezone` (or the server's default).
+All paths are relative to `/api`. Times are ISO 8601; input without an offset is read in the request's `timezone` (or the server's default), and times in responses are shown in the ticket's `timezone`.
+
+The `Auth` column says what a call needs: `session` is the cookie from login; `+ CSRF` adds the `X-CSRF-Token` header on writes; `key` is a service key with that scope (see [Service-to-service calls](#service-to-service-calls)).
 
 ### Pagination
 
-`GET /users`, `GET /tickets`, `GET /ticket-types` and `GET /visitor-types` answer one page: `{items, total, page, size}`, where `total` counts every match. Ask with `?page=` (from 1, default 1) and `?size=` (1 to 100, default 20); anything else is a `422`. A page past the end has no `items`.
+`GET /users`, `GET /tickets`, `GET /ticket-types` and `GET /visitor-types` answer one page: `{items, total, page, size}`, where `total` counts every match. Ask with `?page=` (from 1, default 1) and `?size=` (1 to 100, default 20); anything else is a `422`. A page past the end has an empty `items`. Other lists (license history, service keys, ticket audit) are not paged.
 
 ### Meta
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/health` | none | Readiness and version. Returns `200` with `status: "ok"`, or `503` with `status: "unavailable"` if the database does not answer or the scheduler has stopped. |
-| GET | `/config` | session | Server timezone and whether server printing is on. |
+| GET | `/health` | none, no license needed | Readiness and version. Returns `200` with `status: "ok"`, or `503` with `status: "unavailable"` if the database does not answer or the scheduler has stopped. |
+| GET | `/branding` | none, no license needed | `app_name`, `theme`, `languages`, `currencies` and `has_logo`, for the login page. |
+| GET | `/logo` | none, no license needed | The configured logo file; `404` if none is set. |
+| GET | `/config` | session | Server `timezone` and whether `server_printing` is on. |
+
+### License
+
+Every endpoint not marked "no license needed" is refused with `403` `license_required` until a valid license is active.
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/license/status` | session, no license needed | The license, verified now: `state`, `is_valid`, `machine_id`, and when licensed `type`, `licensed_to`, `expires_at`, `days_remaining`. |
+| GET | `/license/request-code` | session, no license needed | A code to send the vendor. Any role. |
+| POST | `/license/activate` | session + CSRF, no license needed | Body `{license_key}`. Admins only. Returns the new status; a refused key (`400`, or `409` if already active) leaves the current license in place. |
+| POST | `/license/deactivate` | session + CSRF | Retire the active key. Admins only. Returns `204`. |
+| GET | `/license/history` | session | Every stored key, newest first, with most of each key hidden. Admins only. |
 
 ### Auth
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/auth/login` | none | Body `{username, password}`. Returns the user, `csrf_token`, `expires_at`, and `idle_timeout`, and sets the cookie. |
-| POST | `/auth/logout` | session + CSRF | Ends the session and clears the cookie. Returns `204`. |
-| GET | `/auth/session` | session | The signed-in user, `csrf_token`, `expires_at`, and `idle_timeout`. |
+| POST | `/auth/login` | none, no license needed | Body `{username, password}`. Returns the `user`, `csrf_token`, `expires_at`, and `idle_timeout` (seconds), and sets the cookie. `401` for wrong credentials, `429` when throttled. |
+| POST | `/auth/logout` | session + CSRF, no license needed | Ends the session and clears the cookie. Returns `204`. |
+| GET | `/auth/session` | session, no license needed | The signed-in user, `csrf_token`, `expires_at`, and `idle_timeout` (seconds). |
 
 ### Users
 
@@ -128,39 +159,74 @@ Admins manage every account. Managers list accounts, create operators, and deact
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/users` | session | List accounts visible to the caller, by username, as a page (see Pagination). |
-| POST | `/users` | session + CSRF | Create a user. Body `{username, password, role}`. Managers create operators only. Returns `201`. |
-| PATCH | `/users/{user_id}` | session + CSRF | Change `role`, set `active`, or reset `password`. Omitted fields are unchanged. Managers may only set `active`, on operators. |
+| GET | `/users` | session | List accounts, by username, as a page (see Pagination). Admins and managers; `403` for operators. |
+| POST | `/users` | session + CSRF | Create a user. Body `{username, password, role}`. Admins create any role; managers create operators only. Returns `201`; `422` for a blank or taken username. |
+| PATCH | `/users/{user_id}` | session + CSRF | Change `role`, set `active`, or reset `password`. Omitted fields are unchanged. Managers may only set `active`, on operators. Deactivating or resetting a password ends that user's sessions. |
 | DELETE | `/users/{user_id}` | session + CSRF | Delete a deactivated user. Admins only. Returns `204`; `409` if active or they created or hold tickets. |
 
 Admins cannot change their own role or deactivate themselves. The last active admin cannot be demoted.
 
-### Tickets
+### Catalog
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/ticket-types` | session | List ticket types, by name, as a page (see Pagination). Every role may read them. |
-| POST | `/ticket-types` | session + CSRF | Add a ticket type. Body `{name, price_minor, currency}`; `price_minor` is whole minor units (1250 is 12.50), 0 to 100000000000; `currency` is required, one of `USD`, `RUB`, `AZN`, `KZT`. Admins and managers. Returns `201`; `422` for a blank or taken name (case-insensitive). |
-| PATCH | `/ticket-types/{type_id}` | session + CSRF | Change `name`, `price_minor` or `currency`; omitted fields are unchanged. Admins and managers. Issued tickets keep their price. |
+| POST | `/ticket-types` | session + CSRF | Add a ticket type. Body `{name, price_minor, currency}`; `price_minor` is whole minor units (1250 is 12.50), 0 to 100000000000; `currency` is required and must be one of the currencies `GET /branding` lists (those of the configured languages' regions: `USD`, `RUB`, `AZN`, `KZT`). Admins and managers. Returns `201`; `422` for a blank or taken name (case-insensitive). |
+| PATCH | `/ticket-types/{type_id}` | session + CSRF | Change `name`, `price_minor` or `currency`; omitted fields are unchanged. A type may keep a currency that is no longer offered, but not move to one. Admins and managers. Issued tickets keep their price. |
 | DELETE | `/ticket-types/{type_id}` | session + CSRF | Remove a ticket type. Admins and managers. Returns `204`; issued tickets keep their price. |
 | GET | `/visitor-types` | session | List visitor types, by name, as a page (see Pagination). Every role may read them. |
 | POST | `/visitor-types` | session + CSRF | Add a visitor type. Body `{name, discount_percent}`; the discount is a whole number from 0 (the default) to 100. Admins and managers. Returns `201`. |
 | PATCH | `/visitor-types/{type_id}` | session + CSRF | Change `name` or `discount_percent`; omitted fields are unchanged. Admins and managers. Issued tickets keep their discount. |
 | DELETE | `/visitor-types/{type_id}` | session + CSRF | Remove a visitor type. Admins and managers. Returns `204`; issued tickets keep their discount. |
-| GET | `/tickets` | session | List tickets, newest first (by readable serial), as a page (see Pagination). Optional `?state=issued\|passed\|expired`. |
-| POST | `/tickets` | session + CSRF | Issue a ticket. Returns `201`. An optional `ticket_type` (a catalog name) prices it; a `visitor_type` from the catalog takes its discount off that price. The ticket shows `ticket_type`, `base_price_minor`, `currency`, `discount_percent` and `price_minor` (null without a ticket type). `422` for an unknown `ticket_type`. |
-| GET | `/tickets/{ticket_id}` | session | One ticket. |
-| POST | `/tickets/{ticket_id}/assign` | session + CSRF | Body `{assignee}`: the username of any existing account to assign the ticket to. Managers only. |
-| POST | `/tickets/{ticket_id}/pdf` | session + CSRF | Render the one-page A4 badge and return it as `application/pdf`. Counts as a print, and the file is also saved to `out/`. Issued tickets only. |
-| POST | `/tickets/{ticket_id}/print` | session + CSRF | Print on the server's default printer. Needs `TIQR_SERVER_PRINTING=true`. Issued tickets only. Returns the updated ticket. |
-| PATCH | `/tickets/{ticket_id}` | session + CSRF, or key `tickets:write` | Move `valid_from` / `valid_until` (end after start), synced to BioStar. Issued, or passed and multi-use, tickets only; otherwise `409`. |
+
+### Tickets
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/tickets` | session, or key `tickets:read` | List tickets, newest first (by readable serial), as a page (see Pagination). Optional filters: `?state=issued\|passed\|expired`, `?search=` (serial, visitor or type), `?external_code=` (exactly this code). Operators see only tickets assigned to them. |
+| POST | `/tickets` | session + CSRF, or key `tickets:write` | Issue a ticket (see Create body below). Returns `201`; `422` for bad input or an unknown `ticket_type`; `409` if `external_code` is taken; `502` if BioStar fails. |
+| GET | `/tickets/{ticket_id}` | session, or key `tickets:read` | One ticket. `403` for an operator if it is not assigned to them. |
+| POST | `/tickets/{ticket_id}/assign` | session + CSRF | Body `{assignee}`: the username of an existing, active account to assign the ticket to. Managers only. `404` if the account does not exist, `409` if it is deactivated. |
+| POST | `/tickets/{ticket_id}/pdf` | session + CSRF | Render the one-page A4 badge and return it as `application/pdf`. Counts as a print, and the file is also saved to `out/`. Issued tickets only (`409` otherwise). |
+| POST | `/tickets/{ticket_id}/print` | session + CSRF | Print on the server's default printer. Needs `TIQR_SERVER_PRINTING=true` (`409` `server_printing_off` otherwise). Issued tickets only. Returns the updated ticket; `502` if the printer fails. |
+| PATCH | `/tickets/{ticket_id}` | session + CSRF, or key `tickets:write` | Move `valid_from` / `valid_until` (end after start), synced to BioStar. Admins and managers. Issued, or passed and multi-use, tickets only; otherwise `409`. |
 | POST | `/tickets/{ticket_id}/revoke` | session + CSRF, or key `tickets:revoke` | Cancel a ticket (`{"reason"}` optional, audited) and disable its BioStar user. Idempotent: a revoked ticket is returned as is. Expired is `409`; a BioStar failure is `502` and changes nothing. |
 | POST | `/tickets/{ticket_id}/transfer` | session + CSRF, or key `tickets:write` | Move to another `event_session` (and optionally a new window), keeping id, state and audit history. |
-| POST | `/tickets/{ticket_id}/reissue` | session + CSRF, or key `tickets:write` | Reissue a ticket in any state as the same ticket, back to issued; the window may move. This is also how a ticket is edited. Returns the ticket. |
-| POST | `/tickets/batch` | session + CSRF, or key `tickets:write` | `{items, atomic}`: per-item `created` / `replayed` / `error` / `rolled_back` / `skipped`. |
-| GET | `/tickets/{ticket_id}/audit` | session, or key `tickets:read` | The ticket's audit trail (admins and managers). |
-| POST, GET | `/service-keys` | admin session + CSRF | Issue (secret shown once) and list API keys. |
-| POST, DELETE | `/service-keys/{id}/rotate`, `/service-keys/{id}` | admin session + CSRF | Rotate with a grace period; revoke at once. |
+| POST | `/tickets/{ticket_id}/reissue` | session + CSRF, or key `tickets:write` | Reissue a ticket in any state as the same ticket, back to issued; the window may move and must end in the future. This is also how a ticket is edited. Returns the ticket. |
+| POST | `/tickets/batch` | session + CSRF, or key `tickets:write` | Body `{items, atomic}`. Always `200` unless the request is malformed; returns `{atomic, committed, created, failed, results}`, each result `created` / `replayed` / `error` / `rolled_back` / `skipped`. At most `TIQR_BATCH_MAX_SIZE` items. |
+| GET | `/tickets/{ticket_id}/audit` | session, or key `tickets:read` | The ticket's audit trail, oldest first (admins and managers). |
+
+#### Create body
+
+```json
+{
+  "visitor_name": "Jane Doe",
+  "visitor_type": "Contractor",
+  "valid_from": "2030-06-01T09:00",
+  "valid_until": "2030-06-01T17:00",
+  "usage_type": "one_time",
+  "timezone": "Asia/Dubai"
+}
+```
+
+- `usage_type` is `one_time` or `multi_use`.
+- `ticket_type` is optional: the name of a catalog ticket type, which prices the ticket. A `visitor_type` from the catalog takes its discount off that price.
+- `timezone` is optional. It defaults to the server's `TIQR_DEFAULT_TZ`.
+- `external_code` (your own code, at most 128 characters, unique) and `event_session` (at most 200 characters) are optional.
+- Names are at most 200 characters.
+
+A ticket response contains `id`, `readable_serial`, `visitor_name`, `visitor_type`, `valid_from`, `valid_until`, `usage_type`, `state` (`issued`, `passed`, `expired` or `revoked`), `created_by`, `assigned_operator`, `created_at`, `passed_at`, `print_count`, `use_count`, `ticket_type`, `base_price_minor`, `discount_percent`, `price_minor`, `currency` (the price fields are null without a ticket type), `timezone`, `external_code` and `event_session`. All datetimes are shown in `timezone`.
+
+### Service keys
+
+Admins only, signed in with a session (a key cannot manage keys).
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/service-keys` | session + CSRF | Body `{name, scopes, acts_as?, expires_at?}`. Returns `201` with the key and its `secret`, shown once. `acts_as` is a username (default: the caller); `404` if it does not exist. |
+| GET | `/service-keys` | session | Every key, without secrets. |
+| POST | `/service-keys/{key_id}/rotate` | session + CSRF | Body `{grace_minutes}` (0 to 10080, default 60). Issues a successor with the same scopes and returns `201` with its `secret`; the old key works on for the grace period. |
+| DELETE | `/service-keys/{key_id}` | session + CSRF | End a key at once. Returns the key; revoking a revoked key returns it unchanged. |
 
 ### Service-to-service calls
 
@@ -176,41 +242,15 @@ and body replays the first status and body with `Idempotent-Replayed: true`; the
 body is `409`. Only successful answers are kept, so a refused request may be retried under its key.
 In a batch, an item uses its own `idempotency_key`, or the header plus `:index`.
 
-### Database
-
-Schema 8 adds the `revoked` state, `external_code` (unique per `tenant_id` through a partial index),
-`tenant_id` and `event_session`. Schema 9 adds `audit_log`, `idempotency_keys` and `api_keys`. Both are
-reversible: `SQLiteRepository.downgrade(7)` undoes them (revoked tickets read as expired afterwards and
-the new columns and tables are dropped, so back the database up first).
-
-Create body:
-
-```json
-{
-  "visitor_name": "Jane Doe",
-  "visitor_type": "Contractor",
-  "valid_from": "2030-06-01T09:00",
-  "valid_until": "2030-06-01T17:00",
-  "usage_type": "one_time",
-  "timezone": "Asia/Dubai"
-}
-```
-
-- `usage_type` is `one_time` or `multi_use`.
-- `timezone` is optional. It defaults to the server's `TIQR_DEFAULT_TZ`.
-- Names are at most 200 characters.
-
-A ticket response contains `id`, `readable_serial`, `visitor_name`, `visitor_type`, `valid_from`, `valid_until`, `usage_type`, `state` (`issued`, `passed`, or `expired`), `created_by`, `assigned_operator`, `created_at`, `passed_at`, `print_count`, `use_count`, and `timezone`. All datetimes are shown in `timezone`.
-
 ### Operations
 
 Admins and managers.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/sync` | session + CSRF | Fetch and apply new access events now. Returns `{count}`. |
-| POST | `/cleanup` | session + CSRF | Remove finished tickets from BioStar now. Returns `{count}`. |
-| GET | `/stats` | session | Totals: `total`, `issued`, `passed`, `expired`, plus the same counts per visitor type under `visitor_types`. `?since=YYYY-MM-DD&until=YYYY-MM-DD` (either optional, both inclusive) counts only tickets created on those days in `TIQR_DEFAULT_TZ`; an end before the start is a 422. |
+| POST | `/sync` | session + CSRF | Fetch and apply new access events now. Returns `{count}`; `502` if BioStar fails. |
+| POST | `/cleanup` | session + CSRF | Remove finished tickets from BioStar now. Returns `{count}`; `502` if BioStar fails. |
+| GET | `/stats` | session | Totals: `total`, `issued`, `passed`, `expired`, plus the same counts per visitor type under `visitor_types` (each split by ticket type) and per ticket type under `ticket_types`. `?since=YYYY-MM-DD&until=YYYY-MM-DD` (either optional, both inclusive) counts only tickets created on those days in `TIQR_DEFAULT_TZ`; an end before the start is a 422. |
 
 Sync and cleanup share a lock with the scheduled jobs, so runs never overlap.
 
@@ -218,8 +258,8 @@ Sync and cleanup share a lock with the scheduled jobs, so runs never overlap.
 
 | Role | Can |
 | --- | --- |
-| `admin` | Manage users (create, change role, deactivate, reset passwords, delete), plus everything a manager can do |
-| `manager` | Assign tickets, run sync, cleanup and stats, list users, create, deactivate or reactivate operators, and manage ticket types and visitor types |
+| `admin` | Manage users (create, change role, deactivate, reset passwords, delete), licenses and service keys, plus everything a manager can do except assigning tickets |
+| `manager` | Assign tickets, change validity, revoke, transfer and reissue tickets, run sync, cleanup and stats, list users, create, deactivate or reactivate operators, and manage ticket types and visitor types |
 | `operator` | Issue tickets, and view and print only the tickets assigned to them |
 
 Anyone active can issue tickets. Permissions are enforced in `tiqr-core`'s service layer, and this table summarizes them.
@@ -246,6 +286,19 @@ The schema is committed as `openapi.json`. The web app's client is generated fro
 ```sh
 uv run poe openapi
 ```
+
+## Postman and HTTP client
+
+Ready-made requests live beside this file. Start the server, then:
+
+- **Postman:** import `postman/tiqr.postman_collection.json`, set the `username` and `password` collection variables, run **Login** first, then the folders top to bottom.
+- **HTTP client (JetBrains):** open `http/tiqr.http`, pick the `local` environment from `http/http-client.env.json`, put the `password` in `http/http-client.private.env.json` (not committed), run **Login** first, then the rest top to bottom.
+
+Requests marked **[WRITE]** change data: use a test server. Activate a license first, or everything except the license, auth and meta calls is refused. Don't share an export with a password filled in.
+
+## Database
+
+Schema 8 adds the `revoked` state, `external_code` (unique per `tenant_id` through a partial index), `tenant_id` and `event_session`. Schema 9 adds `audit_log`, `idempotency_keys` and `api_keys`. Both are reversible: `SQLiteRepository.downgrade(7)` undoes them (revoked tickets read as expired afterwards and the new columns and tables are dropped, so back the database up first).
 
 ## Develop
 ### Start Server

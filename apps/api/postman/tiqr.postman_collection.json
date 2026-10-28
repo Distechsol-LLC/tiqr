@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "7c1f4e2a-3b8d-4f6e-9a51-2d0b7e6c9a10",
     "name": "TiQR API",
-    "description": "Fill in `username` and `password`, run **Login** first, then the folders top to bottom. **[WRITE]** requests change data: use a test server. Don't export with a password filled in.",
+    "description": "Fill in `username` and `password`, run **Login** first, then the folders top to bottom. **[WRITE]** requests change data: use a test server. Everything but Health, Branding, Login, Session and the license reads needs an active license. Don't export with a password filled in.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -17,13 +17,51 @@
     }
   ],
   "variable": [
-    { "key": "baseUrl", "value": "http://127.0.0.1:7102", "description": "Server address. Use https:// if TLS is on." },
-    { "key": "username", "value": "admin", "description": "Your account." },
-    { "key": "password", "value": "", "description": "Your password. Keep it blank in shared copies." },
-    { "key": "csrfToken", "value": "", "description": "Set by Login." },
-    { "key": "meId", "value": "", "description": "Set by Login." },
-    { "key": "newUserId", "value": "", "description": "Set by Create user." },
-    { "key": "ticketId", "value": "", "description": "Set by Issue ticket." }
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:7102",
+      "description": "Server address. Use https:// if TLS is on."
+    },
+    {
+      "key": "username",
+      "value": "admin",
+      "description": "Your account."
+    },
+    {
+      "key": "password",
+      "value": "",
+      "description": "Your password. Keep it blank in shared copies."
+    },
+    {
+      "key": "csrfToken",
+      "value": "",
+      "description": "Set by Login."
+    },
+    {
+      "key": "newUserId",
+      "value": "",
+      "description": "Set by Create user."
+    },
+    {
+      "key": "ticketId",
+      "value": "",
+      "description": "Set by Issue ticket."
+    },
+    {
+      "key": "ticketTypeId",
+      "value": "",
+      "description": "Set by Create ticket type."
+    },
+    {
+      "key": "visitorTypeId",
+      "value": "",
+      "description": "Set by Create visitor type."
+    },
+    {
+      "key": "serviceKeyId",
+      "value": "",
+      "description": "Set by Create service key."
+    }
   ],
   "item": [
     {
@@ -43,10 +81,30 @@
             }
           ],
           "request": {
-            "description": "No sign-in needed. **200** when ready.",
+            "description": "No sign-in or license needed. **200** when ready; **503** if the database or scheduler is down.",
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/health"
+          }
+        },
+        {
+          "name": "Branding",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Branding read', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "No sign-in or license needed. App name, theme, languages, currencies and `has_logo`. **200**.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/branding"
           }
         },
         {
@@ -63,7 +121,7 @@
             }
           ],
           "request": {
-            "description": "Default timezone and whether server printing is on. **200**.",
+            "description": "Needs sign-in: run **Login** first. Default timezone and whether server printing is on. **200**; **401**.",
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/config"
@@ -84,8 +142,7 @@
                 "exec": [
                   "pm.test('Signed in', () => pm.response.to.have.status(200));",
                   "const body = pm.response.json();",
-                  "pm.collectionVariables.set('csrfToken', body.csrf_token);",
-                  "pm.collectionVariables.set('meId', body.user.id);"
+                  "pm.collectionVariables.set('csrfToken', body.csrf_token);"
                 ]
               }
             }
@@ -93,11 +150,20 @@
           "request": {
             "description": "Sets the session cookie and saves `csrfToken`. **200**; **401** for wrong credentials; **429** when throttled.",
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/auth/login"
           }
@@ -121,6 +187,44 @@
             "header": [],
             "url": "{{baseUrl}}/api/auth/session"
           }
+        },
+        {
+          "name": "License status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('License status read', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Any role, even without a license. **200** with `state`, `is_valid` and `machine_id`.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/license/status"
+          }
+        },
+        {
+          "name": "License request code",
+          "request": {
+            "description": "Any role: a code to send the vendor. **200**.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/license/request-code"
+          }
+        },
+        {
+          "name": "License history",
+          "request": {
+            "description": "Admins only: stored keys, newest first, mostly hidden. **200**; **403** otherwise.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/license/history"
+          }
         }
       ]
     },
@@ -142,10 +246,29 @@
             }
           ],
           "request": {
-            "description": "**200**; **403** for operators.",
+            "description": "Admins and managers. **200**; **403** for operators. One page: `?page=1&size=10` (size up to 100).",
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/users"
+            "url": {
+              "raw": "{{baseUrl}}/api/users?page=1&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
           }
         },
         {
@@ -163,16 +286,26 @@
             }
           ],
           "request": {
-            "description": "Roles: `admin`, `manager`, `operator`; managers create operators only. Saves `newUserId`. **201**; **409** if the username is taken.",
+            "description": "Roles: `admin`, `manager`, `operator`; managers create operators only. Saves `newUserId`. Change the username if it exists already. **201**; **422** for a blank or taken username.",
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"clerk\",\n  \"password\": \"change-me-please\",\n  \"role\": \"operator\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/users"
           }
@@ -191,16 +324,26 @@
             }
           ],
           "request": {
-            "description": "**200**.",
+            "description": "Admins only. **200**; **403** otherwise.",
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"role\": \"manager\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/users/{{newUserId}}"
           }
@@ -222,13 +365,23 @@
             "description": "Blocks sign-in and ends their sessions. Managers may do this to operators. **200**.",
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"active\": false\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/users/{{newUserId}}"
           }
@@ -250,13 +403,23 @@
             "description": "**200**.",
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"active\": true\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/users/{{newUserId}}"
           }
@@ -278,13 +441,23 @@
             "description": "Ends their sessions. **200**.",
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"password\": \"another-password\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/users/{{newUserId}}"
           }
@@ -294,8 +467,197 @@
           "request": {
             "description": "Admins only. Run **Deactivate user** first, or this is refused since **Reactivate user** ran above; then **Assign ticket** finds no `clerk`. **204**; **409** if active or they created or hold tickets.",
             "method": "DELETE",
-            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/api/users/{{newUserId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog",
+      "description": "Everyone reads; admins and managers change.",
+      "item": [
+        {
+          "name": "List ticket types",
+          "request": {
+            "description": "Every role may read. **200**. One page, by name: `?page=1&size=10`.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/ticket-types?page=1&size=10"
+          }
+        },
+        {
+          "name": "[WRITE] Create ticket type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Ticket type created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('ticketTypeId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "`price_minor` is in minor units (1250 is 12.50); `currency` must be one the server offers (see **Branding**). Saves `ticketTypeId`. **201**; **422** for a blank or taken name.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ticket-types",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Day pass\",\n  \"price_minor\": 1250,\n  \"currency\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[WRITE] Change ticket type",
+          "request": {
+            "description": "Any of `name`, `price_minor`, `currency`. **200**; **404** if gone.",
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ticket-types/{{ticketTypeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price_minor\": 1500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List visitor types",
+          "request": {
+            "description": "Every role may read. **200**. One page, by name: `?page=1&size=10`.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitor-types?page=1&size=10"
+          }
+        },
+        {
+          "name": "[WRITE] Create visitor type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Visitor type created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('visitorTypeId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "`discount_percent` is 0 to 100. Saves `visitorTypeId`. **201**.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/visitor-types",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Student\",\n  \"discount_percent\": 20\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[WRITE] Change visitor type",
+          "request": {
+            "description": "Any of `name`, `discount_percent`. **200**; **404** if gone.",
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/visitor-types/{{visitorTypeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"discount_percent\": 25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[WRITE] Delete visitor type",
+          "request": {
+            "description": "Issued tickets keep their discount. **204**; **404** if gone.",
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/visitor-types/{{visitorTypeId}}"
+          }
+        },
+        {
+          "name": "[WRITE] Delete ticket type",
+          "request": {
+            "description": "Issued tickets keep their price. **204**; **404** if gone.",
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ticket-types/{{ticketTypeId}}"
           }
         }
       ]
@@ -318,10 +680,29 @@
             }
           ],
           "request": {
-            "description": "**200**.",
+            "description": "Operators see only tickets assigned to them. **200**. One page, newest first: `?page=1&size=10`. Also `?search=` (serial, visitor or type) and `?external_code=` (exact).",
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/tickets"
+            "url": {
+              "raw": "{{baseUrl}}/api/tickets?page=1&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tickets"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
           }
         },
         {
@@ -338,14 +719,24 @@
             }
           ],
           "request": {
-            "description": "Filter by `state`: `issued`, `passed` or `expired`. **200**.",
+            "description": "Filter by `state`: `issued`, `passed`, `expired` or `revoked`. **200**.",
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/tickets?state=issued",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "tickets"],
-              "query": [{ "key": "state", "value": "issued" }]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tickets"
+              ],
+              "query": [
+                {
+                  "key": "state",
+                  "value": "issued"
+                }
+              ]
             }
           }
         },
@@ -364,16 +755,26 @@
             }
           ],
           "request": {
-            "description": "Saves `ticketId`. Times without an offset use `timezone`. **201**; **422** for bad input.",
+            "description": "Saves `ticketId`. Times without an offset use `timezone`. Optional: `ticket_type`, `external_code`, `event_session`. Add an `Idempotency-Key` header to make a retry safe. **201**; **422** for bad input (or an unknown `ticket_type`); **409** if `external_code` is taken.",
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"visitor_name\": \"Jane Doe\",\n  \"visitor_type\": \"Contractor\",\n  \"valid_from\": \"2030-06-01T09:00\",\n  \"valid_until\": \"2030-06-01T17:00\",\n  \"usage_type\": \"one_time\",\n  \"timezone\": \"Asia/Dubai\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/tickets"
           }
@@ -412,16 +813,26 @@
             }
           ],
           "request": {
-            "description": "Managers only. `assignee` is any username. **200**; **404** if it doesn't exist.",
+            "description": "Managers only (**403** for others). `assignee` is an existing, active username: run **Create user** and keep it active. **200**; **404** if it doesn't exist; **409** if it is deactivated.",
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"assignee\": \"clerk\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/tickets/{{ticketId}}/assign"
           }
@@ -445,7 +856,12 @@
           "request": {
             "description": "Returns a PDF and counts as a print. Issued tickets only. **200**; **409** otherwise.",
             "method": "POST",
-            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/api/tickets/{{ticketId}}/pdf"
           }
         },
@@ -465,8 +881,252 @@
           "request": {
             "description": "Needs `TIQR_SERVER_PRINTING=true`. **200**; **409** when it's off; **502** if the printer fails.",
             "method": "POST",
-            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/api/tickets/{{ticketId}}/print"
+          }
+        },
+        {
+          "name": "[WRITE] Change validity window",
+          "request": {
+            "description": "Admins and managers; either end may be left out. Issued, or passed and multi-use, tickets only. **200**; **409** otherwise; **422** if the end is not after the start; **502** if BioStar fails.",
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tickets/{{ticketId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valid_until\": \"2030-06-01T18:00\",\n  \"timezone\": \"Asia/Dubai\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[WRITE] Transfer ticket",
+          "request": {
+            "description": "Moves it to another `event_session`, keeping id, state and history. **200**; **409**; **502**.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tickets/{{ticketId}}/transfer",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_session\": \"Matinee\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[WRITE] Reissue ticket",
+          "request": {
+            "description": "Back to issued, as the same ticket; the window may move and must end in the future. Add an `Idempotency-Key` header to make a retry safe. **200**; **409**; **502**.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tickets/{{ticketId}}/reissue",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valid_from\": \"2030-06-02T09:00\",\n  \"valid_until\": \"2030-06-02T17:00\",\n  \"timezone\": \"Asia/Dubai\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Ticket audit",
+          "request": {
+            "description": "Admins and managers: every change, oldest first. **200**.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tickets/{{ticketId}}/audit"
+          }
+        },
+        {
+          "name": "[WRITE] Batch issue",
+          "request": {
+            "description": "Up to `TIQR_BATCH_MAX_SIZE` tickets. **200** with a result per item, unless the request is malformed. With `atomic` true, one failure undoes the rest (`rolled_back`, `skipped`).",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tickets/batch",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"atomic\": false,\n  \"items\": [\n    {\n      \"visitor_name\": \"Ada\",\n      \"visitor_type\": \"Guest\",\n      \"valid_from\": \"2030-06-01T09:00\",\n      \"valid_until\": \"2030-06-01T17:00\",\n      \"usage_type\": \"one_time\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[WRITE] Revoke ticket",
+          "request": {
+            "description": "Admins and managers. Cancels it and removes access in BioStar; revoking twice returns it unchanged. Run after the other ticket requests. **200**; **409** if expired; **502** if BioStar fails.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tickets/{{ticketId}}/revoke",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Lost card\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Service keys",
+      "description": "Admins only, signed in with a session.",
+      "item": [
+        {
+          "name": "[WRITE] Create service key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Service key created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('serviceKeyId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "The `secret` is shown once. Saves `serviceKeyId`. **201**.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/service-keys",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"box-office\",\n  \"scopes\": [\n    \"tickets:read\",\n    \"tickets:write\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List service keys",
+          "request": {
+            "description": "No secrets. **200**.",
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/service-keys"
+          }
+        },
+        {
+          "name": "[WRITE] Rotate service key",
+          "request": {
+            "description": "Issues a successor; the old key works on for `grace_minutes` (0 to 10080). **201**.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/service-keys/{{serviceKeyId}}/rotate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grace_minutes\": 60\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[WRITE] Revoke service key",
+          "request": {
+            "description": "Ends the key at once. **200**; **404** if gone.",
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/service-keys/{{serviceKeyId}}"
           }
         }
       ]
@@ -491,7 +1151,12 @@
           "request": {
             "description": "Runs a BioStar sync now. **200** with `count`; **502** if BioStar fails.",
             "method": "POST",
-            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/api/sync"
           }
         },
@@ -511,7 +1176,12 @@
           "request": {
             "description": "Removes finished tickets from BioStar now. **200** with `count`; **502** if BioStar fails.",
             "method": "POST",
-            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/api/cleanup"
           }
         },
@@ -529,7 +1199,7 @@
             }
           ],
           "request": {
-            "description": "Totals: tickets, issued, passed, expired, uses, prints. **200**.",
+            "description": "Totals: `total`, `issued`, `passed`, `expired`, plus `visitor_types` and `ticket_types`. **200**.",
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/stats"
@@ -549,7 +1219,7 @@
             }
           ],
           "request": {
-            "description": "The same figures, only for tickets created on these days in TIQR_DEFAULT_TZ; both ends are inclusive and either may be left out. **200**.",
+            "description": "The same figures, only for tickets created on these days in `TIQR_DEFAULT_TZ`; both ends are inclusive and either may be left out. **200**; **422** if the end is before the start.",
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/stats?since=2026-09-01&until=2026-09-30"
@@ -575,13 +1245,22 @@
             }
           ],
           "request": {
-            "description": "**401**.",
+            "description": "**401**; **429** after 5 failures.",
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"definitely-wrong\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/auth/login"
           }
@@ -602,11 +1281,20 @@
           "request": {
             "description": "No `X-CSRF-Token` header. **403**.",
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"visitor_name\": \"No Token\",\n  \"visitor_type\": \"Contractor\",\n  \"valid_from\": \"2030-06-01T09:00\",\n  \"valid_until\": \"2030-06-01T17:00\",\n  \"usage_type\": \"one_time\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/tickets"
           }
@@ -628,14 +1316,27 @@
             "description": "Foreign `Origin` header. **403**.",
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" },
-              { "key": "Origin", "value": "https://evil.example" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Origin",
+                "value": "https://evil.example"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"intruder\",\n  \"password\": \"change-me-please\",\n  \"role\": \"admin\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/users"
           }
@@ -657,13 +1358,23 @@
             "description": "Bad `valid_from`. **422**.",
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"visitor_name\": \"Jane Doe\",\n  \"visitor_type\": \"Contractor\",\n  \"valid_from\": \"next tuesday\",\n  \"valid_until\": \"2030-06-01T17:00\",\n  \"usage_type\": \"one_time\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/tickets"
           }
@@ -709,7 +1420,12 @@
           "request": {
             "description": "**204**.",
             "method": "POST",
-            "header": [{ "key": "X-CSRF-Token", "value": "{{csrfToken}}" }],
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/api/auth/logout"
           }
         }
