@@ -160,7 +160,7 @@ const en = {
     empty: 'No statistics',
     export: {
       failed: 'Export failed',
-      hint: 'Export as Excel',
+      hint: 'Export as XLSX',
       total: 'All visitors',
     },
     later: 'Later',

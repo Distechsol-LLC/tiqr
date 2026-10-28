@@ -33,16 +33,14 @@
         <option value={option}>{labels?.[option] ?? option}</option>
       {/each}
     </select>
-    <!-- Floats onto the top border like FloatingInput's, once focused or picked -->
+    <!-- Floats onto the top border like FloatingInput's, once focused or picked, with the same background -->
     <label
       class={[
-        'text-surface-600-400 pointer-events-none absolute top-4 left-[calc((var(--text-base)-var(--spacing)*0.5)/2)] origin-left rounded-sm px-1 text-base leading-none',
-        'from-surface-50-950 bg-[linear-gradient(transparent_40%,var(--tw-gradient-from)_40%,var(--tw-gradient-from)_56%,transparent_56%)]',
-        'dark:bg-surface-950 dark:bg-none',
-        'peer-focus:text-primary-600-400 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:from-[var(--floating-label-notch,var(--color-surface-100-900))]',
-        'peer-valid:-translate-y-6 peer-valid:scale-75 peer-valid:from-[var(--floating-label-notch,var(--color-surface-100-900))]',
+        'text-surface-600-400 pointer-events-none absolute top-4 left-[calc((var(--text-base)-var(--spacing)*0.5)/2)] origin-left rounded-sm bg-transparent px-1 text-base leading-none',
+        'peer-focus:text-primary-600-400 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:bg-[var(--floating-label-notch,var(--color-surface-100-900))]',
+        'peer-valid:-translate-y-6 peer-valid:scale-75 peer-valid:bg-[var(--floating-label-notch,var(--color-surface-100-900))]',
         'peer-aria-invalid:text-error-600-400',
-        'motion-safe:transition-[translate,scale,color,--tw-gradient-from] motion-safe:duration-200 motion-safe:ease-out',
+        'motion-safe:transition-[translate,scale,color,background-color] motion-safe:duration-200 motion-safe:ease-out',
       ]}
       for={id}
     >

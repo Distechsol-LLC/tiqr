@@ -162,7 +162,7 @@ const az: Messages = {
     empty: 'Statistika yoxdur',
     export: {
       failed: 'İxrac alınmadı',
-      hint: 'Excel kimi ixrac et',
+      hint: 'XLSX kimi ixrac et',
       total: 'Bütün ziyarətçilər',
     },
     later: 'Sonrakı',

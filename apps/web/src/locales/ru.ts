@@ -165,7 +165,7 @@ const ru: Messages = {
     empty: 'Нет статистики',
     export: {
       failed: 'Экспорт не выполнен',
-      hint: 'Экспорт в Excel',
+      hint: 'Экспорт в XLSX',
       total: 'Все посетители',
     },
     later: 'Позже',

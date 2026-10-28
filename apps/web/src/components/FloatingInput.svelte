@@ -54,17 +54,15 @@
       bind:this={input}
     />
     <!-- The label starts where Skeleton's .input puts its text, then floats onto the top border.
-      Only a thin band across the border is painted, in the parent's color (--floating-label-notch,
-      the card by default), so the text itself sits on whatever is behind it, with no two-tone box. -->
+      Once floated, it gets a rounded background in the parent's color (--floating-label-notch,
+      the card by default), so the border stops short of the text. At rest it stays transparent. -->
     <label
       class={[
-        'text-surface-600-400 pointer-events-none absolute top-4 left-[calc((var(--text-base)-var(--spacing)*0.5)/2)] origin-left rounded-sm px-1 text-base leading-none',
-        'from-surface-50-950 bg-[linear-gradient(transparent_40%,var(--tw-gradient-from)_40%,var(--tw-gradient-from)_56%,transparent_56%)]',
-        'dark:bg-surface-950 dark:bg-none',
-        'peer-focus:text-primary-600-400 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:from-[var(--floating-label-notch,var(--color-surface-100-900))]',
-        'peer-not-placeholder-shown:-translate-y-6 peer-not-placeholder-shown:scale-75 peer-not-placeholder-shown:from-[var(--floating-label-notch,var(--color-surface-100-900))]',
+        'text-surface-600-400 pointer-events-none absolute top-4 left-[calc((var(--text-base)-var(--spacing)*0.5)/2)] origin-left rounded-sm bg-transparent px-1 text-base leading-none',
+        'peer-focus:text-primary-600-400 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:bg-[var(--floating-label-notch,var(--color-surface-100-900))]',
+        'peer-not-placeholder-shown:-translate-y-6 peer-not-placeholder-shown:scale-75 peer-not-placeholder-shown:bg-[var(--floating-label-notch,var(--color-surface-100-900))]',
         'peer-aria-invalid:text-error-600-400',
-        'motion-safe:transition-[translate,scale,color,--tw-gradient-from] motion-safe:duration-200 motion-safe:ease-out',
+        'motion-safe:transition-[translate,scale,color,background-color] motion-safe:duration-200 motion-safe:ease-out',
       ]}
       for={id}
     >
