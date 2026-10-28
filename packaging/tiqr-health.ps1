@@ -3,8 +3,8 @@
 # the customer's monitoring to pick up. The Linux equivalent is tiqr-health.sh.
 [CmdletBinding()]
 param(
-    [string]$EnvFile = 'C:\ProgramData\TiQR\tiqr.env',
-    [string]$StateFile = 'C:\ProgramData\TiQR\data\health-failures.txt',
+    # The data folder: the installer keeps the settings files and the database here.
+    [string]$DataFolder = (Join-Path $env:ProgramData 'TiQR'),
     # Registers the every-minute task that runs this script as the TiQR service account, then exits.
     [switch]$Install
 )
@@ -13,6 +13,7 @@ $ErrorActionPreference = 'Stop'
 $TaskName = 'TiQR Health Probe'
 $EventSource = 'TiQR-Health'
 $FailuresBeforeAlert = 3
+$StateFile = Join-Path $DataFolder 'health-failures.txt'
 
 if ($Install) {
     # Writing to the event log needs a registered source, and only an administrator can register
@@ -20,9 +21,9 @@ if ($Install) {
     if (-not [System.Diagnostics.EventLog]::SourceExists($EventSource)) {
         New-EventLog -LogName Application -Source $EventSource
     }
-    # The task points at the script's current path, under the release junction the upgrade repoints.
+    # The task runs this script where the installer copied it, and reads the data folder it is given.
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -DataFolder `"$DataFolder`""
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
         -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
     $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 2) `
@@ -34,15 +35,18 @@ if ($Install) {
     exit 0
 }
 
-# The same KEY=VALUE file systemd reads through EnvironmentFile; blank lines and comments skip.
+# The settings the server reads from the data folder, .env.local last so it wins. Each file is
+# KEY=VALUE, the format systemd reads through EnvironmentFile; blank lines and comments skip.
 $config = @{}
-if (Test-Path -LiteralPath $EnvFile) {
-    foreach ($line in Get-Content -LiteralPath $EnvFile) {
+foreach ($file in '.env', '.env.local') {
+    $path = Join-Path $DataFolder $file
+    if (-not (Test-Path -LiteralPath $path)) { continue }
+    foreach ($line in Get-Content -LiteralPath $path) {
         $text = $line.Trim()
         $split = $text.IndexOf('=')
         if ($split -lt 1 -or $text.StartsWith('#')) { continue }
-        $name = $text.Substring(0, $split).Trim()
-        $config[$name] = $text.Substring($split + 1).Trim().Trim('"', "'")
+        $key = $text.Substring(0, $split).Trim()
+        $config[$key] = $text.Substring($split + 1).Trim().Trim('"', "'")
     }
 }
 
@@ -76,7 +80,6 @@ $previous = 0
 if (Test-Path -LiteralPath $StateFile) {
     [void][int]::TryParse((Get-Content -LiteralPath $StateFile -Raw).Trim(), [ref]$previous)
 }
-New-Item -ItemType Directory -Force -Path (Split-Path -Parent $StateFile) | Out-Null
 
 try {
     Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10 | Out-Null

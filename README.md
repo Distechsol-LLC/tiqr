@@ -560,8 +560,8 @@ holding the executable, `tiqr_brand.jsonc`, `INSTALL.txt`, `THIRD-PARTY-NOTICES.
 install script (plus WinSW on Windows). Unpack it and run the script as an administrator:
 
 ```text
-sudo ./install.sh          # Linux: copies to /opt/tiqr
-install.cmd                # Windows: copies to C:\Program Files\TiQR, elevates itself
+sudo ./install.sh          # Linux: program to /opt/tiqr, data to /var/lib/tiqr
+install.cmd                # Windows: program to C:\Program Files\TiQR, data to C:\ProgramData\TiQR
 ```
 
 It runs `tiqr install`: address, port, first admin, firewall and the boot-time service. A rerun from

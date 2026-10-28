@@ -1,6 +1,7 @@
 import os
 import stat
 import sys
+from pathlib import Path
 from zoneinfo import ZoneInfoNotFoundError
 
 import pytest
@@ -203,6 +204,25 @@ def test_discard_access_group_id_blanks_only_the_pinned_value(tmp_path):
 
 
 def test_frozen_build_keeps_config_beside_executable(tmp_path, monkeypatch):
+    monkeypatch.delenv("TIQR_HOME", raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(tmp_path / "tiqr"))
     assert settings._project_root() == tmp_path.resolve()
+
+
+def test_installed_windows_program_keeps_data_in_programdata(tmp_path, monkeypatch):
+    monkeypatch.delenv("TIQR_HOME", raising=False)
+    monkeypatch.setenv("PROGRAMDATA", str(tmp_path / "ProgramData"))
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "Program Files" / "TiQR" / "tiqr.exe"))
+    assert settings._project_root() == tmp_path / "ProgramData" / "TiQR"
+
+
+def test_installed_linux_program_keeps_data_in_var_lib(tmp_path, monkeypatch):
+    monkeypatch.delenv("TIQR_HOME", raising=False)
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "opt" / "tiqr" / "tiqr"))
+    assert settings._project_root() == Path("/var/lib/tiqr")

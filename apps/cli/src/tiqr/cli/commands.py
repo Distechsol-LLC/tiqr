@@ -319,11 +319,15 @@ def install(
         origin_folder = source or _executable_folder()
         origin = origin_folder / BRANDING_FILE
         target = branding_path()
+        # The data folder may not exist yet on a first Windows install; the database goes there too.
+        target.parent.mkdir(parents=True, exist_ok=True)
         load_branding(origin)
         if origin.resolve() == target.resolve():
             typer.echo(f"{target} is already in place")
+        elif target.exists():
+            # A reinstall keeps the branding the site has already edited.
+            typer.echo(f"Keeping the branding already in {target}")
         else:
-            target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(origin, target)
             typer.echo(f"Copied {origin} to {target}")
 

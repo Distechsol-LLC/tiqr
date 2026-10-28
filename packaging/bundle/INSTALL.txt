@@ -3,7 +3,8 @@ TiQR: installing
 Linux (needs root):    sudo ./install.sh
 Windows (needs admin): double-click install.cmd
 
-The script copies this folder to /opt/tiqr (Linux) or C:\Program Files\TiQR (Windows), then asks
+The script copies the program to /opt/tiqr (Linux) or C:\Program Files\TiQR (Windows). The settings
+and data go to /var/lib/tiqr (Linux) or C:\ProgramData\TiQR (Windows), which upgrades leave alone. Then it asks
 for the address operators' PCs will use, the port, and the first admin account. It opens the port
 in the firewall and installs TiQR as a service that starts at boot.
 
