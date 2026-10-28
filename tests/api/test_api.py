@@ -1,12 +1,14 @@
 import sqlite3
 from dataclasses import replace
 from datetime import timedelta
+from functools import partial
 from http.cookies import SimpleCookie
 from uuid import UUID, uuid4
 
 import pytest
 
 from tiqr.api import __version__
+from tiqr.api.maintenance import Maintenance
 from tiqr.core.auth import WEB_SESSION_IDLE
 from tiqr.core.biostar import BioStarError
 from tiqr.core.license import parse_request_code
@@ -60,7 +62,8 @@ def test_health_is_unavailable_when_the_database_does_not_answer(client, service
 
 
 def test_health_is_unavailable_once_the_scheduler_has_stopped(make_client):
-    with make_client(sync_interval=3600) as client:
+    scheduler = partial(Maintenance, sync_interval=3600, cleanup_interval=0)
+    with make_client(scheduler=scheduler) as client:
         assert client.get("/api/health").status_code == 200
         client.app.state.tiqr.maintenance.stop()
         response = client.get("/api/health")

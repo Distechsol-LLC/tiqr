@@ -40,7 +40,7 @@ BioStar block in. `.env.local` is git-ignored and holds private values such as
 does not run without it. It holds the name, logo, theme and languages (the web app reads them from
 the server at load, so one build serves any of them) and may also set the other non-secret keys:
 `prefix`, `default_tz`, the server's `host`, `port`, `tls_cert`, `tls_key`,
-`server_printing`, `sync_interval`, `cleanup_interval`, and a `biostar` block. Each is the
+`server_printing`, and a `biostar` block. Each is the
 `TIQR_*` setting of the same name; the file wins over `.env` and `.env.local`, real environment
 variables win over it, and `null` leaves a key to the layers below. `TIQR_SECRET_KEY` and the
 BioStar password are refused there. `theme` is `default` (the Vintage theme) or any Skeleton theme
@@ -74,8 +74,6 @@ flag in `.env`, because local mode must keep working.
 | `TIQR_PORT` | `7102` |
 | `TIQR_TLS_CERT`, `TIQR_TLS_KEY` | Optional PEM certificate and key, relative to the project root; both set serves HTTPS |
 | `TIQR_SERVER_PRINTING` | `false`; `true` lets operators print on the server's default printer from the web UI |
-| `TIQR_SYNC_INTERVAL` | `60` seconds between scheduled syncs while serving; `0` turns them off |
-| `TIQR_CLEANUP_INTERVAL` | `3600` seconds between scheduled cleanups while serving; `0` turns them off |
 
 With **no** BioStar settings, in-memory registrar and event-source fakes are the
 defaults. Supplying BioStar settings requires the base URL, username, password and at least one
@@ -419,8 +417,8 @@ when a ticket may be printed, and what `print_count` records, are described unde
 
 ## Operations
 
-`tiqr serve` runs `sync` every `TIQR_SYNC_INTERVAL` seconds and `cleanup` every
-`TIQR_CLEANUP_INTERVAL`, both once at startup, through the service's `scheduled_sync` and
+`tiqr serve` runs `sync` every 60 seconds and `cleanup` every hour, both once at startup,
+through the service's `scheduled_sync` and
 `scheduled_cleanup` entry points. Those take no actor: like the bootstrap commands, they trust
 their in-process caller. Failures are logged and retried on the next run. Without a running
 server, schedule the CLI's `sync` and `cleanup` yourself; CLI actor commands prompt

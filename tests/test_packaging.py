@@ -204,11 +204,13 @@ finally:
 from fastapi.testclient import TestClient
 from tiqr.api.app import create_app
 from tiqr.api.config import ServerConfig
+from tiqr.api.maintenance import Maintenance
 from tiqr.core import settings
 home = pathlib.Path(os.environ["TIQR_HOME"]).resolve()
 assert settings.PROJECT_ROOT == home
-config = ServerConfig(dev=True, sync_interval=0, cleanup_interval=0)
-with TestClient(create_app(config)) as client:
+config = ServerConfig(dev=True)
+scheduler = lambda service: Maintenance(service, sync_interval=0, cleanup_interval=0)
+with TestClient(create_app(config, scheduler=scheduler)) as client:
     assert client.get("/api/health").json()["status"] == "ok"
 assert (home / "tiqr.db").is_file()
 for name, module in tuple(sys.modules.items()):

@@ -90,8 +90,6 @@ const
   DefaultPrefix = 'TQR';
   DefaultHost = '127.0.0.1';
   DefaultPort = '7102';
-  DefaultSyncInterval = '60';
-  DefaultCleanupInterval = '3600';
   DefaultBioTimeout = '30';
   DefaultBioDoorDuration = '3';
   DefaultBioDoorTimeout = '10';
@@ -117,8 +115,6 @@ type
     TlsCert: String;
     TlsKey: String;
     ServerPrinting: Boolean;
-    SyncInterval: String;
-    CleanupInterval: String;
     BioStarOn: Boolean;
     BioBaseUrl: String;
     BioUsername: String;
@@ -144,8 +140,6 @@ var
   TlsPage: TInputOptionWizardPage;
   TlsFilesPage: TInputFileWizardPage;
   PrintingPage: TInputOptionWizardPage;
-  SyncPage: TInputQueryWizardPage;
-  CleanupPage: TInputQueryWizardPage;
   BioModePage: TInputOptionWizardPage;
   BioConnectionPage: TInputQueryWizardPage;
   BioTimingPage: TInputQueryWizardPage;
@@ -413,26 +407,6 @@ begin
   Result := '';
 end;
 
-{ Whole seconds of zero or more; 0 turns the scheduled job off (api/config.py). Blank keeps the
-  default. }
-function ValidateInterval(const Value, What: String): String;
-begin
-  Result := '';
-  if Value = '' then
-    Exit;
-  if not IsWholeNumber(Value) then
-    Result := 'The ' + What + ' interval must be a whole number of seconds, 0 or more. 0 turns it off.';
-end;
-
-function ValidateSyncInterval(const B: TBrand): String;
-begin
-  Result := ValidateInterval(B.SyncInterval, 'sync');
-end;
-
-function ValidateCleanupInterval(const B: TBrand): String;
-begin
-  Result := ValidateInterval(B.CleanupInterval, 'cleanup');
-end;
 
 { HTTPS, no credentials, query or fragment, ending at the host or /api (BioStarSettings). }
 function ValidateBioStarUrl(const Url: String): String;
@@ -650,8 +624,6 @@ begin
     Entry('  ', 'tls_cert', JsonText(B.TlsCert), 'default: none (plain HTTP)', False) +
     Entry('  ', 'tls_key', JsonText(B.TlsKey), 'default: none (plain HTTP)', False) +
     Entry('  ', 'server_printing', JsonBool(B.ServerPrinting), 'default: false', False) +
-    Entry('  ', 'sync_interval', JsonWhole(B.SyncInterval), 'default: 60 seconds; 0 turns it off', False) +
-    Entry('  ', 'cleanup_interval', JsonWhole(B.CleanupInterval), 'default: 3600 seconds; 0 turns it off', False) +
     NL +
     '  // BioStar (leave all null for local mode; a partly filled block is an error)' + NL +
     '  "biostar": {' + NL +
@@ -723,8 +695,6 @@ begin
     Result.TlsKey := Key;
   end;
   Result.ServerPrinting := PrintingPage.Values[1];
-  Result.SyncInterval := Trim(SyncPage.Values[0]);
-  Result.CleanupInterval := Trim(CleanupPage.Values[0]);
   Result.BioStarOn := BioModePage.Values[1];
   Result.BioBaseUrl := '';
   Result.BioUsername := '';
@@ -771,10 +741,6 @@ begin
     Result := ValidateTls(B)
   else if PageID = PrintingPage.ID then
     Result := ValidateServerPrinting(B)
-  else if PageID = SyncPage.ID then
-    Result := ValidateSyncInterval(B)
-  else if PageID = CleanupPage.ID then
-    Result := ValidateCleanupInterval(B)
   else if PageID = BioConnectionPage.ID then
     Result := ValidateBioStarConnection(B)
   else if PageID = BioTimingPage.ID then
@@ -794,8 +760,6 @@ begin
   if Result = '' then Result := ValidateHost(B);
   if Result = '' then Result := ValidatePort(B);
   if Result = '' then Result := ValidateTls(B);
-  if Result = '' then Result := ValidateSyncInterval(B);
-  if Result = '' then Result := ValidateCleanupInterval(B);
   if Result = '' then Result := ValidateBioStarConnection(B);
   if Result = '' then Result := ValidateBioStarTiming(B);
 end;
@@ -932,19 +896,7 @@ begin
   PrintingPage.Values[0] := True;
   After := PrintingPage.ID;
 
-  { 11. Sync interval }
-  SyncPage := CreateInputQueryPage(After, 'Sync interval', 'How often should TiQR sync while serving?', 'Whole seconds, 0 or more; 0 turns scheduled syncs off. Blank keeps 60.');
-  SyncPage.Add('Seconds between syncs:', False);
-  SyncPage.Values[0] := DefaultSyncInterval;
-  After := SyncPage.ID;
-
-  { 12. Cleanup interval }
-  CleanupPage := CreateInputQueryPage(After, 'Cleanup interval', 'How often should TiQR clean up while serving?', 'Whole seconds, 0 or more; 0 turns scheduled cleanups off. Blank keeps 3600.');
-  CleanupPage.Add('Seconds between cleanups:', False);
-  CleanupPage.Values[0] := DefaultCleanupInterval;
-  After := CleanupPage.ID;
-
-  { 13. BioStar: local mode or the whole block (a partly filled block is an error in the app). }
+  { 11. BioStar: local mode or the whole block (a partly filled block is an error in the app). }
   BioModePage := CreateInputOptionPage(After, 'BioStar', 'Should TiQR open doors through BioStar?', 'Local mode needs nothing more. With BioStar, the next pages ask for its settings. The BioStar password is not stored in tiqr_brand.jsonc: add TIQR_BIOSTAR_PASSWORD to .env.local.', True, False);
   BioModePage.Add('Local mode (no BioStar)');
   BioModePage.Add('Connect to BioStar');
@@ -1125,15 +1077,12 @@ begin
     Port := Brand.Port;
     if Port = '' then
       Port := DefaultPort;
-    { The window is hidden, so install must not prompt: its first-admin prompt would wait forever. Stdin
-      from NUL makes it a script, which takes the defaults. }
-    if not Exec(ExpandConstant('{cmd}'), '/C ""' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' < NUL"', ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    { The window is visible, so install can ask for the first admin, as the terminal install does. It
+      closes on success; a failure waits for Enter so the error stays readable. }
+    if not Exec(ExpandConstant('{cmd}'), '/C ""' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
       MsgBox('TiQR was copied, but tiqr install did not finish. Open a command prompt as administrator in the install folder and run: tiqr.exe install', mbError, MB_OK)
     else
-    begin
-      { A visible window asks for the first admin, as the terminal install does. The list that follows is only for the operator to see. }
-      Exec(ExpandConstant('{cmd}'), '/C ""' + ExpandConstant('{app}\tiqr.exe') + '" user list & pause"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode);
+      { The health check has passed by now, so the site is ready for the operator to see. }
       ShellExec('open', 'http://' + Host + ':' + Port, '', '', SW_SHOW, ewNoWait, ResultCode);
-    end;
   end;
 end;

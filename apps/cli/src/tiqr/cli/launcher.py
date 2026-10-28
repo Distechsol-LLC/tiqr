@@ -15,6 +15,7 @@ from pathlib import Path
 import typer
 
 from tiqr.cli.commands import app, create_first_admin
+from tiqr.cli.installer import restore_service_ownership
 from tiqr.core.repository import SQLiteRepository
 from tiqr.core.settings import Settings, database_path
 
@@ -127,6 +128,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         _run(arguments)
     finally:
+        # A root run may have created database files the service cannot write; hand them back.
+        restore_service_ownership(database_path().parent)
         # Runs on success, failure and the CLI's own exit, so the output stays readable.
         if os.environ.get(_PAUSE_ENV):
             _pause()

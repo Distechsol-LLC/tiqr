@@ -2,8 +2,8 @@ import json
 import logging
 import threading
 from contextlib import nullcontext
-from dataclasses import replace
 from datetime import timedelta
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -32,26 +32,18 @@ class Clock:
 
 def test_config_reads_the_environment_and_resolves_tls_paths(project_root):
     config = ServerConfig.from_env(
-        TLS
-        | {
-            "TIQR_HOST": "10.0.0.5",
-            "TIQR_PORT": "443",
-            "TIQR_SERVER_PRINTING": "true",
-            "TIQR_SYNC_INTERVAL": "30",
-            "TIQR_CLEANUP_INTERVAL": "0",
-        }
+        TLS | {"TIQR_HOST": "10.0.0.5", "TIQR_PORT": "443", "TIQR_SERVER_PRINTING": "true"}
     )
     assert (config.host, config.port) == ("10.0.0.5", 443)
     assert config.tls_cert == project_root / "tls" / "cert.pem"
     assert config.tls_key == project_root / "tls" / "key.pem"
     assert config.server_printing
-    assert (config.sync_interval, config.cleanup_interval) == (30, 0)
 
 
 def test_blank_variables_use_defaults_and_arguments_win():
-    blank = dict.fromkeys(("TIQR_HOST", "TIQR_PORT", "TIQR_SYNC_INTERVAL"), " ")
+    blank = dict.fromkeys(("TIQR_HOST", "TIQR_PORT"), " ")
     config = ServerConfig.from_env(blank, dev=True)
-    assert (config.host, config.port, config.sync_interval) == ("127.0.0.1", 7102, 60)
+    assert (config.host, config.port) == ("127.0.0.1", 7102)
     assert not config.server_printing
     assert not ServerConfig.from_env({}).secure
     config = ServerConfig.from_env(
@@ -68,7 +60,6 @@ def test_blank_variables_use_defaults_and_arguments_win():
         (TLS | {"TIQR_PORT": "70000"}, {}, "between 1 and 65535"),
         (TLS | {"TIQR_PORT": "https"}, {}, "whole number"),
         (TLS | {"TIQR_SERVER_PRINTING": "yes"}, {}, "true or false"),
-        (TLS | {"TIQR_SYNC_INTERVAL": "-1"}, {}, "must not be negative"),
     ],
 )
 def test_config_refuses_unsafe_or_malformed_settings(environment, options, message):
@@ -138,7 +129,7 @@ class Service:
 
 def test_maintenance_runs_each_job_on_its_own_interval(caplog):
     clock, service = Clock(), Service()
-    maintenance = Maintenance(service, 60, 3600, clock=clock)
+    maintenance = Maintenance(service, sync_interval=60, cleanup_interval=3600, clock=clock)
     with caplog.at_level(logging.INFO, "tiqr.api"):
         assert maintenance.run_due() == 60
     assert service.calls == ["sync", "cleanup"]
@@ -150,10 +141,17 @@ def test_maintenance_runs_each_job_on_its_own_interval(caplog):
     assert service.calls == ["sync", "cleanup", "sync"]
 
 
+def test_maintenance_uses_built_in_intervals_by_default():
+    clock, service = Clock(), Service()
+    maintenance = Maintenance(service, clock=clock)
+    assert maintenance.run_due() == 60
+    assert service.calls == ["sync", "cleanup"]
+
+
 def test_maintenance_failures_are_logged_and_retried(caplog):
     clock, service = Clock(), Service()
     service.failing.add("sync")
-    maintenance = Maintenance(service, 60, 0, clock=clock)
+    maintenance = Maintenance(service, sync_interval=60, cleanup_interval=0, clock=clock)
     with caplog.at_level(logging.ERROR, "tiqr.api"):
         assert maintenance.run_due() == 60
     assert "Scheduled sync failed" in caplog.text
@@ -165,7 +163,7 @@ def test_maintenance_failures_are_logged_and_retried(caplog):
 
 
 def test_maintenance_with_no_jobs_starts_no_thread():
-    maintenance = Maintenance(Service(), 0, 0)
+    maintenance = Maintenance(Service(), sync_interval=0, cleanup_interval=0)
     assert maintenance.run_due() is None
     maintenance.start()
     assert maintenance._thread is None
@@ -173,8 +171,8 @@ def test_maintenance_with_no_jobs_starts_no_thread():
 
 
 def test_maintenance_is_running_only_while_its_thread_lives():
-    assert Maintenance(Service(), 0, 0).running is True
-    maintenance = Maintenance(Service(), 3600, 0)
+    assert Maintenance(Service(), sync_interval=0, cleanup_interval=0).running is True
+    maintenance = Maintenance(Service(), sync_interval=3600, cleanup_interval=0)
     assert maintenance.running is False
     maintenance.start()
     assert maintenance.running is True
@@ -192,7 +190,7 @@ def test_maintenance_thread_stops_after_the_run_in_progress():
             return super().scheduled_sync()
 
     service = Slow()
-    maintenance = Maintenance(service, 3600, 0)
+    maintenance = Maintenance(service, sync_interval=3600, cleanup_interval=0)
     maintenance.start()
     assert started.wait(5)
     stopper = threading.Thread(target=maintenance.stop)
@@ -216,7 +214,7 @@ def test_the_server_schedules_sync_from_startup(make_client, service, accounts, 
         usage_type=UsageType.MULTI_USE,
     )
     service.event_source.events.append(RawEvent("scan-1", ticket.external_id, clock.now, True))
-    with make_client(sync_interval=3600):
+    with make_client(scheduler=partial(Maintenance, sync_interval=3600, cleanup_interval=0)):
         # Shutdown waits for the startup run, so it has finished once the client closes.
         pass
     assert service.repository.get_ticket(ticket.id).use_count == 1
@@ -302,9 +300,10 @@ def test_web_page_and_manifest_carry_the_install_name(make_client, web_root, ser
         secret_key="web-suite-unique-signing-key", app_name="Expo <Pass>", logo_path=logo
     )
     app = create_app(
-        replace(ServerConfig(), sync_interval=0, cleanup_interval=0),
+        ServerConfig(),
         runtime=lambda: nullcontext(Runtime(settings, service)),
         web_root=web_root,
+        scheduler=partial(Maintenance, sync_interval=0, cleanup_interval=0),
     )
     with TestClient(app, base_url="http://testserver") as client:
         assert "<title>Expo &lt;Pass&gt;</title>" in client.get("/tiqr/").text

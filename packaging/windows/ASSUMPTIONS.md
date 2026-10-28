@@ -36,8 +36,7 @@ bundle: `iscc /DBundleDir=bundle\tiqr-Windows-X64 /DAppVersion=<version> packagi
   (for example `en-RU`); the installer offers only the four canonical ones. The first ticked is the default.
 - `prefix`: exactly 3 printable ASCII characters, none of `:` `-`.
 - `default_tz`: any name in `timezones.txt` (598 names from `zoneinfo`), case-sensitive.
-- `port`: integer 1-65535. `sync_interval`, `cleanup_interval`: whole seconds, 0 or more (0 = off).
-  Values are capped at 9 digits; the app has no upper limit.
+- `port`: integer 1-65535.
 - `host`: letters, digits, `.`, `-`, `_`, `:` only. The app does no check; this is a sanity filter.
 - `server_printing`, `verify_tls`: JSON booleans. `timeout`: positive number (`2.5` allowed);
   `door_open_duration`, `door_open_timeout`: integers of 1 or more.
