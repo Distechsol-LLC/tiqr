@@ -1125,7 +1125,15 @@ begin
     Port := Brand.Port;
     if Port = '' then
       Port := DefaultPort;
-    if not Exec(ExpandConstant('{app}\tiqr.exe'), 'install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port, ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-      MsgBox('TiQR was copied, but tiqr install did not finish. Open a command prompt as administrator in the install folder and run: tiqr.exe install', mbError, MB_OK);
+    { The window is hidden, so install must not prompt: its first-admin prompt would wait forever. Stdin
+      from NUL makes it a script, which takes the defaults. }
+    if not Exec(ExpandConstant('{cmd}'), '/C ""' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' < NUL"', ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+      MsgBox('TiQR was copied, but tiqr install did not finish. Open a command prompt as administrator in the install folder and run: tiqr.exe install', mbError, MB_OK)
+    else
+    begin
+      { A visible window asks for the first admin, as the terminal install does. The list that follows is only for the operator to see. }
+      Exec(ExpandConstant('{cmd}'), '/C ""' + ExpandConstant('{app}\tiqr.exe') + '" user list & pause"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode);
+      ShellExec('open', 'http://' + Host + ':' + Port, '', '', SW_SHOW, ewNoWait, ResultCode);
+    end;
   end;
 end;
