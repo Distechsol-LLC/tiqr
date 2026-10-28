@@ -208,7 +208,10 @@ def _install_windows_service(executable: Path, home: Path, wrapper: Path) -> Non
             continue
         recurse = ["/T"] if entry.is_dir() else []
         _run(["icacls", str(entry), *recurse, "/grant", f"NT SERVICE\\{SERVICE_NAME}:(OI)(CI)M"])
+    _run([str(target), "start"])
     # The script registers its scheduled task and event log source, which need administrator rights.
+    # The task runs as the service's virtual account, which Windows resolves only once the service
+    # has started, so the task is registered after the start.
     _run(
         [
             "powershell",
@@ -222,7 +225,6 @@ def _install_windows_service(executable: Path, home: Path, wrapper: Path) -> Non
             str(home),
         ]
     )
-    _run([str(target), "start"])
 
 
 def give_data_to_service(home: Path) -> None:
