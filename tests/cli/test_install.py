@@ -186,9 +186,12 @@ def test_windows_service_grants_only_the_data_folder(tmp_path, monkeypatch):
     assert str(data) in granted
     assert str(program) not in granted
     assert str(data / installer.BRANDING_FILE) not in granted
-    assert any(
-        argv[0] == "powershell" and argv[-2:] == ["-DataFolder", str(data)] for argv in commands_run
+    probe = next(
+        i
+        for i, argv in enumerate(commands_run)
+        if argv[0] == "powershell" and argv[-2:] == ["-DataFolder", str(data)]
     )
+    assert commands_run.index([str(wrapper), "start"]) < probe
 
 
 def test_health_unit_reads_the_install_settings(tmp_path):

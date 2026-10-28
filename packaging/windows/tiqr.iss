@@ -1078,11 +1078,9 @@ begin
     if Port = '' then
       Port := DefaultPort;
     { The window is visible, so install can ask for the first admin, as the terminal install does. It
-      closes on success; a failure waits for Enter so the error stays readable. }
-    if not Exec(ExpandConstant('{cmd}'), '/C ""' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-      MsgBox('TiQR was copied, but tiqr install did not finish. Open a command prompt as administrator in the install folder and run: tiqr.exe install', mbError, MB_OK)
-    else
-      { The health check has passed by now, so the site is ready for the operator to see. }
+      closes on success; a failure waits for Enter so the error stays readable, and no popup is shown.
+      The browser opens only after a successful install, when the health check has passed. }
+    if Exec(ExpandConstant('{cmd}'), '/C ""' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
       ShellExec('open', 'http://' + Host + ':' + Port, '', '', SW_SHOW, ewNoWait, ResultCode);
   end;
 end;
