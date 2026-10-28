@@ -320,7 +320,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -330,7 +330,7 @@
             }
           },
           "409": {
-            "description": "The ticket, account or license is not in a state that allows this",
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
             "content": {
               "application/json": {
                 "schema": {
@@ -393,7 +393,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -449,7 +449,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -511,7 +511,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -583,7 +583,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -706,7 +706,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -784,7 +784,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -876,7 +876,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -896,7 +896,7 @@
             }
           },
           "409": {
-            "description": "The ticket, account or license is not in a state that allows this",
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
             "content": {
               "application/json": {
                 "schema": {
@@ -969,7 +969,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -989,7 +989,7 @@
             }
           },
           "409": {
-            "description": "The ticket, account or license is not in a state that allows this",
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
             "content": {
               "application/json": {
                 "schema": {
@@ -1156,7 +1156,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -1248,7 +1248,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -1331,7 +1331,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -1508,7 +1508,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -1600,7 +1600,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -1683,7 +1683,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -1766,6 +1766,25 @@
             }
           },
           {
+            "name": "external_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the ticket with exactly this code",
+              "title": "External Code"
+            },
+            "description": "Only the ticket with exactly this code"
+          },
+          {
             "name": "page",
             "in": "query",
             "required": false,
@@ -1824,6 +1843,16 @@
               }
             }
           },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Invalid input: a malformed request, or a value the server refuses",
             "content": {
@@ -1849,7 +1878,29 @@
           "tickets"
         ],
         "summary": "Create Ticket",
+        "description": "Issue a ticket. With an `Idempotency-Key`, a retry of the same body gets the first answer\nback (same status and body, plus `Idempotent-Replayed: true`); the same key with another body\nis a 409. Keys are remembered for TIQR_IDEMPOTENCY_TTL_HOURS.",
         "operationId": "create_ticket",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Repeat a create safely: the same key and body replays the first answer",
+              "title": "Idempotency-Key"
+            },
+            "description": "Repeat a create safely: the same key and body replays the first answer"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1892,7 +1943,17 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
             "content": {
               "application/json": {
                 "schema": {
@@ -1925,6 +1986,107 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets/batch": {
+      "post": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Create Tickets Batch",
+        "description": "Create many tickets, with a result for each; always 200 unless the request is malformed.\n\nWith `atomic` false every item stands on its own. With `atomic` true the first failure\nrevokes the items already created (those results read `rolled_back`) and the rest are\n`skipped`. Items follow the create rules: an item's `idempotency_key`, or the header's\nplus `:index`, replays its first answer. At most TIQR_BATCH_MAX_SIZE items.",
+        "operationId": "create_tickets_batch",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Repeat a create safely: the same key and body replays the first answer",
+              "title": "Idempotency-Key"
+            },
+            "description": "Repeat a create safely: the same key and body replays the first answer"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Tickets Batch"
                 }
               }
             }
@@ -1983,7 +2145,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -2016,6 +2178,962 @@
                     }
                   ],
                   "title": "Response 422 Get Ticket"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Patch Ticket",
+        "description": "Change the validity window, in BioStar too. Admins and managers.\n\nAllowed while the ticket is issued, or passed and multi-use; the end must be after the\nstart. A window that is already as asked changes nothing.",
+        "operationId": "patch_ticket",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Patch Ticket"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "BioStar or the server's printer failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets/{ticket_id}/revoke": {
+      "post": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Revoke Ticket",
+        "description": "Cancel a ticket and remove its access in BioStar. Admins and managers.\n\nRevoking a revoked ticket returns it unchanged. An expired ticket is a 409. If BioStar\nrefuses, the ticket stays as it was (a 502), and the attempt is audited.",
+        "operationId": "revoke_ticket",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RevokeIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Revoke Ticket"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "BioStar or the server's printer failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets/{ticket_id}/transfer": {
+      "post": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Transfer Ticket",
+        "description": "Move a ticket to another session or event, keeping its state, id and audit history.",
+        "operationId": "transfer_ticket",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Transfer Ticket"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "BioStar or the server's printer failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets/{ticket_id}/reissue": {
+      "post": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Reissue Ticket",
+        "description": "Revoke a ticket and issue its replacement, undoing the new one if the revoke fails.\n\nNeeds both the write and revoke scopes. A revoked ticket can be reissued. Send an\n`Idempotency-Key` so a retry does not issue a second replacement.",
+        "operationId": "reissue_ticket",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Ticket Id"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Repeat a create safely: the same key and body replays the first answer",
+              "title": "Idempotency-Key"
+            },
+            "description": "Repeat a create safely: the same key and body replays the first answer"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReissueIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReissueOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Reissue Ticket"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "BioStar or the server's printer failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets/{ticket_id}/audit": {
+      "get": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "Ticket Audit",
+        "description": "Every recorded change to a ticket, oldest first. Admins and managers.",
+        "operationId": "ticket_audit",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditOut"
+                  },
+                  "title": "Response Ticket Audit"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Ticket Audit"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/service-keys": {
+      "get": {
+        "tags": [
+          "service-keys"
+        ],
+        "summary": "List Service Keys",
+        "description": "Every key, without secrets (admin).",
+        "operationId": "list_service_keys",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ServiceKeyOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Service Keys"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "service-keys"
+        ],
+        "summary": "Create Service Key",
+        "description": "Issue an API key for service-to-service calls (admin, signed in). Shown once.",
+        "operationId": "create_service_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceKeyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceKeyCreated"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Service Key"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/service-keys/{key_id}/rotate": {
+      "post": {
+        "tags": [
+          "service-keys"
+        ],
+        "summary": "Rotate Service Key",
+        "description": "Issue a successor with the same scopes; the old key works on for the grace period.",
+        "operationId": "rotate_service_key",
+        "parameters": [
+          {
+            "name": "key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Key Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceKeyRotateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceKeyCreated"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Rotate Service Key"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/service-keys/{key_id}": {
+      "delete": {
+        "tags": [
+          "service-keys"
+        ],
+        "summary": "Revoke Service Key",
+        "description": "End a key at once; revoking a revoked key returns it unchanged.",
+        "operationId": "revoke_service_key",
+        "parameters": [
+          {
+            "name": "key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Key Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceKeyOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Revoke Service Key"
                 }
               }
             }
@@ -2084,7 +3202,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -2104,7 +3222,7 @@
             }
           },
           "409": {
-            "description": "The ticket, account or license is not in a state that allows this",
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
             "content": {
               "application/json": {
                 "schema": {
@@ -2182,7 +3300,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -2202,7 +3320,7 @@
             }
           },
           "409": {
-            "description": "The ticket, account or license is not in a state that allows this",
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
             "content": {
               "application/json": {
                 "schema": {
@@ -2284,7 +3402,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -2304,7 +3422,7 @@
             }
           },
           "409": {
-            "description": "The ticket, account or license is not in a state that allows this",
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
             "content": {
               "application/json": {
                 "schema": {
@@ -2384,7 +3502,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -2446,7 +3564,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -2548,7 +3666,7 @@
             }
           },
           "403": {
-            "description": "Not allowed: no valid license, the role may not do this, or the CSRF token is wrong",
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -2610,6 +3728,334 @@
           "assignee"
         ],
         "title": "AssignIn"
+      },
+      "AuditOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "ticket_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "occurred_at",
+          "actor",
+          "action",
+          "ticket_id",
+          "reason",
+          "detail"
+        ],
+        "title": "AuditOut"
+      },
+      "BatchIn": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BatchItemIn"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Items",
+            "description": "Tickets to create"
+          },
+          "atomic": {
+            "type": "boolean",
+            "title": "Atomic",
+            "description": "true: all or nothing, undoing the created ones if any fails; false: every item stands or fails on its own",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "BatchIn",
+        "examples": [
+          {
+            "atomic": true,
+            "items": [
+              {
+                "external_code": "BAR-0001",
+                "idempotency_key": "import-42-0",
+                "usage_type": "one_time",
+                "valid_from": "2030-06-01T09:00",
+                "valid_until": "2030-06-01T17:00",
+                "visitor_name": "Ada",
+                "visitor_type": "Guest"
+              }
+            ]
+          }
+        ]
+      },
+      "BatchItemIn": {
+        "properties": {
+          "visitor_name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Visitor Name"
+          },
+          "visitor_type": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Visitor Type"
+          },
+          "valid_from": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Valid From",
+            "description": "ISO datetime with a time; without an offset it is read in `timezone`",
+            "examples": [
+              "2030-06-01T09:00",
+              "2030-06-01T09:00:00+04:00"
+            ]
+          },
+          "valid_until": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Valid Until",
+            "description": "ISO datetime with a time; without an offset it is read in `timezone`",
+            "examples": [
+              "2030-06-01T09:00",
+              "2030-06-01T09:00:00+04:00"
+            ]
+          },
+          "usage_type": {
+            "$ref": "#/components/schemas/UsageType"
+          },
+          "ticket_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket Type",
+            "description": "Name of a ticket type; prices the ticket, less the visitor discount"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone",
+            "description": "IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"
+          },
+          "external_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Code",
+            "description": "Your own ticket code or barcode value; unique per tenant"
+          },
+          "event_session": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Session",
+            "description": "The session or event the ticket admits to"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key",
+            "description": "Per-item key; else the Idempotency-Key header plus `:index`"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "visitor_name",
+          "visitor_type",
+          "valid_from",
+          "valid_until",
+          "usage_type"
+        ],
+        "title": "BatchItemIn"
+      },
+      "BatchItemOut": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "replayed",
+              "error",
+              "rolled_back",
+              "skipped"
+            ],
+            "title": "Status",
+            "description": "replayed: the item's key had already created its ticket"
+          },
+          "ticket_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket Id"
+          },
+          "ticket": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TicketOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "The error's code, as in a refusal"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "status"
+        ],
+        "title": "BatchItemOut"
+      },
+      "BatchOut": {
+        "properties": {
+          "atomic": {
+            "type": "boolean",
+            "title": "Atomic"
+          },
+          "committed": {
+            "type": "boolean",
+            "title": "Committed",
+            "description": "false only when an all-or-nothing batch was undone"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/BatchItemOut"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "atomic",
+          "committed",
+          "created",
+          "failed",
+          "results"
+        ],
+        "title": "BatchOut"
       },
       "BrandingOut": {
         "properties": {
@@ -2997,6 +4443,109 @@
         ],
         "title": "LoginIn"
       },
+      "ReissueIn": {
+        "properties": {
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "description": "ISO datetime with a time; without an offset it is read in `timezone`",
+                "examples": [
+                  "2030-06-01T09:00",
+                  "2030-06-01T09:00:00+04:00"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "description": "ISO datetime with a time; without an offset it is read in `timezone`",
+                "examples": [
+                  "2030-06-01T09:00",
+                  "2030-06-01T09:00:00+04:00"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          },
+          "external_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Code",
+            "description": "Your own ticket code or barcode value; unique per tenant"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone",
+            "description": "IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why; stored in the audit log"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ReissueIn",
+        "description": "Replace a ticket with a copy; give a new window or code, or keep the old ones.",
+        "examples": [
+          {
+            "external_code": "BAR-0002",
+            "reason": "Damaged badge"
+          }
+        ]
+      },
+      "ReissueOut": {
+        "properties": {
+          "old": {
+            "$ref": "#/components/schemas/TicketOut"
+          },
+          "new": {
+            "$ref": "#/components/schemas/TicketOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "old",
+          "new"
+        ],
+        "title": "ReissueOut"
+      },
       "RequestCodeOut": {
         "properties": {
           "code": {
@@ -3011,6 +4560,31 @@
         ],
         "title": "RequestCodeOut"
       },
+      "RevokeIn": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why; stored in the audit log"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RevokeIn",
+        "examples": [
+          {
+            "reason": "Lost card"
+          }
+        ]
+      },
       "Role": {
         "type": "string",
         "enum": [
@@ -3019,6 +4593,254 @@
           "operator"
         ],
         "title": "Role"
+      },
+      "ServiceKeyCreated": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scopes"
+          },
+          "acts_as": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Acts As"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "replaced_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By"
+          },
+          "secret": {
+            "type": "string",
+            "title": "Secret",
+            "description": "Shown once; send as `Authorization: Bearer`"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "scopes",
+          "acts_as",
+          "created_at",
+          "expires_at",
+          "revoked_at",
+          "replaced_by",
+          "secret"
+        ],
+        "title": "ServiceKeyCreated"
+      },
+      "ServiceKeyIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "scopes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "tickets:read",
+                "tickets:write",
+                "tickets:revoke"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Scopes",
+            "description": "What the key may do; reads, writes, or revokes"
+          },
+          "acts_as": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acts As",
+            "description": "Account the key acts as; default the caller's own"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At",
+            "description": "Timezone-aware; default never"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "scopes"
+        ],
+        "title": "ServiceKeyIn",
+        "examples": [
+          {
+            "acts_as": "manager",
+            "name": "box-office",
+            "scopes": [
+              "tickets:read",
+              "tickets:write"
+            ]
+          }
+        ]
+      },
+      "ServiceKeyOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scopes"
+          },
+          "acts_as": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Acts As"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "replaced_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "scopes",
+          "acts_as",
+          "created_at",
+          "expires_at",
+          "revoked_at",
+          "replaced_by"
+        ],
+        "title": "ServiceKeyOut"
+      },
+      "ServiceKeyRotateIn": {
+        "properties": {
+          "grace_minutes": {
+            "type": "integer",
+            "maximum": 10080.0,
+            "minimum": 0.0,
+            "title": "Grace Minutes",
+            "description": "How long the old key keeps working",
+            "default": 60
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ServiceKeyRotateIn",
+        "examples": [
+          {
+            "grace_minutes": 60
+          }
+        ]
       },
       "SessionOut": {
         "properties": {
@@ -3157,6 +4979,32 @@
             ],
             "title": "Timezone",
             "description": "IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"
+          },
+          "external_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Code",
+            "description": "Your own ticket code or barcode value; unique per tenant"
+          },
+          "event_session": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Session",
+            "description": "The session or event the ticket admits to"
           }
         },
         "additionalProperties": false,
@@ -3296,6 +5144,30 @@
             "type": "string",
             "title": "Timezone",
             "description": "The zone every datetime here is shown in"
+          },
+          "external_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Code",
+            "description": "Your own code; null without one"
+          },
+          "event_session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Session",
+            "description": "Null without one"
           }
         },
         "type": "object",
@@ -3357,12 +5229,87 @@
         ],
         "title": "TicketPage"
       },
+      "TicketPatch": {
+        "properties": {
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "description": "ISO datetime with a time; without an offset it is read in `timezone`",
+                "examples": [
+                  "2030-06-01T09:00",
+                  "2030-06-01T09:00:00+04:00"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "description": "ISO datetime with a time; without an offset it is read in `timezone`",
+                "examples": [
+                  "2030-06-01T09:00",
+                  "2030-06-01T09:00:00+04:00"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone",
+            "description": "IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why; stored in the audit log"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TicketPatch",
+        "description": "Move the validity window; either end may be left out. The end must be after the start.",
+        "examples": [
+          {
+            "reason": "Show overran",
+            "valid_until": "2030-06-01T18:00"
+          }
+        ]
+      },
       "TicketState": {
         "type": "string",
         "enum": [
           "issued",
           "passed",
-          "expired"
+          "expired",
+          "revoked"
         ],
         "title": "TicketState"
       },
@@ -3501,6 +5448,90 @@
         "type": "object",
         "title": "TicketTypePatch",
         "description": "Any of: a new name, a new price, a new currency. Omitted fields stay as they are."
+      },
+      "TransferIn": {
+        "properties": {
+          "event_session": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Event Session"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "description": "ISO datetime with a time; without an offset it is read in `timezone`",
+                "examples": [
+                  "2030-06-01T09:00",
+                  "2030-06-01T09:00:00+04:00"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "description": "ISO datetime with a time; without an offset it is read in `timezone`",
+                "examples": [
+                  "2030-06-01T09:00",
+                  "2030-06-01T09:00:00+04:00"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone",
+            "description": "IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why; stored in the audit log"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_session"
+        ],
+        "title": "TransferIn",
+        "description": "Move a ticket to another session or event; the window may move with it.",
+        "examples": [
+          {
+            "event_session": "Matinee",
+            "reason": "Rebooked",
+            "valid_until": "2030-06-01T16:00"
+          }
+        ]
       },
       "UsageType": {
         "type": "string",

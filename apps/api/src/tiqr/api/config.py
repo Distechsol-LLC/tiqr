@@ -58,12 +58,20 @@ class ServerConfig:
     dev: bool = False
     # Whether operators may print on the server's own default printer, besides downloading.
     server_printing: bool = False
+    # How long an Idempotency-Key remembers its answer.
+    idempotency_ttl_hours: int = 24
+    # Most tickets one POST /api/tickets/batch may carry.
+    batch_max_size: int = 100
 
     def __post_init__(self) -> None:
         if not 0 < self.port < 65536:  # noqa: PLR2004 - the TCP port range
             raise ValueError("TIQR_PORT must be between 1 and 65535")
         if (self.tls_cert is None) != (self.tls_key is None):
             raise ValueError("Set both TIQR_TLS_CERT and TIQR_TLS_KEY, or neither")
+        if self.idempotency_ttl_hours < 1:
+            raise ValueError("TIQR_IDEMPOTENCY_TTL_HOURS must be at least 1")
+        if self.batch_max_size < 1:
+            raise ValueError("TIQR_BATCH_MAX_SIZE must be at least 1")
         # The docs describe every endpoint, so they never face the network.
         if self.dev and not _is_loopback(self.host):
             raise ValueError("--dev only listens on a loopback address, such as 127.0.0.1")
@@ -92,4 +100,6 @@ class ServerConfig:
             tls_key=tls_key or _path(environment, "TLS_KEY"),
             dev=dev,
             server_printing=_flag(environment, "SERVER_PRINTING", default=False),
+            idempotency_ttl_hours=_number(environment, "IDEMPOTENCY_TTL_HOURS", 24),
+            batch_max_size=_number(environment, "BATCH_MAX_SIZE", 100),
         )

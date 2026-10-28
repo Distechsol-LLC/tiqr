@@ -35,6 +35,8 @@ uv sync --locked
 | `TIQR_PORT` | `7102` | Listen port, 1 to 65535. |
 | `TIQR_TLS_CERT`, `TIQR_TLS_KEY` | unset | PEM certificate and key. Set both to serve HTTPS, or neither for plain HTTP. |
 | `TIQR_SERVER_PRINTING` | `false` | When `true`, operators may print on the server's default printer as well as download the PDF. Leave `false` to allow download only. |
+| `TIQR_IDEMPOTENCY_TTL_HOURS` | `24` | How long an `Idempotency-Key` remembers its answer. |
+| `TIQR_BATCH_MAX_SIZE` | `100` | Most tickets one `POST /tickets/batch` may carry; more is a `422`. |
 | `TIQR_BIOSTAR_BASE_URL`, `_USERNAME`, `_PASSWORD` | unset | BioStar connection. Leave all three unset for local mode. |
 | `TIQR_BIOSTAR_DEVICE_IDS` | unset | Comma-separated reader IDs, all added to the TiQR access group. |
 | `TIQR_BIOSTAR_ACCESS_GROUP_ID` | unset | Optional. If blank, `tiqr setup` creates an access group named TiQR. |
@@ -151,6 +153,35 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 | POST | `/tickets/{ticket_id}/assign` | session + CSRF | Body `{assignee}`: the username of any existing account to assign the ticket to. Managers only. |
 | POST | `/tickets/{ticket_id}/pdf` | session + CSRF | Render the one-page A4 badge and return it as `application/pdf`. Counts as a print, and the file is also saved to `out/`. Issued tickets only. |
 | POST | `/tickets/{ticket_id}/print` | session + CSRF | Print on the server's default printer. Needs `TIQR_SERVER_PRINTING=true`. Issued tickets only. Returns the updated ticket. |
+| PATCH | `/tickets/{ticket_id}` | session + CSRF, or key `tickets:write` | Move `valid_from` / `valid_until` (end after start), synced to BioStar. Issued, or passed and multi-use, tickets only; otherwise `409`. |
+| POST | `/tickets/{ticket_id}/revoke` | session + CSRF, or key `tickets:revoke` | Cancel a ticket (`{"reason"}` optional, audited) and disable its BioStar user. Idempotent: a revoked ticket is returned as is. Expired is `409`; a BioStar failure is `502` and changes nothing. |
+| POST | `/tickets/{ticket_id}/transfer` | session + CSRF, or key `tickets:write` | Move to another `event_session` (and optionally a new window), keeping id, state and audit history. |
+| POST | `/tickets/{ticket_id}/reissue` | session + CSRF, or key with `tickets:write` and `tickets:revoke` | Issue a copy, then revoke the old one; if the revoke fails the copy is revoked again. Returns `{old, new}`. |
+| POST | `/tickets/batch` | session + CSRF, or key `tickets:write` | `{items, atomic}`: per-item `created` / `replayed` / `error` / `rolled_back` / `skipped`. |
+| GET | `/tickets/{ticket_id}/audit` | session, or key `tickets:read` | The ticket's audit trail (admins and managers). |
+| POST, GET | `/service-keys` | admin session + CSRF | Issue (secret shown once) and list API keys. |
+| POST, DELETE | `/service-keys/{id}/rotate`, `/service-keys/{id}` | admin session + CSRF | Rotate with a grace period; revoke at once. |
+
+### Service-to-service calls
+
+Send `Authorization: Bearer tqk_...` (or `X-API-Key`). A key acts as one account, so that role's limits
+apply, within its scopes (`tickets:read`, `tickets:write`, `tickets:revoke`). It needs no session and no
+CSRF token; browsers keep the cookie and `X-CSRF-Token`, unchanged. A wrong key is a `401`, never
+a fallback to the cookie. Only hashes are stored.
+
+### Idempotency
+
+`POST /tickets` and `/tickets/{id}/reissue` take an `Idempotency-Key` header (per account). The same key
+and body replays the first status and body with `Idempotent-Replayed: true`; the same key with another
+body is `409`. Only successful answers are kept, so a refused request may be retried under its key.
+In a batch, an item uses its own `idempotency_key`, or the header plus `:index`.
+
+### Database
+
+Schema 8 adds the `revoked` state, `external_code` (unique per `tenant_id` through a partial index),
+`tenant_id` and `event_session`. Schema 9 adds `audit_log`, `idempotency_keys` and `api_keys`. Both are
+reversible: `SQLiteRepository.downgrade(7)` undoes them (revoked tickets read as expired afterwards and
+the new columns and tables are dropped, so back the database up first).
 
 Create body:
 

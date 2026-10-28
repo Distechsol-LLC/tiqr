@@ -8,6 +8,7 @@ from tiqr.core.qr import PAYLOAD_LENGTH
 # Far above any real ticket, and well inside SQLite's integers and JSON's safe ones.
 MAX_PRICE = 10**11
 MAX_DISCOUNT = 100
+DEFAULT_TENANT = "default"
 
 
 def utc(value: datetime) -> datetime:
@@ -43,6 +44,7 @@ class TicketState(StrEnum):
     ISSUED = "issued"
     PASSED = "passed"
     EXPIRED = "expired"
+    REVOKED = "revoked"
 
 
 class Outcome(StrEnum):
@@ -119,6 +121,11 @@ class Ticket:
     base_price: int | None = None
     discount_percent: int = 0
     currency: Currency | None = None
+    # The caller's own ticket code or barcode value; unique per tenant when set.
+    external_code: str | None = None
+    tenant_id: str = DEFAULT_TENANT
+    # The session or event the ticket admits to; free text, moved by a session transfer.
+    event_session: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("valid_from", "valid_until", "created_at", "passed_at"):
@@ -219,3 +226,47 @@ class LicenseRecord:
     def __post_init__(self) -> None:
         object.__setattr__(self, "activated_at", utc(self.activated_at))
         object.__setattr__(self, "expires_at", utc(self.expires_at))
+
+
+@dataclass(frozen=True, slots=True)
+class AuditEntry:
+    """One state-changing action: who did what to which ticket, when, and why."""
+
+    id: UUID
+    occurred_at: datetime
+    actor: str
+    action: str
+    ticket_id: UUID | None = None
+    reason: str | None = None
+    detail: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "occurred_at", utc(self.occurred_at))
+
+
+@dataclass(frozen=True, slots=True)
+class StoredResponse:
+    """A saved answer to an Idempotency-Key, replayed for the same key and payload."""
+
+    key: str
+    tenant_id: str
+    fingerprint: str
+    status: int
+    body: str
+    created_at: datetime
+    expires_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ApiKey:
+    """A service credential: only its hash is stored; it acts as `user_id` within `scopes`."""
+
+    id: UUID
+    name: str
+    key_hash: str
+    user_id: UUID
+    scopes: tuple[str, ...]
+    created_at: datetime
+    expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+    replaced_by: UUID | None = None

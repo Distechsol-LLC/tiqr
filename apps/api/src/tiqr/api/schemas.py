@@ -11,6 +11,7 @@ from tiqr.core.localtime import zone
 from tiqr.core.models import (
     MAX_DISCOUNT,
     MAX_PRICE,
+    ApiKey,
     Currency,
     LicenseRecord,
     Role,
@@ -32,6 +33,16 @@ _Price = Annotated[
 ]
 _Discount = Annotated[
     int, Field(ge=0, le=MAX_DISCOUNT, description="Per cent taken off a ticket's price")
+]
+_Code = Annotated[
+    str | None,
+    StringConstraints(max_length=128),
+    Field(description="Your own ticket code or barcode value; unique per tenant"),
+]
+_Session = Annotated[
+    str | None,
+    StringConstraints(max_length=200),
+    Field(description="The session or event the ticket admits to"),
 ]
 _LocalDatetime = Annotated[
     str,
@@ -83,6 +94,158 @@ class TicketIn(_Request):
         StringConstraints(max_length=64),
         Field(description="IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"),
     ] = None
+    external_code: _Code = None
+    event_session: _Session = None
+
+
+_Timezone = Annotated[
+    str | None,
+    StringConstraints(max_length=64),
+    Field(description="IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"),
+]
+_Reason = Annotated[
+    str | None, StringConstraints(max_length=500), Field(description="Why; stored in the audit log")
+]
+
+
+class TicketPatch(_Request):
+    """Move the validity window; either end may be left out. The end must be after the start."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [{"valid_until": "2030-06-01T18:00", "reason": "Show overran"}]
+        },
+    )
+
+    valid_from: _LocalDatetime | None = None
+    valid_until: _LocalDatetime | None = None
+    timezone: _Timezone = None
+    reason: _Reason = None
+
+
+class RevokeIn(_Request):
+    model_config = ConfigDict(
+        extra="forbid", json_schema_extra={"examples": [{"reason": "Lost card"}]}
+    )
+
+    reason: _Reason = None
+
+
+class TransferIn(_Request):
+    """Move a ticket to another session or event; the window may move with it."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "event_session": "Matinee",
+                    "valid_until": "2030-06-01T16:00",
+                    "reason": "Rebooked",
+                }
+            ]
+        },
+    )
+
+    event_session: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    valid_from: _LocalDatetime | None = None
+    valid_until: _LocalDatetime | None = None
+    timezone: _Timezone = None
+    reason: _Reason = None
+
+
+class ReissueIn(_Request):
+    """Replace a ticket with a copy; give a new window or code, or keep the old ones."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"external_code": "BAR-0002", "reason": "Damaged badge"}]},
+    )
+
+    valid_from: _LocalDatetime | None = None
+    valid_until: _LocalDatetime | None = None
+    external_code: _Code = None
+    timezone: _Timezone = None
+    reason: _Reason = None
+
+
+class BatchItemIn(TicketIn):
+    idempotency_key: Annotated[
+        str | None,
+        StringConstraints(max_length=255),
+        Field(description="Per-item key; else the Idempotency-Key header plus `:index`"),
+    ] = None
+
+
+class BatchIn(_Request):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "atomic": True,
+                    "items": [
+                        {
+                            "visitor_name": "Ada",
+                            "visitor_type": "Guest",
+                            "valid_from": "2030-06-01T09:00",
+                            "valid_until": "2030-06-01T17:00",
+                            "usage_type": "one_time",
+                            "external_code": "BAR-0001",
+                            "idempotency_key": "import-42-0",
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    items: Annotated[list[BatchItemIn], Field(min_length=1, description="Tickets to create")]
+    atomic: Annotated[
+        bool,
+        Field(
+            description="true: all or nothing, undoing the created ones if any fails; "
+            "false: every item stands or fails on its own"
+        ),
+    ] = False
+
+
+class ServiceKeyIn(_Request):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "box-office",
+                    "scopes": ["tickets:read", "tickets:write"],
+                    "acts_as": "manager",
+                }
+            ]
+        },
+    )
+
+    name: _Name
+    scopes: Annotated[
+        list[Literal["tickets:read", "tickets:write", "tickets:revoke"]],
+        Field(min_length=1, description="What the key may do; reads, writes, or revokes"),
+    ]
+    acts_as: Annotated[
+        _Username | None, Field(description="Account the key acts as; default the caller's own")
+    ] = None
+    expires_at: Annotated[datetime | None, Field(description="Timezone-aware; default never")] = (
+        None
+    )
+
+
+class ServiceKeyRotateIn(_Request):
+    model_config = ConfigDict(
+        extra="forbid", json_schema_extra={"examples": [{"grace_minutes": 60}]}
+    )
+
+    grace_minutes: Annotated[
+        int, Field(ge=0, le=10080, description="How long the old key keeps working")
+    ] = 60
 
 
 class TicketTypeIn(_Request):
@@ -195,6 +358,10 @@ class TicketOut(BaseModel):
         Currency | None, Field(description="The currency the price was in then; null without one")
     ]
     timezone: Annotated[str, Field(description="The zone every datetime here is shown in")]
+    external_code: Annotated[str | None, Field(description="Your own code; null without one")] = (
+        None
+    )
+    event_session: Annotated[str | None, Field(description="Null without one")] = None
 
     @classmethod
     def of(cls, ticket: Ticket, timezone: str) -> TicketOut:
@@ -220,7 +387,74 @@ class TicketOut(BaseModel):
             price_minor=ticket.price,
             currency=ticket.currency,
             timezone=timezone,
+            external_code=ticket.external_code,
+            event_session=ticket.event_session,
         )
+
+
+class ReissueOut(BaseModel):
+    old: TicketOut
+    new: TicketOut
+
+
+class BatchItemOut(BaseModel):
+    index: int
+    status: Annotated[
+        Literal["created", "replayed", "error", "rolled_back", "skipped"],
+        Field(description="replayed: the item's key had already created its ticket"),
+    ]
+    ticket_id: UUID | None = None
+    ticket: TicketOut | None = None
+    code: Annotated[str | None, Field(description="The error's code, as in a refusal")] = None
+    error: str | None = None
+
+
+class BatchOut(BaseModel):
+    atomic: bool
+    committed: Annotated[
+        bool, Field(description="false only when an all-or-nothing batch was undone")
+    ]
+    created: int
+    failed: int
+    results: list[BatchItemOut]
+
+
+class ServiceKeyOut(BaseModel):
+    id: UUID
+    name: str
+    scopes: list[str]
+    acts_as: UUID
+    created_at: datetime
+    expires_at: datetime | None
+    revoked_at: datetime | None
+    replaced_by: UUID | None
+
+    @classmethod
+    def of(cls, key: ApiKey) -> ServiceKeyOut:
+        return cls(
+            id=key.id,
+            name=key.name,
+            scopes=list(key.scopes),
+            acts_as=key.user_id,
+            created_at=key.created_at,
+            expires_at=key.expires_at,
+            revoked_at=key.revoked_at,
+            replaced_by=key.replaced_by,
+        )
+
+
+class ServiceKeyCreated(ServiceKeyOut):
+    secret: Annotated[str, Field(description="Shown once; send as `Authorization: Bearer`")]
+
+
+class AuditOut(BaseModel):
+    id: UUID
+    occurred_at: datetime
+    actor: str
+    action: str
+    ticket_id: UUID | None
+    reason: str | None
+    detail: str | None
 
 
 class _Page(BaseModel):

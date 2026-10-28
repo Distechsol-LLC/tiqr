@@ -1,6 +1,12 @@
+import hashlib
 import hmac
+import logging
+import secrets
+import threading
 from collections import Counter
-from collections.abc import Collection
+from collections.abc import Collection, Generator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from functools import partial
@@ -42,12 +48,16 @@ from tiqr.core.license import (
 )
 from tiqr.core.localtime import day_start
 from tiqr.core.models import (
+    DEFAULT_TENANT,
     AccessEvent,
+    ApiKey,
+    AuditEntry,
     Currency,
     LicenseRecord,
     Outcome,
     RawEvent,
     Role,
+    StoredResponse,
     Ticket,
     TicketState,
     TicketType,
@@ -69,8 +79,29 @@ _TRANSITIONS = frozenset(
         (TicketState.ISSUED, TicketState.PASSED),
         (TicketState.ISSUED, TicketState.EXPIRED),
         (TicketState.PASSED, TicketState.EXPIRED),
+        (TicketState.ISSUED, TicketState.REVOKED),
+        (TicketState.PASSED, TicketState.REVOKED),
     }
 )
+# Revoked and expired are final: neither grants access, and neither can be revived.
+_FINAL = frozenset({TicketState.EXPIRED, TicketState.REVOKED})
+_MAX_REASON = 500
+_MAX_CODE = 128
+KEY_PREFIX = "tqk_"
+SCOPE_READ = "tickets:read"
+SCOPE_WRITE = "tickets:write"
+SCOPE_REVOKE = "tickets:revoke"
+SCOPES = frozenset({SCOPE_READ, SCOPE_WRITE, SCOPE_REVOKE})
+# Who an action is credited to when it is not the account itself, such as an API key.
+_ATTRIBUTION: ContextVar[str | None] = ContextVar("tiqr_attribution", default=None)
+
+
+class _Unset:
+    """Marks an argument left out, since None is a valid value for it."""
+
+
+_UNSET = _Unset()
+audit_logger = logging.getLogger("tiqr.audit")
 
 
 def _clean_name(name: str) -> str:
@@ -119,6 +150,28 @@ class NotFoundError(LookupError):
     pass
 
 
+class IdempotencyConflictError(StateError):
+    """An Idempotency-Key was reused with a different payload."""
+
+
+def _clean_reason(reason: str | None) -> str | None:
+    reason = (reason or "").strip()
+    if len(reason) > _MAX_REASON:
+        raise ValueError(f"A reason is at most {_MAX_REASON} characters")
+    return reason or None
+
+
+def _clean_code(code: str | None) -> str | None:
+    code = (code or "").strip()
+    if len(code) > _MAX_CODE:
+        raise ValueError(f"An external code is at most {_MAX_CODE} characters")
+    return code or None
+
+
+def key_hash(secret: str) -> str:
+    return hashlib.sha256(secret.encode()).hexdigest()
+
+
 class Counts(TypedDict):
     total: int
     issued: int
@@ -136,7 +189,7 @@ class Stats(Counts):
 
 
 class TicketService:
-    def __init__(
+    def __init__(  # noqa: PLR0913 - collaborators and options, all keyword-only past four
         self,
         repository: Repository,
         secret_key: str,
@@ -146,6 +199,7 @@ class TicketService:
         clock: Clock | None = None,
         prefix: str = DEFAULT_PREFIX,
         license_public_key: str = PUBLIC_KEY,
+        tenant: str = DEFAULT_TENANT,
     ) -> None:
         validate_secret(secret_key)
         validate_prefix(prefix)
@@ -156,9 +210,53 @@ class TicketService:
         self.registrar: Registrar = registrar or InMemoryRegistrar()
         self.event_source: EventSource = event_source or InMemoryEventSource()
         self._clock: Clock = clock or partial(datetime.now, UTC)
+        self.tenant = tenant
+        # Held across a keyed request's lookup, work and save, so a retry cannot run it twice.
+        self.idempotency_lock = threading.RLock()
 
     def _now(self) -> datetime:
         return utc(self._clock())
+
+    @staticmethod
+    @contextmanager
+    def attributed(label: str | None) -> Generator[None]:
+        """Credit the audit entries made inside the block to `label`, such as an API key."""
+        token = _ATTRIBUTION.set(label)
+        try:
+            yield
+        finally:
+            _ATTRIBUTION.reset(token)
+
+    def _record(
+        self,
+        actor: User,
+        action: str,
+        ticket: Ticket | None = None,
+        *,
+        reason: str | None = None,
+        detail: str | None = None,
+    ) -> None:
+        """Write one audit entry, in the caller's transaction when there is one."""
+        via = _ATTRIBUTION.get()
+        name = f"{via} (as {actor.username})" if via else actor.username
+        entry = AuditEntry(
+            uuid4(), self._now(), name, action, ticket.id if ticket else None, reason, detail
+        )
+        self.repository.add_audit(entry)
+        audit_logger.info(
+            "actor=%s at=%s action=%s ticket=%s reason=%s detail=%s",
+            entry.actor,
+            entry.occurred_at.isoformat(),
+            action,
+            entry.ticket_id,
+            reason,
+            detail,
+        )
+
+    def audit_trail(self, actor: User, ticket_id: UUID | None = None) -> list[AuditEntry]:
+        actor = self._actor(actor)
+        self._require(actor, _STAFF)
+        return self.repository.list_audit(ticket_id)
 
     def ping(self) -> bool:
         """Whether the store answers; the health check asks without an account."""
@@ -496,7 +594,7 @@ class TicketService:
         return replace(ticket, state=target)
 
     def _expire(self, ticket: Ticket) -> Ticket:
-        if ticket.state != TicketState.EXPIRED and self._now() > ticket.valid_until:
+        if ticket.state not in _FINAL and self._now() > ticket.valid_until:
             ticket = self._transition(ticket, TicketState.EXPIRED)
             self.repository.save_ticket(ticket)
         return ticket
@@ -616,7 +714,7 @@ class TicketService:
                 raise NotFoundError("Visitor type not found")
             self.repository.delete_visitor_type(type_id)
 
-    def create_ticket(
+    def create_ticket(  # noqa: PLR0913 - a ticket's definition is its own arguments
         self,
         actor: User,
         *,
@@ -626,6 +724,8 @@ class TicketService:
         valid_until: datetime,
         usage_type: UsageType,
         ticket_type: str | None = None,
+        external_code: str | None = None,
+        event_session: str | None = None,
     ) -> Ticket:
         """Issue a ticket. Naming a catalog `ticket_type` prices it, and a `visitor_type` from
         the catalog takes its discount off that price; any other visitor type is kept as written,
@@ -639,6 +739,9 @@ class TicketService:
             raise ValueError("Access window is reversed or already expired")
         if start.microsecond or end.microsecond:
             raise ValueError("Access windows require whole-second precision for BioStar alignment")
+        code = _clean_code(external_code)
+        if code and self.repository.ticket_by_external_code(self.tenant, code):
+            raise StateError("A ticket with this external code already exists")
         priced = None
         if ticket_type is not None:
             priced = self.repository.ticket_type_by_name(ticket_type.strip())
@@ -666,6 +769,9 @@ class TicketService:
             base_price=priced.price if priced else None,
             discount_percent=known.discount_percent if known else 0,
             currency=priced.currency if priced else None,
+            external_code=code,
+            tenant_id=self.tenant,
+            event_session=(event_session or "").strip() or None,
         )
         external_id = self.registrar.register(ticket)
         if not external_id:
@@ -676,6 +782,7 @@ class TicketService:
             with self.repository.transaction():
                 ticket = self._expire(ticket)
                 self.repository.save_ticket(ticket)
+                self._record(actor, "ticket.create", ticket, detail=f"serial={serial}")
         except Exception as exc:
             try:
                 self.registrar.remove(external_id)
@@ -691,17 +798,23 @@ class TicketService:
         return ticket
 
     def list_tickets(
-        self, actor: User, state: TicketState | None = None, search: str | None = None
+        self,
+        actor: User,
+        state: TicketState | None = None,
+        search: str | None = None,
+        external_code: str | None = None,
     ) -> list[Ticket]:
         actor = self._actor(actor)
         state = TicketState(state) if state is not None else None
         needle = (search or "").strip().casefold()
+        code = (external_code or "").strip()
         return [
             ticket
             for ticket in self._expire_all()
             if _can_view(actor, ticket)
             and (state is None or ticket.state == state)
             and (not needle or _matches(ticket, needle))
+            and (not code or ticket.external_code == code)
         ]
 
     def assign_ticket(self, actor: User, ticket_id: UUID, assignee_username: str) -> Ticket:
@@ -719,6 +832,349 @@ class TicketService:
             ticket = replace(ticket, assigned_operator=assignee.id)
             self.repository.save_ticket(ticket)
             return ticket
+
+    def _staff_ticket(self, actor: User, ticket_id: UUID) -> tuple[User, Ticket]:
+        actor = self._actor(actor)
+        self._require(actor, _STAFF)
+        # Read first on its own so a discovered expiry commits even if the change is refused.
+        return actor, self._read_ticket(ticket_id)
+
+    def _failed(
+        self, actor: User, action: str, ticket_id: UUID, exc: Exception, reason: str | None
+    ) -> None:
+        """Audit a refused or failed change, outside the rolled-back transaction."""
+        ticket = self.repository.get_ticket(ticket_id)
+        self._record(actor, f"{action}.failed", ticket, reason=reason, detail=str(exc)[:500])
+
+    def revoke_ticket(self, actor: User, ticket_id: UUID, reason: str | None = None) -> Ticket:
+        """Cancel a ticket and remove its access in BioStar. Admins and managers.
+
+        Revoking a revoked ticket returns it as it is. An expired ticket cannot be revoked. If
+        BioStar refuses, the ticket stays as it was and the error is raised, so a retry is safe.
+        """
+        actor, _ = self._staff_ticket(actor, ticket_id)
+        reason = _clean_reason(reason)
+        try:
+            with self.repository.transaction():
+                ticket = self._read_ticket(ticket_id)
+                if ticket.state == TicketState.REVOKED:
+                    return ticket
+                ticket = self._transition(ticket, TicketState.REVOKED)
+                if ticket.external_id:
+                    self.registrar.deactivate(ticket.external_id)
+                self.repository.save_ticket(ticket)
+                self._record(actor, "ticket.revoke", ticket, reason=reason)
+                return ticket
+        except Exception as exc:
+            self._failed(actor, "ticket.revoke", ticket_id, exc, reason)
+            raise
+
+    def _amend(
+        self,
+        actor: User,
+        ticket_id: UUID,
+        action: str,
+        *,
+        valid_from: datetime | None = None,
+        valid_until: datetime | None = None,
+        event_session: str | _Unset | None = _UNSET,
+        reason: str | None = None,
+    ) -> Ticket:
+        actor, _ = self._staff_ticket(actor, ticket_id)
+        reason = _clean_reason(reason)
+        try:
+            return self._amend_stored(
+                actor, ticket_id, action, valid_from, valid_until, event_session, reason
+            )
+        except Exception as exc:
+            self._failed(actor, action, ticket_id, exc, reason)
+            raise
+
+    def _amend_stored(
+        self,
+        actor: User,
+        ticket_id: UUID,
+        action: str,
+        valid_from: datetime | None,
+        valid_until: datetime | None,
+        event_session: str | _Unset | None,
+        reason: str | None,
+    ) -> Ticket:
+        with self.repository.transaction():
+            ticket = self._read_ticket(ticket_id)
+            usable = ticket.state == TicketState.ISSUED or (
+                ticket.state == TicketState.PASSED and ticket.usage_type == UsageType.MULTI_USE
+            )
+            if not usable:
+                raise StateError(f"A {ticket.state} ticket cannot be changed")
+            start = ticket.valid_from if valid_from is None else utc(valid_from)
+            end = ticket.valid_until if valid_until is None else utc(valid_until)
+            if end <= start:
+                raise ValueError("The end of the validity window must be after its start")
+            if start.microsecond or end.microsecond:
+                raise ValueError(
+                    "Access windows require whole-second precision for BioStar alignment"
+                )
+            if end < self._now():
+                raise ValueError("Access window is reversed or already expired")
+            session = (
+                ticket.event_session
+                if isinstance(event_session, _Unset)
+                else ((event_session or "").strip() or None)
+            )
+            updated = replace(ticket, valid_from=start, valid_until=end, event_session=session)
+            if updated == ticket:
+                return ticket
+            window_changed = (start, end) != (ticket.valid_from, ticket.valid_until)
+            if window_changed and ticket.external_id:
+                self.registrar.set_window(ticket.external_id, start, end)
+            try:
+                self.repository.save_ticket(updated)
+                self._record(
+                    actor,
+                    action,
+                    updated,
+                    reason=reason,
+                    detail=(
+                        f"valid_from {ticket.valid_from.isoformat()} -> {start.isoformat()}; "
+                        f"valid_until {ticket.valid_until.isoformat()} -> {end.isoformat()}; "
+                        f"event_session {ticket.event_session!r} -> {session!r}"
+                    ),
+                )
+            except Exception as exc:
+                if window_changed and ticket.external_id:
+                    # Put BioStar back, so it never grants a window the database does not hold.
+                    try:
+                        self.registrar.set_window(
+                            ticket.external_id, ticket.valid_from, ticket.valid_until
+                        )
+                    except Exception as rollback_error:  # noqa: BLE001 - the original is re-raised
+                        exc.add_note(f"BioStar window rollback also failed: {rollback_error}")
+                raise
+            return updated
+
+    def update_validity(
+        self,
+        actor: User,
+        ticket_id: UUID,
+        *,
+        valid_from: datetime | None = None,
+        valid_until: datetime | None = None,
+        reason: str | None = None,
+    ) -> Ticket:
+        """Move a ticket's validity window, in BioStar too. Admins and managers.
+
+        Allowed while the ticket is issued, or passed and multi-use. Either end may be left as
+        it is; the end must be after the start.
+        """
+        if valid_from is None and valid_until is None:
+            raise ValueError("Nothing to change")
+        return self._amend(
+            actor,
+            ticket_id,
+            "ticket.update_validity",
+            valid_from=valid_from,
+            valid_until=valid_until,
+            reason=reason,
+        )
+
+    def transfer_ticket(
+        self,
+        actor: User,
+        ticket_id: UUID,
+        event_session: str,
+        *,
+        valid_from: datetime | None = None,
+        valid_until: datetime | None = None,
+        reason: str | None = None,
+    ) -> Ticket:
+        """Move a ticket to another session or event, keeping its state, id and audit history.
+
+        The window may move with it; BioStar follows through `update_validity`'s steps.
+        """
+        if not (event_session or "").strip():
+            raise ValueError("A target session is required")
+        return self._amend(
+            actor,
+            ticket_id,
+            "ticket.transfer",
+            valid_from=valid_from,
+            valid_until=valid_until,
+            event_session=event_session,
+            reason=reason,
+        )
+
+    def reissue_ticket(
+        self,
+        actor: User,
+        ticket_id: UUID,
+        *,
+        valid_from: datetime | None = None,
+        valid_until: datetime | None = None,
+        external_code: str | None = None,
+        reason: str | None = None,
+    ) -> tuple[Ticket, Ticket]:
+        """Replace a ticket: issue a copy, then revoke the old one. Returns `(old, new)`.
+
+        The copy comes first, so a refusal to create leaves the old ticket alone. If the revoke
+        then fails, the copy is revoked again (the compensation) and the error is raised; if
+        that also fails, the failure is noted on the error and the audit log. A revoked ticket
+        can be reissued, and is then not revoked twice. The copy takes `external_code` only
+        when given, since the old ticket keeps its own.
+        """
+        actor, old = self._staff_ticket(actor, ticket_id)
+        reason = _clean_reason(reason)
+        new = self.create_ticket(
+            actor,
+            visitor_name=old.visitor_name,
+            visitor_type=old.visitor_type,
+            valid_from=valid_from or old.valid_from,
+            valid_until=valid_until or old.valid_until,
+            usage_type=old.usage_type,
+            ticket_type=old.ticket_type,
+            external_code=external_code,
+            event_session=old.event_session,
+        )
+        try:
+            old = self.revoke_ticket(actor, old.id, reason or f"reissued as {new.readable_serial}")
+        except Exception as exc:
+            try:
+                self.revoke_ticket(actor, new.id, "compensation: reissue failed")
+            except Exception as rollback_error:  # noqa: BLE001 - the original is re-raised
+                exc.add_note(f"Reissue compensation also failed: {rollback_error}")
+            raise
+        self._record(
+            actor,
+            "ticket.reissue",
+            old,
+            reason=reason,
+            detail=f"replaced by {new.id} ({new.readable_serial})",
+        )
+        return old, new
+
+    def idempotency_lookup(self, key: str, fingerprint: str) -> StoredResponse | None:
+        """The saved answer for `key` if one is live; a different payload under it is a conflict."""
+        stored = self.repository.get_stored_response(self.tenant, key, self._now())
+        if stored is None:
+            return None
+        if not hmac.compare_digest(stored.fingerprint, fingerprint):
+            raise IdempotencyConflictError("This Idempotency-Key was used with a different request")
+        return stored
+
+    def idempotency_store(
+        self, key: str, fingerprint: str, status: int, body: str, ttl: timedelta
+    ) -> None:
+        now = self._now()
+        self.repository.purge_stored_responses(now)
+        self.repository.save_stored_response(
+            StoredResponse(key, self.tenant, fingerprint, status, body, now, now + ttl)
+        )
+
+    def _key_admin(self, actor: User) -> User:
+        actor = self._actor(actor)
+        self._require(actor, _ADMINS)
+        return actor
+
+    def create_api_key(
+        self,
+        actor: User,
+        name: str,
+        scopes: Collection[str],
+        *,
+        acts_as: str | None = None,
+        expires_at: datetime | None = None,
+    ) -> tuple[ApiKey, str]:
+        """Issue a service key (admin). The secret is returned once and only its hash is kept.
+
+        The key acts as the account `acts_as` (default: the admin), with that role's limits and
+        only the listed scopes.
+        """
+        actor = self._key_admin(actor)
+        unknown = set(scopes) - SCOPES
+        if unknown or not scopes:
+            raise ValueError(f"Scopes must be one or more of: {', '.join(sorted(SCOPES))}")
+        owner = actor if acts_as is None else self.find_user(acts_as)
+        if not owner.active:
+            raise StateError("The account is deactivated")
+        now = self._now()
+        if expires_at is not None and utc(expires_at) <= now:
+            raise ValueError("The key would already be expired")
+        secret = KEY_PREFIX + secrets.token_urlsafe(32)
+        key = ApiKey(
+            uuid4(),
+            _clean_name(name),
+            key_hash(secret),
+            owner.id,
+            tuple(sorted(set(scopes))),
+            now,
+            utc(expires_at) if expires_at else None,
+        )
+        with self.repository.transaction():
+            self.repository.save_api_key(key)
+            self._record(
+                actor, "api_key.create", detail=f"key={key.id} scopes={' '.join(key.scopes)}"
+            )
+        return key, secret
+
+    def list_api_keys(self, actor: User) -> list[ApiKey]:
+        self._key_admin(actor)
+        return self.repository.list_api_keys()
+
+    def _stored_key(self, key_id: UUID) -> ApiKey:
+        key = self.repository.get_api_key(key_id)
+        if key is None:
+            raise NotFoundError("API key not found")
+        return key
+
+    def revoke_api_key(self, actor: User, key_id: UUID) -> ApiKey:
+        """End a key now; revoking a revoked key changes nothing."""
+        actor = self._key_admin(actor)
+        with self.repository.transaction():
+            key = self._stored_key(key_id)
+            if key.revoked_at is not None:
+                return key
+            key = replace(key, revoked_at=self._now())
+            self.repository.save_api_key(key)
+            self._record(actor, "api_key.revoke", detail=f"key={key.id}")
+            return key
+
+    def rotate_api_key(
+        self, actor: User, key_id: UUID, grace: timedelta = timedelta(0)
+    ) -> tuple[ApiKey, str]:
+        """Issue a successor with the same name, account and scopes. The old key keeps working
+        for `grace` (none by default), so clients can switch over, and is then expired.
+        """
+        actor = self._key_admin(actor)
+        if grace < timedelta(0):
+            raise ValueError("The grace period must not be negative")
+        with self.repository.transaction():
+            old = self._stored_key(key_id)
+            now = self._now()
+            if old.revoked_at is not None or (old.expires_at and old.expires_at <= now):
+                raise StateError("Only a live key can be rotated")
+            if old.replaced_by is not None:
+                raise StateError("This key was already rotated")
+            secret = KEY_PREFIX + secrets.token_urlsafe(32)
+            new = ApiKey(
+                uuid4(), old.name, key_hash(secret), old.user_id, old.scopes, now, old.expires_at
+            )
+            end = now + grace
+            expires = end if old.expires_at is None else min(end, old.expires_at)
+            self.repository.save_api_key(new)
+            self.repository.save_api_key(replace(old, expires_at=expires, replaced_by=new.id))
+            self._record(actor, "api_key.rotate", detail=f"key={old.id} -> {new.id}")
+            return new, secret
+
+    def authenticate_api_key(self, secret: str) -> tuple[User, ApiKey]:
+        """The account and key behind a presented secret, or `AuthenticationError`."""
+        key = self.repository.api_key_by_hash(key_hash(secret)) if secret else None
+        now = self._now()
+        if key is None or key.revoked_at is not None or (key.expires_at and key.expires_at <= now):
+            raise AuthenticationError(INVALID_CREDENTIALS)
+        user = self.repository.user_by_id(key.user_id)
+        if user is None or not user.active:
+            raise AuthenticationError(INVALID_CREDENTIALS)
+        return user, key
 
     def print_ticket(
         self,
@@ -747,7 +1203,7 @@ class TicketService:
             return Outcome.DENIED
         if ticket is None:
             return Outcome.IGNORED_UNKNOWN_TICKET
-        if ticket.state == TicketState.EXPIRED:
+        if ticket.state in _FINAL:
             return Outcome.IGNORED_EXPIRED
         if ticket.is_spent:
             return Outcome.IGNORED_SECOND_ONE_TIME_SCAN
@@ -807,7 +1263,7 @@ class TicketService:
         removed = 0
         # States only move forward, so a ticket eligible in this snapshot stays eligible.
         for ticket in self._expire_all():
-            eligible = ticket.state == TicketState.EXPIRED or ticket.is_spent
+            eligible = ticket.state in _FINAL or ticket.is_spent
             if eligible and ticket.external_id and not self.repository.is_cleaned(ticket.id):
                 self.registrar.remove(ticket.external_id)
                 self.repository.mark_cleaned(ticket.id)
