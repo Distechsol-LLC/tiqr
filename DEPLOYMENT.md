@@ -106,7 +106,7 @@ Today the installer runs from the unpacked bundle:
 
 ```text
 sudo ./install.sh [tiqr install options]   # Linux: copies the program to /opt/tiqr, data to /var/lib/tiqr, then installs
-install.cmd                                # Windows: copies the program to C:\Program Files\TiQR, data to C:\ProgramData\TiQR
+tiqr_setup.exe                             # Windows: wizard that writes the branding file and logo, copies the program to C:\Program Files\TiQR, then runs tiqr install
 tiqr install [options]                     # the program itself, run as admin from its own folder
 ```
 
@@ -197,13 +197,15 @@ environment variables override both.
 With `TIQR_HOME` set, data and config stay in the data folder when the program is replaced.
 
 The server reads `tiqr_brand.jsonc` from the data folder at every start and refuses to run without
-it. The first install copies it from the bundle, and later installs keep the copy already there.
-To change the branding, edit that copy and restart the service. `tiqr install` checks the bundle's
-file before it copies it.
+it. `tiqr install` checks the bundle's file, copies it there the first time, and keeps the copy
+already there on later runs. The Windows installer (`tiqr_setup.exe`) is the exception: it writes the
+file from its wizard, saves the file it replaces as `tiqr_brand.jsonc.bak`, and copies the chosen
+logo beside it. Branding changes take effect on restart: edit the file in the data folder and
+restart the service.
 
 To change the address, port or any other setting, edit `.env.local` and restart the service. Or run
-`tiqr install` again: it asks for the address and port, re-registers the service and runs the health
-check.
+`tiqr install` again: at a terminal it asks for the address and port, re-registers the service and
+runs the health check. A script takes the defaults unless `--host` and `--port` are given.
 
 ## Frontend and backend
 

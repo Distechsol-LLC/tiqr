@@ -1,14 +1,19 @@
 TiQR: installing
 
 Linux (needs root):    sudo ./install.sh
-Windows (needs admin): double-click install.cmd
+Windows (needs admin): run tiqr_setup.exe
 
-The script copies the program to /opt/tiqr (Linux) or C:\Program Files\TiQR (Windows). The settings
-and data go to /var/lib/tiqr (Linux) or C:\ProgramData\TiQR (Windows), which upgrades leave alone. Then it asks
-for the address operators' PCs will use, the port, and the first admin account. It opens the port
-in the firewall and installs TiQR as a service that starts at boot.
+Linux: the script copies the program to /opt/tiqr and the settings and data to /var/lib/tiqr, which
+upgrades leave alone. Then it asks for the address operators' PCs will use, the port, and the first admin
+account. It opens the port in the firewall and installs TiQR as a service that starts at boot. Edit
+tiqr_brand.jsonc before installing if you need your own name, logo or languages.
 
-Edit tiqr_brand.jsonc before installing if you need your own name, logo or languages.
+Windows: tiqr_setup.exe asks for the same settings in a wizard, writes tiqr_brand.jsonc and the logo to
+C:\ProgramData\TiQR, copies the program to C:\Program Files\TiQR, then runs tiqr install with the address and
+port from the wizard. That run is hidden, so get the REQUEST CODE with: tiqr license request-code. Create the
+first admin account with: tiqr user add
+
+Branding changes take effect on restart: edit tiqr_brand.jsonc in the data folder, then restart the service.
 
 Activating the license
 ----------------------
@@ -21,4 +26,6 @@ TiQR refuses all work until it has a license. At the end of the install it print
 
 A license belongs to this machine. Changing its hostname or network cards needs a new key.
 
-Upgrading: run the install script from the newer bundle. Data, settings and the license stay.
+Upgrading: run the install script from the newer bundle (Windows: tiqr_setup.exe). Data, settings and the
+license stay. The Windows wizard is the exception for tiqr_brand.jsonc: it replaces that file with its answers
+and keeps the old one as tiqr_brand.jsonc.bak.
