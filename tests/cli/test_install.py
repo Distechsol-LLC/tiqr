@@ -368,7 +368,7 @@ def test_linux_uninstall_removes_the_units_and_keeps_the_data(tmp_path, monkeypa
     monkeypatch.setattr(installer, "_run", lambda argv: commands_run.append(argv) or "")
     monkeypatch.setattr(installer, "_succeeds", lambda argv: commands_run.append(argv) or True)
 
-    assert installer.is_installed(tmp_path / "tiqr")
+    assert installer.is_installed()
     installer.uninstall_service(tmp_path / "tiqr")
 
     assert not any(path.exists() for path in units.values())
@@ -383,7 +383,18 @@ def test_linux_is_not_installed_without_units(tmp_path, monkeypatch):
     monkeypatch.setattr(installer, "HEALTH_UNIT_PATH", tmp_path / "tiqr-health.service")
     monkeypatch.setattr(installer, "HEALTH_TIMER_PATH", tmp_path / "tiqr-health.timer")
 
-    assert not installer.is_installed(tmp_path / "tiqr")
+    assert not installer.is_installed()
+
+
+def test_windows_wrapper_beside_the_program_is_not_an_installed_service(tmp_path, monkeypatch):
+    monkeypatch.setattr(installer.sys, "platform", "win32")
+    (tmp_path / installer.WINSW_NAME).write_bytes(b"")
+    monkeypatch.setattr(installer, "_succeeds", lambda argv: False)
+
+    assert not installer.is_installed()
+
+    monkeypatch.setattr(installer, "_succeeds", lambda argv: argv[:2] == ["sc.exe", "query"])
+    assert installer.is_installed()
 
 
 @pytest.fixture
@@ -394,7 +405,7 @@ def service_host(monkeypatch):
     monkeypatch.setattr(commands, "create_first_admin", lambda: None)
     calls = []
     state = {"installed": True}
-    monkeypatch.setattr(commands, "is_installed", lambda executable: state["installed"])
+    monkeypatch.setattr(commands, "is_installed", lambda: state["installed"])
     monkeypatch.setattr(commands, "uninstall_service", lambda executable: calls.append("uninstall"))
     monkeypatch.setattr(
         commands,
