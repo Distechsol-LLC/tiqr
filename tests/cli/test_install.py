@@ -349,3 +349,121 @@ def test_no_firewall_means_nothing_is_opened(monkeypatch):
     monkeypatch.setattr(installer, "_output", lambda argv: "")
 
     assert installer.open_firewall(7102) == "No active firewall found; nothing to open"
+
+
+def test_linux_uninstall_removes_the_units_and_keeps_the_data(tmp_path, monkeypatch):
+    monkeypatch.setattr(installer.sys, "platform", "linux")
+    data = tmp_path / "var"
+    data.mkdir()
+    (data / "tiqr.db").write_bytes(b"")
+    units = {
+        "UNIT_PATH": tmp_path / "tiqr.service",
+        "HEALTH_UNIT_PATH": tmp_path / "tiqr-health.service",
+        "HEALTH_TIMER_PATH": tmp_path / "tiqr-health.timer",
+    }
+    for name, path in units.items():
+        monkeypatch.setattr(installer, name, path)
+        path.write_text("")
+    commands_run = []
+    monkeypatch.setattr(installer, "_run", lambda argv: commands_run.append(argv) or "")
+    monkeypatch.setattr(installer, "_succeeds", lambda argv: commands_run.append(argv) or True)
+
+    assert installer.is_installed(tmp_path / "tiqr")
+    installer.uninstall_service(tmp_path / "tiqr")
+
+    assert not any(path.exists() for path in units.values())
+    assert ["systemctl", "disable", "tiqr.service"] in commands_run
+    assert ["systemctl", "daemon-reload"] in commands_run
+    assert (data / "tiqr.db").exists()
+
+
+def test_linux_is_not_installed_without_units(tmp_path, monkeypatch):
+    monkeypatch.setattr(installer.sys, "platform", "linux")
+    monkeypatch.setattr(installer, "UNIT_PATH", tmp_path / "tiqr.service")
+    monkeypatch.setattr(installer, "HEALTH_UNIT_PATH", tmp_path / "tiqr-health.service")
+    monkeypatch.setattr(installer, "HEALTH_TIMER_PATH", tmp_path / "tiqr-health.timer")
+
+    assert not installer.is_installed(tmp_path / "tiqr")
+
+
+@pytest.fixture
+def service_host(monkeypatch):
+    monkeypatch.setattr(commands.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(commands, "is_administrator", lambda: True)
+    monkeypatch.setattr(commands, "wait_until_healthy", lambda host, port: None)
+    monkeypatch.setattr(commands, "create_first_admin", lambda: None)
+    calls = []
+    state = {"installed": True}
+    monkeypatch.setattr(commands, "is_installed", lambda executable: state["installed"])
+    monkeypatch.setattr(commands, "uninstall_service", lambda executable: calls.append("uninstall"))
+    monkeypatch.setattr(
+        commands,
+        "register_service",
+        lambda executable, home, source: calls.append("register") or "running",
+    )
+    return calls, state
+
+
+SERVICE_INSTALL = ["install", "--host", "10.0.0.5", "--port", "7200", "--no-firewall"]
+
+
+def test_declining_a_reinstall_cancels_before_anything_changes(
+    home, release, monkeypatch, service_host
+):
+    calls, _ = service_host
+    monkeypatch.setattr(commands, "_interactive", lambda: True)
+
+    result = CliRunner().invoke(app, [*SERVICE_INSTALL, "--source", str(release)], input="n\n")
+
+    assert result.exit_code == 1
+    assert "Install cancelled" in result.output
+    assert calls == []
+    assert not (home / BRANDING_FILE).exists()
+
+
+def test_accepting_a_reinstall_removes_the_service_before_registering_it(
+    home, release, monkeypatch, service_host
+):
+    calls, _ = service_host
+    monkeypatch.setattr(commands, "_interactive", lambda: True)
+
+    result = CliRunner().invoke(app, [*SERVICE_INSTALL, "--source", str(release)], input="y\n")
+
+    assert result.exit_code == 0, result.output
+    assert calls == ["uninstall", "register"]
+    assert "Removed the existing TiQR service" in result.output
+
+
+def test_a_reinstall_from_a_script_goes_ahead_without_asking(home, release, service_host):
+    calls, _ = service_host
+
+    result = CliRunner().invoke(app, [*SERVICE_INSTALL, "--source", str(release)])
+
+    assert result.exit_code == 0, result.output
+    assert calls == ["uninstall", "register"]
+
+
+def test_a_first_install_does_not_ask(home, release, monkeypatch, service_host):
+    calls, state = service_host
+    state["installed"] = False
+    monkeypatch.setattr(commands, "_interactive", lambda: True)
+
+    result = CliRunner().invoke(app, [*SERVICE_INSTALL, "--source", str(release)])
+
+    assert result.exit_code == 0, result.output
+    assert "Reinstall" not in result.output
+    assert calls == ["register"]
+
+
+def test_a_reinstall_the_script_already_confirmed_is_not_asked_again(
+    home, release, monkeypatch, service_host
+):
+    calls, _ = service_host
+    monkeypatch.setattr(commands, "_interactive", lambda: True)
+    monkeypatch.setenv(commands.REINSTALL_CONFIRMED_ENV, "1")
+
+    result = CliRunner().invoke(app, [*SERVICE_INSTALL, "--source", str(release)])
+
+    assert result.exit_code == 0, result.output
+    assert "Reinstall" not in result.output
+    assert calls == ["uninstall", "register"]

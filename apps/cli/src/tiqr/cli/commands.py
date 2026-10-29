@@ -19,9 +19,11 @@ import typer
 
 from tiqr.cli.installer import (
     is_administrator,
+    is_installed,
     lan_address,
     open_firewall,
     register_service,
+    uninstall_service,
     wait_until_healthy,
 )
 from tiqr.core.auth import AuthenticationError, Session
@@ -66,6 +68,8 @@ _TICKET_FIELDS = (
     "event_session",
 )
 _DB_SUFFIXES = ("-journal", "-wal", "-shm")
+# Set by the install scripts once the user has agreed to a reinstall, so it is not asked twice.
+REINSTALL_CONFIRMED_ENV = "TIQR_REINSTALL_CONFIRMED"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -287,6 +291,27 @@ def selftest() -> None:
     typer.echo("Self-test passed: the badge renders")
 
 
+def _reinstall_decision(*, service: bool) -> bool:
+    """Whether an existing service is replaced; a terminal user who declines stops the install."""
+    if not service or not is_installed(Path(sys.executable)):
+        return False
+    if os.environ.get(REINSTALL_CONFIRMED_ENV):
+        return True
+    if _interactive() and not typer.confirm(
+        "TiQR is already installed. Reinstall it?", default=False
+    ):
+        typer.echo("Install cancelled; nothing was changed.")
+        raise typer.Exit(1)
+    return True
+
+
+def _register(*, reinstall: bool, source: Path) -> None:
+    if reinstall:
+        uninstall_service(Path(sys.executable))
+        typer.echo("Removed the existing TiQR service; registering it again")
+    typer.echo(register_service(Path(sys.executable), branding_path().parent, source))
+
+
 @app.command()
 def install(
     *,
@@ -321,6 +346,7 @@ def install(
             raise RuntimeError(
                 "Service registration needs the packaged executable; use --no-service"
             )
+        reinstall = _reinstall_decision(service=service)
         origin_folder = source or _executable_folder()
         origin = origin_folder / BRANDING_FILE
         target = branding_path()
@@ -353,8 +379,7 @@ def install(
         if firewall:
             typer.echo(open_firewall(port))
         if service:
-            home = branding_path().parent
-            typer.echo(register_service(Path(sys.executable), home, origin_folder))
+            _register(reinstall=reinstall, source=origin_folder)
             wait_until_healthy(host, port)
             typer.echo(f"TiQR is answering on {host}:{port}")
         _license_next_steps(host, port)

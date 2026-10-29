@@ -146,6 +146,7 @@ var
   BioTlsPage: TInputOptionWizardPage;
 
   KnownTimeZones: String;
+  Reinstalling: Boolean;
 
 { ---------------------------------------------------------------------------------------------
   Text helpers
@@ -990,6 +991,22 @@ begin
   Result := ExpandConstant('{tmp}\') + ReadBrand.LogoFile;
 end;
 
+{ An existing service is asked about before the wizard starts; a no ends the setup and changes nothing. }
+function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := True;
+  Reinstalling := Exec(ExpandConstant('{sys}\sc.exe'), 'query TiQR', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+  if Reinstalling then
+  begin
+    if MsgBox('TiQR is already installed. Reinstall it?', mbConfirmation, MB_YESNO) = IDNO then
+      Result := False
+    else
+      Reinstalling := True;
+  end;
+end;
+
 { Runs when the user confirms the install and before anything is written. A message returned here
   stops the install and is shown to the user. The logo is copied out of the user's folder first, so
   deleting the original from then on changes nothing. }
@@ -1045,7 +1062,7 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   Existing: String;
   Brand: TBrand;
-  Host, Port: String;
+  Host, Port, Confirmed: String;
   ResultCode: Integer;
 begin
   if CurStep = ssInstall then
@@ -1057,6 +1074,9 @@ begin
     { A logo of an earlier install under another extension would be left behind. }
     RemoveStaleLogos(ExpandConstant('{app}'), ReadBrand.LogoFile);
     RemoveStaleLogos(DataFolder, ReadBrand.LogoFile);
+    { The service runs the program being replaced; stop it before the files are copied. }
+    if Reinstalling then
+      Exec(ExpandConstant('{sys}\net.exe'), 'stop TiQR', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;
   if CurStep = ssPostInstall then
   begin
@@ -1080,7 +1100,11 @@ begin
     { The window is visible, so install can ask for the first admin, as the terminal install does. It
       closes on success; a failure waits for Enter so the error stays readable, and no popup is shown.
       The browser opens only after a successful install, when the health check has passed. }
-    if Exec(ExpandConstant('{cmd}'), '/C ""' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
+    { The reinstall was confirmed in InitializeSetup, so tiqr install does not ask again. }
+    Confirmed := '';
+    if Reinstalling then
+      Confirmed := 'set TIQR_REINSTALL_CONFIRMED=1&& ';
+    if Exec(ExpandConstant('{cmd}'), '/C "' + Confirmed + '""' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
       ShellExec('open', 'http://' + Host + ':' + Port, '', '', SW_SHOW, ewNoWait, ResultCode);
   end;
 end;

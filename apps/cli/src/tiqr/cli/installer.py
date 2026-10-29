@@ -304,6 +304,29 @@ def register_service(executable: Path, home: Path, source: Path) -> str:
     return "systemd unit tiqr.service is running"
 
 
+def is_installed(executable: Path) -> bool:
+    """Whether a TiQR service is already registered on this machine."""
+    if sys.platform == "win32":
+        return (executable.parent / WINSW_NAME).exists() or _succeeds(
+            ["sc.exe", "query", SERVICE_NAME]
+        )
+    return UNIT_PATH.exists() or HEALTH_UNIT_PATH.exists() or HEALTH_TIMER_PATH.exists()
+
+
+def uninstall_service(executable: Path) -> None:
+    """Stop and remove the TiQR service so that it can be registered again. Data is kept."""
+    if sys.platform == "win32":
+        _remove_old_service(executable.parent / WINSW_NAME)
+        return
+    _succeeds(["systemctl", "stop", "tiqr-health.timer"])
+    _succeeds(["systemctl", "disable", "tiqr-health.timer"])
+    _succeeds(["systemctl", "stop", "tiqr.service"])
+    _succeeds(["systemctl", "disable", "tiqr.service"])
+    for path in (UNIT_PATH, HEALTH_UNIT_PATH, HEALTH_TIMER_PATH):
+        path.unlink(missing_ok=True)
+    _run(["systemctl", "daemon-reload"])
+
+
 def wait_until_healthy(host: str, port: int, timeout: float = 30.0) -> None:
     """Poll the server's health endpoint until it reports ok, or fail after the timeout."""
     # An unspecified bind address is not reachable as a destination; probe the loopback instead.
