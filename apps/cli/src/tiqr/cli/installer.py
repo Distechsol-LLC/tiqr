@@ -304,12 +304,11 @@ def register_service(executable: Path, home: Path, source: Path) -> str:
     return "systemd unit tiqr.service is running"
 
 
-def is_installed(executable: Path) -> bool:
+def is_installed() -> bool:
     """Whether a TiQR service is already registered on this machine."""
     if sys.platform == "win32":
-        return (executable.parent / WINSW_NAME).exists() or _succeeds(
-            ["sc.exe", "query", SERVICE_NAME]
-        )
+        # The WinSW wrapper alone does not count: the installer copies it beside the program first.
+        return _succeeds(["sc.exe", "query", SERVICE_NAME])
     return UNIT_PATH.exists() or HEALTH_UNIT_PATH.exists() or HEALTH_TIMER_PATH.exists()
 
 

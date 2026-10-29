@@ -293,7 +293,7 @@ def selftest() -> None:
 
 def _reinstall_decision(*, service: bool) -> bool:
     """Whether an existing service is replaced; a terminal user who declines stops the install."""
-    if not service or not is_installed(Path(sys.executable)):
+    if not service or not is_installed():
         return False
     if os.environ.get(REINSTALL_CONFIRMED_ENV):
         return True
