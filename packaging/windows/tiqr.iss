@@ -1084,12 +1084,12 @@ begin
       Port := DefaultPort;
     { The window is visible, so install can ask for the first admin, as the terminal install does. It
       closes on success; a failure waits for Enter so the error stays readable, and no popup is shown.
-      The browser opens only after a successful install, when the health check has passed. }
+      tiqr install opens the browser itself once the health check has passed. }
     { The reinstall was confirmed in InitializeSetup, so tiqr install does not ask again. }
     Confirmed := '';
     if Reinstalling then
       Confirmed := 'set TIQR_REINSTALL_CONFIRMED=1&& ';
-    if Exec(ExpandConstant('{cmd}'), '/C "' + Confirmed + '""' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
-      ShellExec('open', 'http://' + Host + ':' + Port, '', '', SW_SHOW, ewNoWait, ResultCode);
+    { cmd strips the outer quote, so exactly one more quote may open the executable's path. }
+    Exec(ExpandConstant('{cmd}'), '/C "' + Confirmed + '"' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode);
   end;
 end;
