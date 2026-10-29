@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import webbrowser
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -324,6 +325,33 @@ def uninstall_service(executable: Path) -> None:
     for path in (UNIT_PATH, HEALTH_UNIT_PATH, HEALTH_TIMER_PATH):
         path.unlink(missing_ok=True)
     _run(["systemctl", "daemon-reload"])
+
+
+def browser_url(host: str, port: int, *, secure: bool) -> str:
+    """The address a browser on this machine uses; an unspecified bind address means loopback."""
+    name = "127.0.0.1" if host in ("", "0.0.0.0", "::") else host  # noqa: S104 - a comparison
+    if ":" in name:
+        name = f"[{name}]"
+    return f"{'https' if secure else 'http'}://{name}:{port}"
+
+
+def open_browser(url: str) -> bool:
+    """Show the app in a browser; never fails the install. Reports whether one was launched."""
+    try:
+        if sys.platform != "win32" and os.geteuid() == 0 and os.environ.get("SUDO_USER"):
+            # A browser refuses to run as root; hand the page to the user who ran sudo.
+            opener = shutil.which("xdg-open")
+            if opener is None:
+                return False
+            subprocess.Popen(  # noqa: S603 - fixed tools, the URL is built here
+                ["sudo", "-u", os.environ["SUDO_USER"], opener, url],  # noqa: S607 - sudo
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return True
+        return webbrowser.open(url)
+    except OSError, webbrowser.Error:
+        return False
 
 
 def wait_until_healthy(host: str, port: int, timeout: float = 30.0) -> None:

@@ -10,8 +10,8 @@ tiqr_brand.jsonc before installing if you need your own name, logo or languages.
 
 Windows: tiqr_setup.exe asks for the same settings in a wizard, writes tiqr_brand.jsonc and the logo to
 C:\ProgramData\TiQR, copies the program to C:\Program Files\TiQR, then runs tiqr install with the address and
-port from the wizard. That run is hidden, so get the REQUEST CODE with: tiqr license request-code. Create the
-first admin account with: tiqr user add
+port from the wizard. That run stays in a terminal window: it asks for the first admin account, prints the
+REQUEST CODE (again later: tiqr license request-code) and opens the browser at the chosen port.
 
 Branding changes take effect on restart: edit tiqr_brand.jsonc in the data folder, then restart the service.
 

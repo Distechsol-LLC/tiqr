@@ -404,6 +404,8 @@ def service_host(monkeypatch):
     monkeypatch.setattr(commands, "wait_until_healthy", lambda host, port: None)
     monkeypatch.setattr(commands, "create_first_admin", lambda: None)
     calls = []
+    # Never launch a real browser from a test.
+    monkeypatch.setattr(commands, "open_browser", lambda url: calls.append(url) or True)
     state = {"installed": True}
     monkeypatch.setattr(commands, "is_installed", lambda: state["installed"])
     monkeypatch.setattr(commands, "uninstall_service", lambda executable: calls.append("uninstall"))
@@ -441,7 +443,8 @@ def test_accepting_a_reinstall_removes_the_service_before_registering_it(
     result = CliRunner().invoke(app, [*SERVICE_INSTALL, "--source", str(release)], input="y\n")
 
     assert result.exit_code == 0, result.output
-    assert calls == ["uninstall", "register"]
+    assert calls == ["uninstall", "register", "http://10.0.0.5:7200"]
+    assert "Opened http://10.0.0.5:7200 in your browser" in result.output
     assert "Removed the existing TiQR service" in result.output
 
 
@@ -463,7 +466,7 @@ def test_a_first_install_does_not_ask(home, release, monkeypatch, service_host):
 
     assert result.exit_code == 0, result.output
     assert "Reinstall" not in result.output
-    assert calls == ["register"]
+    assert calls == ["register", "http://10.0.0.5:7200"]
 
 
 def test_a_reinstall_the_script_already_confirmed_is_not_asked_again(
@@ -477,4 +480,9 @@ def test_a_reinstall_the_script_already_confirmed_is_not_asked_again(
 
     assert result.exit_code == 0, result.output
     assert "Reinstall" not in result.output
-    assert calls == ["uninstall", "register"]
+    assert calls == ["uninstall", "register", "http://10.0.0.5:7200"]
+
+
+def test_browser_url_uses_loopback_for_an_unspecified_address():
+    assert installer.browser_url("0.0.0.0", 7102, secure=False) == "http://127.0.0.1:7102"
+    assert installer.browser_url("::1", 443, secure=True) == "https://[::1]:443"

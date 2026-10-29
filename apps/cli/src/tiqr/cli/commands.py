@@ -18,9 +18,11 @@ from zoneinfo import ZoneInfo
 import typer
 
 from tiqr.cli.installer import (
+    browser_url,
     is_administrator,
     is_installed,
     lan_address,
+    open_browser,
     open_firewall,
     register_service,
     uninstall_service,
@@ -44,6 +46,7 @@ from tiqr.core.settings import (
     discard_access_group_id,
     discard_secret,
     load_branding,
+    load_environment,
     provision_secret,
     session_path,
     write_local_settings,
@@ -383,6 +386,19 @@ def install(
             wait_until_healthy(host, port)
             typer.echo(f"TiQR is answering on {host}:{port}")
         _license_next_steps(host, port)
+        _show_in_browser(host, port, service=service)
+
+
+def _show_in_browser(host: str, port: int, *, service: bool) -> None:
+    """Open the app after a service install, last so the license request code stays visible."""
+    if not service or not _interactive():
+        return
+    secure = bool(load_environment().get("TIQR_TLS_CERT", "").strip())
+    url = browser_url(host, port, secure=secure)
+    if open_browser(url):
+        typer.echo(f"Opened {url} in your browser")
+    else:
+        typer.echo(f"Open {url} in a browser to use TiQR")
 
 
 def _license_next_steps(host: str, port: int) -> None:
