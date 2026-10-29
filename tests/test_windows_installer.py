@@ -81,6 +81,16 @@ def test_timezone_list_is_valid_and_complete() -> None:
         ZoneInfo(name)
 
 
+def test_a_reinstall_asks_then_starts_from_scratch() -> None:
+    assert "function InitializeSetup" in SCRIPT
+    assert "DirExists(ExpandConstant('{autopf}\\TiQR'))" in SCRIPT
+    assert "DirExists(ExpandConstant('{commonappdata}\\TiQR'))" in SCRIPT
+    assert "procedure RemoveExistingInstall;" in SCRIPT
+    assert "DelTree(DataFolder, True, True, True);" in SCRIPT
+    assert "else if Reinstalling then\n    RemoveExistingInstall;" in SCRIPT
+    assert "set TIQR_REINSTALL_CONFIRMED=1" in SCRIPT
+
+
 def test_install_and_uninstall_cover_only_generated_files() -> None:
     assert 'Excludes: "tiqr_brand.jsonc,' in SCRIPT
     assert 'Source: "{tmp}\\tiqr_brand.jsonc"' in SCRIPT

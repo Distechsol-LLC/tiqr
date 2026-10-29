@@ -991,20 +991,39 @@ begin
   Result := ExpandConstant('{tmp}\') + ReadBrand.LogoFile;
 end;
 
-{ An existing service is asked about before the wizard starts; a no ends the setup and changes nothing. }
+{ An existing install (its folder, its data folder or its service) is asked about before the wizard starts.
+  A yes removes it at ssInstall and installs from scratch; a no ends the setup and changes nothing. }
 function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
 begin
   Result := True;
-  Reinstalling := Exec(ExpandConstant('{sys}\sc.exe'), 'query TiQR', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+  Reinstalling := DirExists(ExpandConstant('{autopf}\TiQR')) or DirExists(ExpandConstant('{commonappdata}\TiQR'));
+  if not Reinstalling then
+    Reinstalling := Exec(ExpandConstant('{sys}\sc.exe'), 'query TiQR', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
   if Reinstalling then
   begin
-    if MsgBox('TiQR is already installed. Reinstall it?', mbConfirmation, MB_YESNO) = IDNO then
-      Result := False
-    else
-      Reinstalling := True;
+    if MsgBox('TiQR is already installed. Reinstalling deletes the program and all its data, including the database and users, and starts from scratch. Reinstall it?', mbConfirmation, MB_YESNO) = IDNO then
+      Result := False;
   end;
+end;
+
+{ The folder the app reads tiqr_brand.jsonc and its logo from when TIQR_HOME is unset. }
+function DataFolder: String;
+begin
+  Result := ExpandConstant('{commonappdata}\TiQR');
+end;
+
+{ A reinstall starts from scratch: the service is stopped first, since it runs the program being replaced,
+  then the program folder (only when it holds TiQR) and the data folder are removed, database included. }
+procedure RemoveExistingInstall;
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\net.exe'), 'stop TiQR', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if FileExists(ExpandConstant('{app}\tiqr.exe')) then
+    DelTree(ExpandConstant('{app}'), True, True, True);
+  DelTree(DataFolder, True, True, True);
 end;
 
 { Runs when the user confirms the install and before anything is written. A message returned here
@@ -1034,28 +1053,9 @@ begin
   Json := BuildBrandJsonc(Brand);
   DeleteFile(ExpandConstant('{tmp}\' + BrandFile));
   if not SaveStringToFile(ExpandConstant('{tmp}\' + BrandFile), AnsiString(Json), False) then
-    Result := 'The settings file could not be prepared, so nothing was installed.';
-end;
-
-{ The folder the app reads tiqr_brand.jsonc and its logo from when TIQR_HOME is unset. }
-function DataFolder: String;
-begin
-  Result := ExpandConstant('{commonappdata}\TiQR');
-end;
-
-procedure RemoveStaleLogos(const Folder, Keep: String);
-var
-  Extensions: TArrayOfString;
-  I: Integer;
-  Path: String;
-begin
-  Extensions := SplitText(LogoExtensions, '|');
-  for I := 0 to GetArrayLength(Extensions) - 1 do
-  begin
-    Path := Folder + '\logo' + Extensions[I];
-    if (Keep = '') or not SameText(ExtractFileName(Path), Keep) then
-      DeleteFile(Path);
-  end;
+    Result := 'The settings file could not be prepared, so nothing was installed.'
+  else if Reinstalling then
+    RemoveExistingInstall;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -1065,27 +1065,12 @@ var
   Host, Port, Confirmed: String;
   ResultCode: Integer;
 begin
-  if CurStep = ssInstall then
-  begin
-    { A reinstall asks again, so a file edited by hand is kept as .bak rather than lost. }
-    Existing := ExpandConstant('{app}\' + BrandFile);
-    if FileExists(Existing) then
-      FileCopy(Existing, Existing + '.bak', False);
-    { A logo of an earlier install under another extension would be left behind. }
-    RemoveStaleLogos(ExpandConstant('{app}'), ReadBrand.LogoFile);
-    RemoveStaleLogos(DataFolder, ReadBrand.LogoFile);
-    { The service runs the program being replaced; stop it before the files are copied. }
-    if Reinstalling then
-      Exec(ExpandConstant('{sys}\net.exe'), 'stop TiQR', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  end;
   if CurStep = ssPostInstall then
   begin
-    { The wizard's file replaces the data folder copy: tiqr install keeps an existing one, so a reinstall
-      would otherwise ignore the new settings. }
+    { The data folder is empty of earlier settings, and tiqr install keeps an existing branding file, so the
+      wizard's file is placed here. }
     ForceDirectories(DataFolder);
     Existing := DataFolder + '\' + BrandFile;
-    if FileExists(Existing) then
-      FileCopy(Existing, Existing + '.bak', False);
     if not FileCopy(ExpandConstant('{app}\' + BrandFile), Existing, False) then
       MsgBox('TiQR was copied, but ' + Existing + ' could not be written. Copy tiqr_brand.jsonc there by hand, then run tiqr.exe install.', mbError, MB_OK);
     { tiqr install registers the service, opens the firewall and runs the health check. The address and
