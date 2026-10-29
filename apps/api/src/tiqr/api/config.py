@@ -61,7 +61,7 @@ class ServerConfig:
     # How long an Idempotency-Key remembers its answer.
     idempotency_ttl_hours: int = 24
     # Most tickets one POST /api/tickets/batch may carry.
-    batch_max_size: int = 100
+    batch_max_size: int = 500
 
     def __post_init__(self) -> None:
         if not 0 < self.port < 65536:  # noqa: PLR2004 - the TCP port range
@@ -101,5 +101,5 @@ class ServerConfig:
             dev=dev,
             server_printing=_flag(environment, "SERVER_PRINTING", default=False),
             idempotency_ttl_hours=_number(environment, "IDEMPOTENCY_TTL_HOURS", 24),
-            batch_max_size=_number(environment, "BATCH_MAX_SIZE", 100),
+            batch_max_size=_number(environment, "BATCH_MAX_SIZE", 500),
         )

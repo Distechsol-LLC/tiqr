@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import logging
+import re
 import secrets
 import threading
 from collections import Counter
@@ -87,6 +88,7 @@ _TRANSITIONS = frozenset(
 _FINAL = frozenset({TicketState.EXPIRED, TicketState.REVOKED})
 _MAX_REASON = 500
 _MAX_CODE = 128
+_MAX_PASSAGES = 500
 KEY_PREFIX = "tqk_"
 SCOPE_READ = "tickets:read"
 SCOPE_WRITE = "tickets:write"
@@ -149,7 +151,19 @@ class PermissionDeniedError(PermissionError):
 
 
 class StateError(ValueError):
-    pass
+    code = "conflict"
+
+
+class ExternalCodeTakenError(StateError):
+    code = "external_code_taken"
+
+
+class InvalidStateError(StateError):
+    code = "invalid_state"
+
+
+class CredentialFormatError(ValueError):
+    """An external code the venue's readers cannot read, refused before anything is written."""
 
 
 class NotFoundError(LookupError):
@@ -159,6 +173,8 @@ class NotFoundError(LookupError):
 class IdempotencyConflictError(StateError):
     """An Idempotency-Key was reused with a different payload."""
 
+    code = "idempotency_mismatch"
+
 
 def _clean_reason(reason: str | None) -> str | None:
     reason = (reason or "").strip()
@@ -167,10 +183,24 @@ def _clean_reason(reason: str | None) -> str | None:
     return reason or None
 
 
+# The readers take either an alphanumeric code (letters, digits, hyphen, up to 32 characters) or
+# a fixed-length numeric one, leading zeros included. Anything else is refused before any write.
+_ALPHANUMERIC_CODE = re.compile(r"[A-Za-z0-9-]{1,32}")
+_NUMERIC_CODE = re.compile(r"[0-9]{12}|[0-9]{16}")
+_DIGITS = re.compile(r"[0-9]+")
+
+
 def _clean_code(code: str | None) -> str | None:
     code = (code or "").strip()
     if len(code) > _MAX_CODE:
         raise ValueError(f"An external code is at most {_MAX_CODE} characters")
+    # Digits-only codes are numeric, so they must have the fixed numeric length.
+    numeric = bool(code) and _DIGITS.fullmatch(code) is not None
+    readable = _NUMERIC_CODE.fullmatch(code) if numeric else _ALPHANUMERIC_CODE.fullmatch(code)
+    if code and not readable:
+        raise CredentialFormatError(
+            "External code must be 12 or 16 digits, or up to 32 letters, digits or hyphens"
+        )
     return code or None
 
 
@@ -590,13 +620,13 @@ class TicketService:
     def _require_printable(cls, actor: User, ticket: Ticket) -> Ticket:
         cls._require_view(actor, ticket)
         if ticket.state != TicketState.ISSUED:
-            raise StateError("Only issued tickets can be printed")
+            raise InvalidStateError("Only issued tickets can be printed")
         return ticket
 
     @staticmethod
     def _transition(ticket: Ticket, target: TicketState) -> Ticket:
         if (ticket.state, target) not in _TRANSITIONS:
-            raise StateError(f"Illegal transition: {ticket.state} -> {target}")
+            raise InvalidStateError(f"Illegal transition: {ticket.state} -> {target}")
         return replace(ticket, state=target)
 
     def _expire(self, ticket: Ticket) -> Ticket:
@@ -747,7 +777,7 @@ class TicketService:
             raise ValueError("Access windows require whole-second precision for BioStar alignment")
         code = _clean_code(external_code)
         if code and self.repository.ticket_by_external_code(self.tenant, code):
-            raise StateError("A ticket with this external code already exists")
+            raise ExternalCodeTakenError("A ticket with this external code already exists")
         priced = None
         if ticket_type is not None:
             priced = self.repository.ticket_type_by_name(ticket_type.strip())
@@ -909,7 +939,7 @@ class TicketService:
                 ticket.state == TicketState.PASSED and ticket.usage_type == UsageType.MULTI_USE
             )
             if not usable:
-                raise StateError(f"A {ticket.state} ticket cannot be changed")
+                raise InvalidStateError(f"A {ticket.state} ticket cannot be changed")
             start = ticket.valid_from if valid_from is None else utc(valid_from)
             end = ticket.valid_until if valid_until is None else utc(valid_until)
             if end <= start:
@@ -1252,6 +1282,9 @@ class TicketService:
             granted=raw.granted,
             outcome=outcome,
             processed_at=self._now(),
+            point_id=raw.point_id,
+            point_name=raw.point_name,
+            direction=raw.direction,
         )
 
     def sync(self, actor: User) -> int:
@@ -1271,6 +1304,19 @@ class TicketService:
                 stored += 1
             self.repository.save_cursor(cursor)
         return stored
+
+    def passages(self, actor: User, after: int, limit: int) -> list[AccessEvent]:
+        """Passages in arrival order after `after`, which is the sequence of the last one read."""
+        self._require(self._actor(actor), _STAFF)
+        if after < 0:
+            raise ValueError("The cursor must not be negative")
+        if not 1 <= limit <= _MAX_PASSAGES:
+            raise ValueError(f"A page holds from 1 to {_MAX_PASSAGES} passages")
+        return self.repository.list_passages(after, limit)
+
+    def passage_ticket(self, ticket_id: UUID) -> Ticket | None:
+        """The ticket a passage belongs to. Feed readers are already gated by `passages`."""
+        return self.repository.get_ticket(ticket_id)
 
     def cleanup(self, actor: User) -> int:
         self._require(self._actor(actor), _STAFF)

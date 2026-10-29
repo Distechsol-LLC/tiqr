@@ -438,6 +438,28 @@ class AuditOut(BaseModel):
     detail: str | None
 
 
+class PassageOut(BaseModel):
+    """One passage. A multi-use pass gives one record per passage."""
+
+    event_id: str
+    ticket_id: UUID | None
+    external_code: str | None
+    event_time: datetime
+    point_id: str | None
+    point_name: str | None
+    direction: Annotated[str | None, Field(description="entry or exit, when BioStar says")]
+    granted: bool
+    outcome: str
+
+
+class PassagePage(BaseModel):
+    items: list[PassageOut]
+    next_cursor: Annotated[
+        int,
+        Field(description="Pass this as `after` to read on; repeating it returns the same items"),
+    ]
+
+
 class _Page(BaseModel):
     total: Annotated[int, Field(description="Every match, across all pages")]
     page: Annotated[int, Field(description="The page shown, from 1")]
@@ -577,6 +599,10 @@ ErrorCode = Literal[
     "cross_origin",
     "not_found",
     "conflict",
+    "external_code_taken",
+    "idempotency_mismatch",
+    "invalid_state",
+    "credential_format",
     "server_printing_off",
     "invalid",
     "batch_too_large",

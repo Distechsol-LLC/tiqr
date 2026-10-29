@@ -305,7 +305,7 @@ def test_passed_tickets_cannot_be_printed(client, service):
     assert client.post("/api/sync").json() == {"count": 1}
     response = client.post(f"/api/tickets/{ticket['id']}/pdf")
     assert response.status_code == 409
-    assert response.json()["code"] == "conflict"
+    assert response.json()["code"] == "invalid_state"
 
 
 def test_user_management(client):
@@ -394,6 +394,41 @@ def test_sync_cleanup_and_stats(client, service):
     backwards = client.get("/api/stats?since=2026-09-18&until=2026-09-17")
     assert backwards.status_code == 422
     assert backwards.json()["code"] == "invalid"
+
+
+def test_passage_feed_is_stable_and_keeps_late_events(client, service):
+    login(client, "admin")
+    ticket = create_ticket(client, valid_from="2026-09-17T12:00", external_code="004821930057")
+    external_id = service.repository.get_ticket(UUID(ticket["id"])).external_id
+    now = service._now()
+    service.event_source.events.append(
+        RawEvent(
+            "scan-1", external_id, now, True, point_id="7", point_name="Gate A", direction="entry"
+        )
+    )
+    assert client.post("/api/sync").json() == {"count": 1}
+    first = client.get("/api/passes").json()
+    assert first["items"] == [
+        {
+            "event_id": "scan-1",
+            "ticket_id": ticket["id"],
+            "external_code": "004821930057",
+            "event_time": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "point_id": "7",
+            "point_name": "Gate A",
+            "direction": "entry",
+            "granted": True,
+            "outcome": "applied",
+        }
+    ]
+    cursor = first["next_cursor"]
+    assert client.get("/api/passes", params={"after": cursor - 1}).json()["items"] == first["items"]
+    assert client.get("/api/passes", params={"after": cursor}).json()["items"] == []
+    service.event_source.events.append(RawEvent("scan-late", external_id, now, False))
+    assert client.post("/api/sync").json() == {"count": 1}
+    later = client.get("/api/passes", params={"after": cursor}).json()
+    assert [item["event_id"] for item in later["items"]] == ["scan-late"]
+    assert client.get("/api/passes", params={"limit": 501}).status_code == 422
 
 
 def test_biostar_failures_are_502_with_their_codes(client, service, monkeypatch):

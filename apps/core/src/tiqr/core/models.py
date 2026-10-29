@@ -162,6 +162,9 @@ class RawEvent:
     external_id: str | None
     occurred_at: datetime
     granted: bool
+    point_id: str | None = None
+    point_name: str | None = None
+    direction: str | None = None
 
     def __post_init__(self) -> None:
         if not self.event_id:
@@ -177,6 +180,10 @@ class AccessEvent:
     granted: bool
     outcome: Outcome
     processed_at: datetime
+    point_id: str | None = None
+    point_name: str | None = None
+    direction: str | None = None
+    sequence: int = 0
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "occurred_at", utc(self.occurred_at))
@@ -210,6 +217,7 @@ class Registration:
     card_id: str
     user_removed: bool = False
     card_removed: bool = False
+    external_card_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

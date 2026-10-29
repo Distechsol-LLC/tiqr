@@ -14,7 +14,7 @@ from tiqr.api.endpoints import router
 from tiqr.api.errors import install_error_handlers
 from tiqr.api.maintenance import Maintenance
 from tiqr.api.runtime import Runtime, open_runtime
-from tiqr.api.security import DOCS_PREFIX, LoginThrottle, install_guard
+from tiqr.api.security import DOCS_PREFIX, LoginThrottle, install_guard, install_request_id
 from tiqr.api.web import WEB_ROOT, install_web
 from tiqr.core.service import TicketService
 
@@ -51,6 +51,7 @@ def create_app(
     )
     install_error_handlers(app)
     install_guard(app, config)
+    install_request_id(app)
     app.include_router(router)
     # Last, so its catch-all path matches only what no API route does.
     install_web(app, web_root)

@@ -50,6 +50,8 @@ from tiqr.api.schemas import (
     LicenseRecordOut,
     LicenseStatusOut,
     LoginIn,
+    PassageOut,
+    PassagePage,
     ReissueIn,
     RequestCodeOut,
     RevokeIn,
@@ -442,6 +444,35 @@ def list_tickets(
         page=paging.page,
         size=paging.size,
     )
+
+
+@router.get("/passes", tags=["tickets"], responses=_refusals(401, 403, 422))
+def list_passes(
+    me: READER,
+    server: Server,
+    after: Annotated[int, Query(ge=0, description="The next_cursor of the last page read")] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 500,
+) -> PassagePage:
+    """Passages in arrival order after the cursor, so a poll never misses one that arrived late."""
+    events = server.service.passages(me.user, after, limit)
+    items: list[PassageOut] = []
+    for event in events:
+        ticket = server.service.passage_ticket(event.ticket_id) if event.ticket_id else None
+        items.append(
+            PassageOut(
+                event_id=event.event_id,
+                ticket_id=event.ticket_id,
+                external_code=ticket.external_code if ticket else None,
+                event_time=event.occurred_at,
+                point_id=event.point_id,
+                point_name=event.point_name,
+                direction=event.direction,
+                granted=event.granted,
+                outcome=event.outcome.value,
+            )
+        )
+    next_cursor = events[-1].sequence if events else after
+    return PassagePage(items=items, next_cursor=next_cursor)
 
 
 @dataclass(frozen=True)

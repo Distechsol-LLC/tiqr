@@ -1,10 +1,13 @@
 """Browser-facing protection: the session cookie, CSRF and origin checks, headers, login limits."""
 
+import logging
 import math
+import re
 import threading
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable
+from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
 
@@ -14,6 +17,9 @@ from tiqr.api.errors import error_response
 CSRF_HEADER = "X-CSRF-Token"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 DOCS_PREFIX = "/api/docs"
+logger = logging.getLogger("tiqr.api")
+# A caller's id is reused only if it is short and safe to write to the log.
+_REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,128}")
 _HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -68,6 +74,21 @@ def install_guard(app: FastAPI, config: ServerConfig) -> None:
         if path.startswith("/api/") and not path.startswith(DOCS_PREFIX):
             for name, value in _API_HEADERS.items():
                 response.headers.setdefault(name, value)
+        return response
+
+
+def install_request_id(app: FastAPI) -> None:
+    """Echo the caller's X-Request-Id, or mint one, so an incident can be traced in the log."""
+
+    @app.middleware("http")
+    async def request_id(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        incoming = request.headers.get("x-request-id", "").strip()
+        request_id = incoming if _REQUEST_ID.fullmatch(incoming) else uuid4().hex
+        response = await call_next(request)
+        response.headers["X-Request-Id"] = request_id
+        logger.info("%s %s request_id=%s", request.method, request.url.path, request_id)
         return response
 
 

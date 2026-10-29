@@ -7,7 +7,13 @@ from tiqr.core.biostar import BioStarError
 from tiqr.core.fakes import InMemoryRegistrar
 from tiqr.core.models import TicketState, UsageType
 from tiqr.core.repository import OLDEST_REVERSIBLE, SCHEMA_VERSION, SQLiteRepository
-from tiqr.core.service import IdempotencyConflictError, PermissionDeniedError, StateError
+from tiqr.core.service import (
+    CredentialFormatError,
+    ExternalCodeTakenError,
+    IdempotencyConflictError,
+    PermissionDeniedError,
+    StateError,
+)
 
 INVALID = r"(?i)invalid"
 START = datetime(2026, 9, 17, 9, tzinfo=UTC)
@@ -186,6 +192,27 @@ def test_external_code_is_unique_per_tenant_and_filterable(service, accounts, re
         )
 
 
+@pytest.mark.parametrize("code", ["4821930057716642", "004821930057", "AB-12-cd"])
+def test_readable_external_codes_are_accepted(make, code):
+    assert make(external_code=code).external_code == code
+
+
+@pytest.mark.parametrize("code", ["12345", "1234567890123", "AB_12", "ABC 12", "A" * 33])
+def test_unreadable_external_codes_are_refused_before_any_write(
+    service, accounts, registrar, make, code
+):
+    with pytest.raises(CredentialFormatError):
+        make(external_code=code)
+    assert registrar.tickets == {}
+
+
+def test_a_taken_external_code_is_its_own_error(service, accounts, make):
+    make(external_code="BAR-1")
+    with pytest.raises(ExternalCodeTakenError) as taken:
+        make(external_code="BAR-1")
+    assert taken.value.code == "external_code_taken"
+
+
 def test_the_same_code_may_exist_in_another_tenant(service, accounts, repository, make):
     make(external_code="SHARED")
     service.tenant = "second"
@@ -311,12 +338,12 @@ def test_the_attribution_is_written_with_the_actor(service, accounts, make):
     assert secret
 
 
-def test_migrations_8_and_9_reverse_cleanly(tmp_path, accounts):
+def test_migrations_8_to_10_reverse_cleanly(tmp_path, accounts):
     path = tmp_path / "reversible.db"
     with SQLiteRepository(path) as repository:
         repository.initialize()
         repository._connection.execute("PRAGMA user_version").fetchone()
-        assert SCHEMA_VERSION == 9
+        assert SCHEMA_VERSION == 10
         repository.downgrade(OLDEST_REVERSIBLE)
         columns = {row[1] for row in repository._connection.execute("PRAGMA table_info(tickets)")}
         tables = {
@@ -324,7 +351,11 @@ def test_migrations_8_and_9_reverse_cleanly(tmp_path, accounts):
         }
         assert "external_code" not in columns
         assert not {"audit_log", "idempotency_keys", "api_keys"} & tables
+        event_columns = {
+            row[1] for row in repository._connection.execute("PRAGMA table_info(access_events)")
+        }
+        assert not {"point_id", "point_name", "direction", "sequence"} & event_columns
         with pytest.raises(ValueError, match="Cannot downgrade"):
             repository.downgrade(OLDEST_REVERSIBLE - 1)
         repository.initialize(upgrade=True)
-        assert repository._connection.execute("PRAGMA user_version").fetchone()[0] == 9
+        assert repository._connection.execute("PRAGMA user_version").fetchone()[0] == 10

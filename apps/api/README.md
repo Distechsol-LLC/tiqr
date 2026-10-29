@@ -44,7 +44,7 @@ uv sync --locked
 | `TIQR_TLS_CERT`, `TIQR_TLS_KEY` | unset | PEM certificate and key. Set both to serve HTTPS, or neither for plain HTTP. |
 | `TIQR_SERVER_PRINTING` | `false` | When `true`, operators may print on the server's default printer as well as download the PDF. Leave `false` to allow download only. |
 | `TIQR_IDEMPOTENCY_TTL_HOURS` | `24` | How long an `Idempotency-Key` remembers its answer. |
-| `TIQR_BATCH_MAX_SIZE` | `100` | Most tickets one `POST /tickets/batch` may carry; more is a `422`. |
+| `TIQR_BATCH_MAX_SIZE` | `500` | Most tickets one `POST /tickets/batch` may carry; more is a `422`. |
 | `TIQR_BIOSTAR_BASE_URL`, `_USERNAME`, `_PASSWORD`, `_DEVICE_IDS` | unset | BioStar connection. Set all four, or none for local mode; a partial set is an error. `_PASSWORD` belongs in `.env.local`, not the brand file. |
 | `TIQR_BIOSTAR_ACCESS_GROUP_ID` | unset | Optional. If blank, TiQR uses its own access group named `TiQR AG`, which `tiqr setup` creates. |
 | `TIQR_BIOSTAR_VERIFY_TLS` | `false` | `true` verifies BioStar's TLS certificate. |
@@ -101,9 +101,13 @@ Refusals use one shape:
 | 403 | `cross_origin` | Write request from another origin |
 | 403 | `license_required` | No valid license; every endpoint not marked "no license needed" below is refused |
 | 404 | `not_found` | Ticket, user, ticket type, visitor type, service key or logo not found |
-| 409 | `conflict` | The ticket or account is not in a state that allows this, or an `external_code` or `Idempotency-Key` clashes |
+| 409 | `conflict` | The ticket or account is not in a state that allows this |
+| 409 | `external_code_taken` | Another pass already has this `external_code` |
+| 409 | `idempotency_mismatch` | An `Idempotency-Key` was reused with a different body |
+| 409 | `invalid_state` | The pass's state does not allow the action (for example revoking an expired pass) |
 | 409 | `server_printing_off` | Server printing is off; download the PDF instead |
 | 409 | `license_already_active` | That key is already the active license |
+| 422 | `credential_format` | An `external_code` the venue's readers cannot read: alphanumeric (letters, digits, hyphen, up to 32 characters) or numeric (exactly 12 or 16 digits, leading zeros kept) |
 | 422 | `invalid` | A value the server refuses |
 | 422 | `batch_too_large` | A batch carries more than `TIQR_BATCH_MAX_SIZE` tickets |
 | 422 | (validation) | A malformed request. `detail` is a list of per-field errors, as FastAPI reports them |
@@ -113,6 +117,8 @@ Refusals use one shape:
 | 500 | `internal` | Unexpected error. Details stay in the server log. |
 
 Responses never include password hashes, secrets, or stack traces.
+
+Every response carries an `X-Request-Id` header. A caller's own id is reused when it is short and safe (letters, digits, `.`, `_`, `-`, up to 128 characters); otherwise one is generated. The same id is written to the server log, so quote it when reporting an incident.
 
 ## Endpoints
 
@@ -195,6 +201,7 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 | POST | `/tickets/{ticket_id}/reissue` | session + CSRF, or key `tickets:write` | Reissue a ticket in any state as the same ticket, back to issued; the window may move and must end in the future. This is also how a ticket is edited. Returns the ticket. |
 | POST | `/tickets/batch` | session + CSRF, or key `tickets:write` | Body `{items, atomic}`. Always `200` unless the request is malformed; returns `{atomic, committed, created, failed, results}`, each result `created` / `replayed` / `error` / `rolled_back` / `skipped`. At most `TIQR_BATCH_MAX_SIZE` items. |
 | GET | `/tickets/{ticket_id}/audit` | session, or key `tickets:read` | The ticket's audit trail, oldest first (admins and managers). |
+| GET | `/passes` | session, or key `tickets:read` | The passage feed, in arrival order. Query `?after=` (the `next_cursor` of the last page read, default 0) and `?limit=` (1 to 500, default 500). Each record gives `event_id`, `ticket_id`, `external_code`, `event_time` (with offset), `point_id`, `point_name`, `direction` (`entry` or `exit`, when BioStar says) and `granted`. A repeat with the same cursor returns the same records; a late event lands after the cursor it missed, so none are lost. Managers and service keys only. |
 
 #### Create body
 

@@ -193,6 +193,26 @@ INSERT INTO tickets_rebuilt ({_COLUMNS_V7}) SELECT {
 DROP TABLE tickets;
 ALTER TABLE tickets_rebuilt RENAME TO tickets
 """  # noqa: S608 - built from the constants above, not input
+# Passages gain their point and direction, and a sequence that orders the feed. A sequence is
+# assigned at insert, so an event that arrives late still lands after the cursor it missed.
+# A pass also gets a second card, carrying the caller's own code, so readers accept either.
+_PASSAGES = """
+ALTER TABLE access_events ADD COLUMN point_id TEXT;
+ALTER TABLE access_events ADD COLUMN point_name TEXT;
+ALTER TABLE access_events ADD COLUMN direction TEXT;
+ALTER TABLE access_events ADD COLUMN sequence INTEGER;
+UPDATE access_events SET sequence = rowid;
+CREATE UNIQUE INDEX access_events_sequence ON access_events(sequence);
+ALTER TABLE registrations ADD COLUMN external_card_id TEXT;
+"""
+_PASSAGES_DOWN = """
+DROP INDEX access_events_sequence;
+ALTER TABLE access_events DROP COLUMN point_id;
+ALTER TABLE access_events DROP COLUMN point_name;
+ALTER TABLE access_events DROP COLUMN direction;
+ALTER TABLE access_events DROP COLUMN sequence;
+ALTER TABLE registrations DROP COLUMN external_card_id
+"""
 # The audit log is append-only. Idempotency records expire; API keys keep only a hash.
 _SERVICE_TABLES = """
 CREATE TABLE audit_log (
@@ -237,11 +257,16 @@ _MIGRATIONS = tuple(
         _LICENSES,
         _REVOCATION,
         _SERVICE_TABLES,
+        _PASSAGES,
     )
 )
 # Reversal N undoes step N, taking version N to N - 1. Steps 1 to 7 predate reversals and are not
 # reversible; every later step must add one.
-_REVERSALS = {8: _statements(_REVOCATION_DOWN), 9: _statements(_SERVICE_TABLES_DOWN)}
+_REVERSALS = {
+    8: _statements(_REVOCATION_DOWN),
+    9: _statements(_SERVICE_TABLES_DOWN),
+    10: _statements(_PASSAGES_DOWN),
+}
 OLDEST_REVERSIBLE = min(_REVERSALS) - 1
 SCHEMA_VERSION = len(_MIGRATIONS)
 
@@ -373,6 +398,10 @@ def _event(row: sqlite3.Row) -> AccessEvent:
         granted=bool(row["granted"]),
         outcome=Outcome(row["outcome"]),
         processed_at=datetime.fromisoformat(row["processed_at"]),
+        point_id=row["point_id"],
+        point_name=row["point_name"],
+        direction=row["direction"],
+        sequence=row["sequence"],
     )
 
 
@@ -397,6 +426,7 @@ def _registration(row: sqlite3.Row) -> Registration:
         card_id=row["card_id"],
         user_removed=bool(row["user_removed"]),
         card_removed=bool(row["card_removed"]),
+        external_card_id=row["external_card_id"],
     )
 
 
@@ -530,9 +560,11 @@ class SQLiteRepository(Repository):
             row: sqlite3.Row | None = self._connection.execute(sql, parameters).fetchone()
         return None if row is None else decode(row)
 
-    def _fetch_all[T](self, decode: Callable[[sqlite3.Row], T], sql: str) -> list[T]:
+    def _fetch_all[T](
+        self, decode: Callable[[sqlite3.Row], T], sql: str, parameters: Sequence[_Value] = ()
+    ) -> list[T]:
         with self._lock:
-            rows: list[sqlite3.Row] = self._connection.execute(sql).fetchall()
+            rows: list[sqlite3.Row] = self._connection.execute(sql, parameters).fetchall()
         return [decode(row) for row in rows]
 
     def add_user(self, user: User) -> None:
@@ -729,7 +761,9 @@ class SQLiteRepository(Repository):
 
     def add_event(self, event: AccessEvent) -> None:
         self._execute(
-            "INSERT INTO access_events VALUES (?,?,?,?,?,?)",
+            "INSERT INTO access_events (event_id, ticket_id, occurred_at, granted, outcome, "
+            "processed_at, point_id, point_name, direction, sequence) "
+            "VALUES (?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(sequence), 0) + 1 FROM access_events))",
             (
                 event.event_id,
                 _to_sql(event.ticket_id),
@@ -737,11 +771,21 @@ class SQLiteRepository(Repository):
                 int(event.granted),
                 event.outcome.value,
                 event.processed_at.isoformat(),
+                event.point_id,
+                event.point_name,
+                event.direction,
             ),
         )
 
     def list_events(self) -> list[AccessEvent]:
         return self._fetch_all(_event, "SELECT * FROM access_events ORDER BY occurred_at, event_id")
+
+    def list_passages(self, after: int, limit: int) -> list[AccessEvent]:
+        return self._fetch_all(
+            _event,
+            "SELECT * FROM access_events WHERE sequence>? ORDER BY sequence LIMIT ?",
+            (after, limit),
+        )
 
     def get_cursor(self) -> SyncCursor | None:
         return self._fetch_one(
@@ -768,14 +812,16 @@ class SQLiteRepository(Repository):
 
     def save_registration(self, registration: Registration) -> None:
         self._execute(
-            "INSERT INTO registrations VALUES (?,?,?,?) ON CONFLICT(external_id) DO UPDATE SET "
+            "INSERT INTO registrations (external_id, card_id, user_removed, card_removed, "
+            "external_card_id) VALUES (?,?,?,?,?) ON CONFLICT(external_id) DO UPDATE SET "
             "card_id=excluded.card_id,user_removed=excluded.user_removed,"
-            "card_removed=excluded.card_removed",
+            "card_removed=excluded.card_removed,external_card_id=excluded.external_card_id",
             (
                 registration.external_id,
                 registration.card_id,
                 int(registration.user_removed),
                 int(registration.card_removed),
+                registration.external_card_id,
             ),
         )
 
