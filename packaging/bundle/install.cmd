@@ -14,11 +14,17 @@ if errorlevel 1 (
     exit /b
 )
 
-rem An existing installation is asked about before anything is stopped or copied; a no changes nothing.
+rem An existing installation (service, program or data) is asked about before anything is stopped or copied;
+rem a no changes nothing. A yes deletes it all, database included, and installs from scratch.
+set "DATA=%ProgramData%\TiQR"
 sc query TiQR >nul 2>&1
-if errorlevel 1 goto :fresh
+if not errorlevel 1 goto :ask
+if exist "%TARGET%\tiqr.exe" goto :ask
+if exist "%DATA%" goto :ask
+goto :fresh
+:ask
 set "ANSWER="
-set /p "ANSWER=TiQR is already installed. Reinstall it? [y/N] "
+set /p "ANSWER=TiQR is already installed. Reinstalling deletes the program and all its data, including the database and users, and starts from scratch. Reinstall it? [y/N] "
 if /i "%ANSWER%"=="y" goto :confirmed
 echo Install cancelled; nothing was changed.
 pause
@@ -29,6 +35,10 @@ set "TIQR_REINSTALL_CONFIRMED=1"
 
 rem An upgrade replaces the program under a running service; stop it first.
 sc query TiQR >nul 2>&1 && net stop TiQR >nul 2>&1
+if defined TIQR_REINSTALL_CONFIRMED (
+    if /i not "%HERE%"=="%TARGET%\" rd /s /q "%TARGET%" 2>nul
+    rd /s /q "%DATA%" 2>nul
+)
 
 rem Everything in this folder except the scripts. The branding copied here is only the default for a
 rem first install; the installer keeps the one already in the data folder.

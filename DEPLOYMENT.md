@@ -246,10 +246,11 @@ install.cmd           # Windows, as administrator
 
 1. The script stops the running service. `install.cmd` stops the TiQR service itself, and
    `install.sh` stops `tiqr.service`.
-2. It copies the new program, notices and health probe over the program folder. The existing
-   `tiqr_brand.jsonc` in the data folder is kept. `.env.local` and the database are not in the
-   bundle, so they stay.
-   Windows copies with robocopy, which does not delete files the new bundle no longer ships.
+2. If TiQR is already installed (the service, the program folder or the data folder exists), the script
+   asks `Reinstall it?`. A no changes nothing. A yes deletes the program folder and the data folder,
+   including `tiqr.db`, `.env.local` and `tiqr_brand.jsonc`, and installs from scratch, so the first
+   admin is created again. Copy `tiqr.db` and `.env.local` somewhere safe first if they must be kept.
+   The wizard asks the same question on Windows.
 3. It runs `tiqr install` as on a first install. `tiqr setup` migrates the database, and the
    service and health probe are registered again. The health check then waits for the answer.
 
