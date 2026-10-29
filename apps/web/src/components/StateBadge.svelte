@@ -12,6 +12,7 @@
     expired: 'badge-surface',
     issued: 'badge-primary',
     passed: 'badge-success',
+    revoked: 'badge-error',
   };
 </script>
 

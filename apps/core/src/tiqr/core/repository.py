@@ -11,11 +11,14 @@ from uuid import UUID
 
 from tiqr.core.models import (
     AccessEvent,
+    ApiKey,
+    AuditEntry,
     Currency,
     LicenseRecord,
     Outcome,
     Registration,
     Role,
+    StoredResponse,
     SyncCursor,
     Ticket,
     TicketState,
@@ -145,6 +148,75 @@ CREATE TABLE licenses (
 )
 """
 
+_TICKETS_V7 = """
+    id TEXT PRIMARY KEY, external_id TEXT UNIQUE, qr_payload TEXT NOT NULL UNIQUE,
+    readable_serial TEXT NOT NULL UNIQUE, visitor_name TEXT NOT NULL, visitor_type TEXT NOT NULL,
+    valid_from TEXT NOT NULL, valid_until TEXT NOT NULL,
+    usage_type TEXT NOT NULL CHECK(usage_type IN ('one_time','multi_use')),
+    state TEXT NOT NULL CHECK(state IN ({states})),
+    created_by TEXT NOT NULL REFERENCES users(id),
+    assigned_operator TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL, passed_at TEXT,
+    print_count INTEGER NOT NULL CHECK(print_count >= 0),
+    use_count INTEGER NOT NULL CHECK(use_count >= 0),
+    ticket_type TEXT, base_price INTEGER CHECK(base_price >= 0),
+    discount_percent INTEGER NOT NULL DEFAULT 0
+        CHECK(discount_percent BETWEEN 0 AND 100),
+    currency TEXT CHECK(currency IN ('USD','RUB','AZN','KZT'))
+"""
+_COLUMNS_V7 = """id, external_id, qr_payload, readable_serial, visitor_name, visitor_type,
+    valid_from, valid_until, usage_type, state, created_by, assigned_operator, created_at,
+    passed_at, print_count, use_count, ticket_type, base_price, discount_percent, currency"""
+_STATES_V7 = "'issued','passed','expired'"
+_STATES_V8 = "'issued','passed','expired','revoked'"
+
+# Revoked tickets, the caller's own code (unique per tenant) and an event session. SQLite cannot
+# change a CHECK, so `tickets` is rebuilt, as in _TENGE.
+_REVOCATION = f"""
+CREATE TABLE tickets_rebuilt ({_TICKETS_V7.format(states=_STATES_V8)},
+    external_code TEXT, tenant_id TEXT NOT NULL DEFAULT 'default', event_session TEXT
+);
+INSERT INTO tickets_rebuilt ({_COLUMNS_V7}) SELECT {_COLUMNS_V7} FROM tickets;
+DROP TABLE tickets;
+ALTER TABLE tickets_rebuilt RENAME TO tickets;
+CREATE UNIQUE INDEX tickets_external_code ON tickets(tenant_id, external_code)
+    WHERE external_code IS NOT NULL
+"""  # noqa: S608 - built from the constants above, not input
+# Undoing it: a revoked ticket reads as expired, since it grants no access either way, and the
+# external codes, tenants and sessions go with their columns.
+_REVOCATION_DOWN = f"""
+DROP INDEX tickets_external_code;
+CREATE TABLE tickets_rebuilt ({_TICKETS_V7.format(states=_STATES_V7)});
+INSERT INTO tickets_rebuilt ({_COLUMNS_V7}) SELECT {
+    _COLUMNS_V7.replace("state,", "CASE state WHEN 'revoked' THEN 'expired' ELSE state END,")
+} FROM tickets;
+DROP TABLE tickets;
+ALTER TABLE tickets_rebuilt RENAME TO tickets
+"""  # noqa: S608 - built from the constants above, not input
+# The audit log is append-only. Idempotency records expire; API keys keep only a hash.
+_SERVICE_TABLES = """
+CREATE TABLE audit_log (
+    id TEXT PRIMARY KEY, occurred_at TEXT NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
+    ticket_id TEXT, reason TEXT, detail TEXT
+);
+CREATE INDEX audit_log_ticket ON audit_log(ticket_id, occurred_at);
+CREATE TABLE idempotency_keys (
+    tenant_id TEXT NOT NULL, key TEXT NOT NULL, fingerprint TEXT NOT NULL,
+    status INTEGER NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL, PRIMARY KEY (tenant_id, key)
+);
+CREATE TABLE api_keys (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, scopes TEXT NOT NULL,
+    created_at TEXT NOT NULL, expires_at TEXT, revoked_at TEXT, replaced_by TEXT
+)
+"""
+_SERVICE_TABLES_DOWN = """
+DROP TABLE api_keys;
+DROP TABLE idempotency_keys;
+DROP TABLE audit_log
+"""
+
 
 def _statements(script: str) -> tuple[str, ...]:
     # No statement here contains a semicolon of its own, so splitting on them is exact.
@@ -155,8 +227,22 @@ def _statements(script: str) -> tuple[str, ...]:
 # transaction with its version bump.
 _MIGRATIONS = tuple(
     _statements(script)
-    for script in (_SCHEMA, _WEB_SESSIONS, _USER_ACTIVE, _CATALOG, _CURRENCY, _TENGE, _LICENSES)
+    for script in (
+        _SCHEMA,
+        _WEB_SESSIONS,
+        _USER_ACTIVE,
+        _CATALOG,
+        _CURRENCY,
+        _TENGE,
+        _LICENSES,
+        _REVOCATION,
+        _SERVICE_TABLES,
+    )
 )
+# Reversal N undoes step N, taking version N to N - 1. Steps 1 to 7 predate reversals and are not
+# reversible; every later step must add one.
+_REVERSALS = {8: _statements(_REVOCATION_DOWN), 9: _statements(_SERVICE_TABLES_DOWN)}
+OLDEST_REVERSIBLE = min(_REVERSALS) - 1
 SCHEMA_VERSION = len(_MIGRATIONS)
 
 _TICKET_COLUMNS = tuple(field.name for field in fields(Ticket))
@@ -227,6 +313,47 @@ def _ticket(row: sqlite3.Row) -> Ticket:
         base_price=row["base_price"],
         discount_percent=row["discount_percent"],
         currency=Currency(row["currency"]) if row["currency"] else None,
+        external_code=row["external_code"],
+        tenant_id=row["tenant_id"],
+        event_session=row["event_session"],
+    )
+
+
+def _audit(row: sqlite3.Row) -> AuditEntry:
+    return AuditEntry(
+        id=UUID(row["id"]),
+        occurred_at=datetime.fromisoformat(row["occurred_at"]),
+        actor=row["actor"],
+        action=row["action"],
+        ticket_id=UUID(row["ticket_id"]) if row["ticket_id"] else None,
+        reason=row["reason"],
+        detail=row["detail"],
+    )
+
+
+def _stored_response(row: sqlite3.Row) -> StoredResponse:
+    return StoredResponse(
+        key=row["key"],
+        tenant_id=row["tenant_id"],
+        fingerprint=row["fingerprint"],
+        status=row["status"],
+        body=row["body"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        expires_at=datetime.fromisoformat(row["expires_at"]),
+    )
+
+
+def _api_key(row: sqlite3.Row) -> ApiKey:
+    return ApiKey(
+        id=UUID(row["id"]),
+        name=row["name"],
+        key_hash=row["key_hash"],
+        user_id=UUID(row["user_id"]),
+        scopes=tuple(row["scopes"].split()),
+        created_at=datetime.fromisoformat(row["created_at"]),
+        expires_at=_optional_datetime(row["expires_at"]),
+        revoked_at=_optional_datetime(row["revoked_at"]),
+        replaced_by=UUID(row["replaced_by"]) if row["replaced_by"] else None,
     )
 
 
@@ -325,6 +452,30 @@ class SQLiteRepository(Repository):
                     self._migrate(_MIGRATIONS[target - 1], target)
             finally:
                 self._connection.execute("PRAGMA foreign_keys = ON")
+
+    def downgrade(self, target: int) -> None:
+        """Undo schema steps down to version `target`, newest first; back the database up first."""
+        with self._lock:
+            (version,) = self._connection.execute("PRAGMA user_version").fetchone()
+            if not OLDEST_REVERSIBLE <= target <= version:
+                raise ValueError(
+                    f"Cannot downgrade from {version} to {target}; "
+                    f"only versions {OLDEST_REVERSIBLE} and up are reachable"
+                )
+            self._connection.execute("PRAGMA foreign_keys = OFF")
+            try:
+                for current in range(version, target, -1):
+                    self._revert(_REVERSALS[current], current)
+            finally:
+                self._connection.execute("PRAGMA foreign_keys = ON")
+
+    def _revert(self, statements: tuple[str, ...], version: int) -> None:
+        with self.transaction():
+            for statement in statements:
+                self._connection.execute(statement)
+            if self._connection.execute("PRAGMA foreign_key_check").fetchone():
+                raise ValueError(f"Downgrading from schema version {version} would orphan rows")
+            self._connection.execute(f"PRAGMA user_version = {version - 1}")
 
     def _migrate(self, statements: tuple[str, ...], version: int) -> None:
         # The version is set in the same transaction, so a failed step leaves the old schema.
@@ -472,6 +623,103 @@ class SQLiteRepository(Repository):
 
     def ticket_by_external_id(self, external_id: str) -> Ticket | None:
         return self._fetch_one(_ticket, "SELECT * FROM tickets WHERE external_id=?", (external_id,))
+
+    def ticket_by_external_code(self, tenant_id: str, external_code: str) -> Ticket | None:
+        return self._fetch_one(
+            _ticket,
+            "SELECT * FROM tickets WHERE tenant_id=? AND external_code=?",
+            (tenant_id, external_code),
+        )
+
+    def add_audit(self, entry: AuditEntry) -> None:
+        self._execute(
+            "INSERT INTO audit_log (id, occurred_at, actor, action, ticket_id, reason, detail)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (
+                str(entry.id),
+                _instant(entry.occurred_at),
+                entry.actor,
+                entry.action,
+                str(entry.ticket_id) if entry.ticket_id else None,
+                entry.reason,
+                entry.detail,
+            ),
+        )
+
+    def list_audit(self, ticket_id: UUID | None = None) -> list[AuditEntry]:
+        where, parameters = (
+            ("", ()) if ticket_id is None else (" WHERE ticket_id=?", (str(ticket_id),))
+        )
+        with self._lock:
+            rows = self._connection.execute(
+                f"SELECT * FROM audit_log{where} ORDER BY occurred_at, rowid",  # noqa: S608 - fixed text
+                parameters,
+            ).fetchall()
+        return [_audit(row) for row in rows]
+
+    def get_stored_response(self, tenant_id: str, key: str, now: datetime) -> StoredResponse | None:
+        """The saved answer for `key`, unless it has expired."""
+        return self._fetch_one(
+            _stored_response,
+            "SELECT * FROM idempotency_keys WHERE tenant_id=? AND key=? AND expires_at>?",
+            (tenant_id, key, _instant(now)),
+        )
+
+    def save_stored_response(self, response: StoredResponse) -> None:
+        with self.transaction():
+            # An expired record under the same key is replaced.
+            self._connection.execute(
+                "DELETE FROM idempotency_keys WHERE tenant_id=? AND key=?",
+                (response.tenant_id, response.key),
+            )
+            self._connection.execute(
+                "INSERT INTO idempotency_keys (tenant_id, key, fingerprint, status, body,"
+                " created_at, expires_at) VALUES (?,?,?,?,?,?,?)",
+                (
+                    response.tenant_id,
+                    response.key,
+                    response.fingerprint,
+                    response.status,
+                    response.body,
+                    _instant(response.created_at),
+                    _instant(response.expires_at),
+                ),
+            )
+
+    def purge_stored_responses(self, now: datetime) -> int:
+        with self.transaction():
+            cursor = self._connection.execute(
+                "DELETE FROM idempotency_keys WHERE expires_at<=?", (_instant(now),)
+            )
+            return cursor.rowcount
+
+    def save_api_key(self, key: ApiKey) -> None:
+        self._execute(
+            "INSERT INTO api_keys (id, name, key_hash, user_id, scopes, created_at, expires_at,"
+            " revoked_at, replaced_by) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET"
+            " name=excluded.name, scopes=excluded.scopes, expires_at=excluded.expires_at,"
+            " revoked_at=excluded.revoked_at, replaced_by=excluded.replaced_by",
+            (
+                str(key.id),
+                key.name,
+                key.key_hash,
+                str(key.user_id),
+                " ".join(key.scopes),
+                _instant(key.created_at),
+                _instant(key.expires_at) if key.expires_at else None,
+                _instant(key.revoked_at) if key.revoked_at else None,
+                str(key.replaced_by) if key.replaced_by else None,
+            ),
+        )
+
+    def get_api_key(self, key_id: UUID) -> ApiKey | None:
+        return self._fetch_one(_api_key, "SELECT * FROM api_keys WHERE id=?", (str(key_id),))
+
+    def api_key_by_hash(self, key_hash: str) -> ApiKey | None:
+        return self._fetch_one(_api_key, "SELECT * FROM api_keys WHERE key_hash=?", (key_hash,))
+
+    def list_api_keys(self) -> list[ApiKey]:
+        return self._fetch_all(_api_key, "SELECT * FROM api_keys ORDER BY created_at, id")
 
     def list_tickets(self) -> list[Ticket]:
         return self._fetch_all(_ticket, "SELECT * FROM tickets ORDER BY created_at, id")

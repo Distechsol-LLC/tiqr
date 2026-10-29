@@ -591,6 +591,9 @@ class BioStarXRegistrar(Registrar):
     def deactivate(self, external_id: str) -> None:
         self.client.update_user(external_id, {"disabled": "true"})
 
+    def activate(self, external_id: str) -> None:
+        self.client.update_user(external_id, {"disabled": "false"})
+
     def _user_exists(self, external_id: str) -> bool:
         ids = {
             _required_identifier(row.get("user_id"), "User search returned a row without user_id")

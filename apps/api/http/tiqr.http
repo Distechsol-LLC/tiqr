@@ -1,11 +1,12 @@
 # TiQR API. Start the server (`uv run tiqr serve`), set the username in
 # http-client.env.json and the password in http-client.private.env.json, then run
 # Login first and the rest top to bottom. [WRITE] requests change data: use a test server.
+# Everything but Health, Branding, Login, Session and the license reads needs an active license.
 # Login is rate-limited: 5 failed sign-ins per user and address in 15 minutes.
 
 
 ### Health
-# No sign-in needed. 200 when ready.
+# No sign-in or license needed. 200 when ready; 503 if the database or scheduler is down.
 GET {{baseUrl}}/api/health
 
 > {%
@@ -14,8 +15,18 @@ GET {{baseUrl}}/api/health
   });
 %}
 
+### Branding
+# No sign-in or license needed. App name, theme, languages, currencies and has_logo. 200.
+GET {{baseUrl}}/api/branding
+
+> {%
+  client.test("Branding read", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
 ### Config
-# Default timezone and whether server printing is on. 200.
+# Needs sign-in: run Login first. Default timezone and whether server printing is on. 200; 401.
 GET {{baseUrl}}/api/config
 
 > {%
@@ -40,7 +51,6 @@ Content-Type: application/json
     client.assert(response.status === 200, "Expected 200, got " + response.status);
   });
   client.global.set("csrfToken", response.body.csrf_token);
-  client.global.set("meId", response.body.user.id);
 %}
 
 ### Session
@@ -52,6 +62,24 @@ GET {{baseUrl}}/api/auth/session
     client.assert(response.status === 200, "Expected 200, got " + response.status);
   });
 %}
+
+### License status
+# Any role, even without a license. 200 with state, is_valid and machine_id.
+GET {{baseUrl}}/api/license/status
+
+> {%
+  client.test("License status read", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+### License request code
+# Any role: a code to send the vendor. 200.
+GET {{baseUrl}}/api/license/request-code
+
+### License history
+# Admins only: stored keys, newest first, mostly hidden. 200; 403 otherwise.
+GET {{baseUrl}}/api/license/history
 
 
 ### List users
@@ -67,7 +95,7 @@ X-CSRF-Token: {{csrfToken}}
 
 ### [WRITE] Create user
 # Roles: admin, manager, operator; managers create operators only. Saves newUserId.
-# 201; 409 if the username is taken.
+# Change the username if it exists already. 201; 422 for a blank or taken username.
 POST {{baseUrl}}/api/users
 Content-Type: application/json
 X-CSRF-Token: {{csrfToken}}
@@ -86,7 +114,7 @@ X-CSRF-Token: {{csrfToken}}
 %}
 
 ### [WRITE] Change role
-# Admins only. 200.
+# Admins only. 200; 403 otherwise.
 PATCH {{baseUrl}}/api/users/{{newUserId}}
 Content-Type: application/json
 X-CSRF-Token: {{csrfToken}}
@@ -132,8 +160,86 @@ DELETE {{baseUrl}}/api/users/{{newUserId}}
 X-CSRF-Token: {{csrfToken}}
 
 
+### List ticket types
+# Every role may read. 200. One page, by name: ?page=1&size=10.
+GET {{baseUrl}}/api/ticket-types?page=1&size=10
+
+### [WRITE] Create ticket type
+# Admins and managers. price_minor is in minor units (1250 is 12.50); currency must be one the
+# server offers (see /api/branding). Saves ticketTypeId. 201; 422 for a blank or taken name.
+POST {{baseUrl}}/api/ticket-types
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "name": "Day pass",
+  "price_minor": 1250,
+  "currency": "USD"
+}
+
+> {%
+  client.test("Ticket type created", function() {
+    client.assert(response.status === 201, "Expected 201, got " + response.status);
+  });
+  client.global.set("ticketTypeId", response.body.id);
+%}
+
+### [WRITE] Change ticket type
+# Any of name, price_minor, currency. 200; 404 if gone.
+PATCH {{baseUrl}}/api/ticket-types/{{ticketTypeId}}
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "price_minor": 1500
+}
+
+### List visitor types
+# Every role may read. 200. One page, by name: ?page=1&size=10.
+GET {{baseUrl}}/api/visitor-types?page=1&size=10
+
+### [WRITE] Create visitor type
+# Admins and managers. discount_percent is 0 to 100. Saves visitorTypeId. 201.
+POST {{baseUrl}}/api/visitor-types
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "name": "Student",
+  "discount_percent": 20
+}
+
+> {%
+  client.test("Visitor type created", function() {
+    client.assert(response.status === 201, "Expected 201, got " + response.status);
+  });
+  client.global.set("visitorTypeId", response.body.id);
+%}
+
+### [WRITE] Change visitor type
+# Any of name, discount_percent. 200; 404 if gone.
+PATCH {{baseUrl}}/api/visitor-types/{{visitorTypeId}}
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "discount_percent": 25
+}
+
+### [WRITE] Delete visitor type
+# Issued tickets keep their discount. 204; 404 if gone.
+DELETE {{baseUrl}}/api/visitor-types/{{visitorTypeId}}
+X-CSRF-Token: {{csrfToken}}
+
+### [WRITE] Delete ticket type
+# Issued tickets keep their price. 204; 404 if gone.
+DELETE {{baseUrl}}/api/ticket-types/{{ticketTypeId}}
+X-CSRF-Token: {{csrfToken}}
+
+
 ### List tickets
 # Operators see only tickets assigned to them. 200. One page, newest first: ?page=1&size=10.
+# Also ?search= (serial, visitor or type) and ?external_code= (exact).
 GET {{baseUrl}}/api/tickets?page=1&size=10
 X-CSRF-Token: {{csrfToken}}
 
@@ -144,12 +250,14 @@ X-CSRF-Token: {{csrfToken}}
 %}
 
 ### List issued tickets
-# Filter by state: issued, passed, or expired. 200.
+# Filter by state: issued, passed, expired or revoked. 200.
 GET {{baseUrl}}/api/tickets?state=issued
 X-CSRF-Token: {{csrfToken}}
 
 ### [WRITE] Issue ticket
-# Saves ticketId. Times without an offset use "timezone". 201; 422 for bad input.
+# Saves ticketId. Times without an offset use "timezone". Optional: ticket_type, external_code,
+# event_session. Add an Idempotency-Key header to make a retry safe.
+# 201; 422 for bad input (or an unknown ticket_type); 409 if external_code is taken.
 POST {{baseUrl}}/api/tickets
 Content-Type: application/json
 X-CSRF-Token: {{csrfToken}}
@@ -182,7 +290,8 @@ X-CSRF-Token: {{csrfToken}}
 %}
 
 ### [WRITE] Assign ticket
-# Managers only. assignee is any username. 200; 404 if it doesn't exist.
+# Managers only (403 for others). assignee is an existing, active username: run Create user
+# and keep it active. 200; 404 if it doesn't exist; 409 if it is deactivated.
 POST {{baseUrl}}/api/tickets/{{ticketId}}/assign
 Content-Type: application/json
 X-CSRF-Token: {{csrfToken}}
@@ -208,6 +317,113 @@ X-CSRF-Token: {{csrfToken}}
 POST {{baseUrl}}/api/tickets/{{ticketId}}/print
 X-CSRF-Token: {{csrfToken}}
 
+### [WRITE] Change validity window
+# Admins and managers; either end may be left out. Issued, or passed and multi-use, tickets only.
+# 200; 409 otherwise; 422 if the end is not after the start; 502 if BioStar fails.
+PATCH {{baseUrl}}/api/tickets/{{ticketId}}
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "valid_until": "2030-06-01T18:00",
+  "timezone": "Asia/Dubai"
+}
+
+### [WRITE] Transfer ticket
+# Moves it to another event_session, keeping id, state and history. 200; 409; 502.
+POST {{baseUrl}}/api/tickets/{{ticketId}}/transfer
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "event_session": "Matinee"
+}
+
+### [WRITE] Reissue ticket
+# Back to issued, as the same ticket; the window may move and must end in the future.
+# Add an Idempotency-Key header to make a retry safe. 200; 409; 502.
+POST {{baseUrl}}/api/tickets/{{ticketId}}/reissue
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "valid_from": "2030-06-02T09:00",
+  "valid_until": "2030-06-02T17:00",
+  "timezone": "Asia/Dubai"
+}
+
+### Ticket audit
+# Admins and managers: every change, oldest first. 200.
+GET {{baseUrl}}/api/tickets/{{ticketId}}/audit
+
+### [WRITE] Batch issue
+# Up to TIQR_BATCH_MAX_SIZE tickets. 200 with a result per item, unless the request is malformed.
+# With atomic true, one failure undoes the rest (rolled_back, skipped).
+POST {{baseUrl}}/api/tickets/batch
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "atomic": false,
+  "items": [
+    {
+      "visitor_name": "Ada",
+      "visitor_type": "Guest",
+      "valid_from": "2030-06-01T09:00",
+      "valid_until": "2030-06-01T17:00",
+      "usage_type": "one_time"
+    }
+  ]
+}
+
+### [WRITE] Revoke ticket
+# Admins and managers. Cancels it and removes access in BioStar; revoking twice returns it
+# unchanged. Run after the other ticket requests. 200; 409 if expired; 502 if BioStar fails.
+POST {{baseUrl}}/api/tickets/{{ticketId}}/revoke
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "reason": "Lost card"
+}
+
+### [WRITE] Create service key
+# Admins only, signed in. The secret is shown once; saves serviceKeyId. 201.
+POST {{baseUrl}}/api/service-keys
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "name": "box-office",
+  "scopes": ["tickets:read", "tickets:write"]
+}
+
+> {%
+  client.test("Service key created", function() {
+    client.assert(response.status === 201, "Expected 201, got " + response.status);
+  });
+  client.global.set("serviceKeyId", response.body.id);
+%}
+
+### List service keys
+# Admins only; no secrets. 200.
+GET {{baseUrl}}/api/service-keys
+
+### [WRITE] Rotate service key
+# Issues a successor; the old key works on for grace_minutes (0 to 10080). 201.
+POST {{baseUrl}}/api/service-keys/{{serviceKeyId}}/rotate
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "grace_minutes": 60
+}
+
+### [WRITE] Revoke service key
+# Ends the key at once. 200; 404 if gone.
+DELETE {{baseUrl}}/api/service-keys/{{serviceKeyId}}
+X-CSRF-Token: {{csrfToken}}
+
 
 ### [WRITE] Sync access events
 # Runs a BioStar sync now. 200 with count; 502 if BioStar fails.
@@ -226,7 +442,8 @@ POST {{baseUrl}}/api/cleanup
 X-CSRF-Token: {{csrfToken}}
 
 ### Stats
-# Totals: tickets, issued, passed, expired, uses, prints. 200.
+# Admins and managers. Totals: total, issued, passed, expired, plus visitor_types and ticket_types.
+# 200.
 GET {{baseUrl}}/api/stats
 X-CSRF-Token: {{csrfToken}}
 
@@ -250,7 +467,7 @@ X-CSRF-Token: {{csrfToken}}
 
 
 ### Wrong password
-# Run these last: this one counts toward the login limit. 401.
+# Run these last: this one counts toward the login limit. 401. 429 after 5 failures.
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
@@ -266,7 +483,7 @@ Content-Type: application/json
 %}
 
 ### Write without CSRF token
-# 403.
+# No X-CSRF-Token header. 403.
 POST {{baseUrl}}/api/tickets
 Content-Type: application/json
 

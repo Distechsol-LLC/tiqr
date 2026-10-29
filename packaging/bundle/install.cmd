@@ -14,6 +14,19 @@ if errorlevel 1 (
     exit /b
 )
 
+rem An existing installation is asked about before anything is stopped or copied; a no changes nothing.
+sc query TiQR >nul 2>&1
+if errorlevel 1 goto :fresh
+set "ANSWER="
+set /p "ANSWER=TiQR is already installed. Reinstall it? [y/N] "
+if /i "%ANSWER%"=="y" goto :confirmed
+echo Install cancelled; nothing was changed.
+pause
+exit /b 1
+:confirmed
+set "TIQR_REINSTALL_CONFIRMED=1"
+:fresh
+
 rem An upgrade replaces the program under a running service; stop it first.
 sc query TiQR >nul 2>&1 && net stop TiQR >nul 2>&1
 

@@ -341,7 +341,7 @@
       </div>
 
       {#if range !== 'all'}
-        <div class="order-first flex items-center gap-2 sm:order-none">
+        <div class="order-first flex items-center gap-2 sm:order-0">
           {#if range !== 'range'}
             <button
               aria-label={i18n.t.overview.earlier}

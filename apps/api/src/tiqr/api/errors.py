@@ -57,6 +57,16 @@ _STATUSES: tuple[tuple[type[Exception], int, str], ...] = (
 )
 
 
+def describe(exc: Exception) -> tuple[int, str, str]:
+    """The status, code and message an exception gets as a response; for per-item results."""
+    for exception, status, code in _STATUSES:
+        if isinstance(exc, exception):
+            return status, code, str(exc)
+    if isinstance(exc, BioStarError):
+        return 502, "biostar", biostar_detail(exc)
+    return 500, "internal", "Internal server error"
+
+
 def _domain_handler(status: int, code: str) -> _Handler:
     async def handler(_: Request, exc: Exception) -> JSONResponse:
         return error_response(status, code, str(exc))

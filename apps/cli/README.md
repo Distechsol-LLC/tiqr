@@ -34,3 +34,20 @@ uv run poe fix
 ```sh
 uv run pytest
 ```
+
+### Ticket lifecycle and service keys
+
+These match the web API and web app:
+
+```
+tiqr ticket revoke <id> --as <user> [--reason ...]       # idempotent; also removes BioStar access
+tiqr ticket update <id> --as <user> [--from ...] [--until ...]
+tiqr ticket reissue <id> --as <user> [--from ...] [--until ...]   # any state; this is how a ticket is edited
+tiqr ticket audit <id> --as <user>
+tiqr ticket batch tickets.json --as <user> [--atomic] [--idempotency-key ...]
+tiqr ticket create ... [--idempotency-key ...]
+tiqr ticket list --as <user>
+tiqr key create <name> --scope tickets:read --as <admin>   # also: list, rotate, revoke
+```
+
+`TIQR_BATCH_MAX_SIZE` and `TIQR_IDEMPOTENCY_TTL_HOURS` apply here as they do to the API.

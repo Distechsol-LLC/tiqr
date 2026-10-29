@@ -16,6 +16,19 @@ fi
 exe="$here/tiqr"
 [ -f "$exe" ] || { echo "No tiqr executable in $here" >&2; exit 1; }
 
+# An existing installation is asked about before anything is stopped or copied; a no changes nothing.
+if [ -e /etc/systemd/system/tiqr.service ] || [ -e /etc/systemd/system/tiqr-health.service ] || [ -e /etc/systemd/system/tiqr-health.timer ]; then
+    if [ -t 0 ]; then
+        printf 'TiQR is already installed. Reinstall it? [y/N] ' >&2
+        read -r answer || answer=
+        case "$answer" in
+            y|Y|yes|YES|Yes) ;;
+            *) echo "Install cancelled; nothing was changed." >&2; exit 1 ;;
+        esac
+    fi
+    export TIQR_REINSTALL_CONFIRMED=1
+fi
+
 # An upgrade replaces the program under a running service; stop it first.
 systemctl stop tiqr.service 2>/dev/null || true
 

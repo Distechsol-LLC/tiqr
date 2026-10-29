@@ -1,9 +1,11 @@
 <script lang="ts">
+  import Ban from '@lucide/svelte/icons/ban';
   import DoorOpen from '@lucide/svelte/icons/door-open';
   import FileDown from '@lucide/svelte/icons/file-down';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
   import Printer from '@lucide/svelte/icons/printer';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import Repeat from '@lucide/svelte/icons/repeat';
   import Search from '@lucide/svelte/icons/search';
   import SearchX from '@lucide/svelte/icons/search-x';
   import Send from '@lucide/svelte/icons/send';
@@ -17,12 +19,21 @@
   import AssignForm from '@/components/AssignForm.svelte';
   import DataTable from '@/components/DataTable.svelte';
   import FilterTabs from '@/components/FilterTabs.svelte';
+  import FormDialog from '@/components/FormDialog.svelte';
   import PageHeader from '@/components/PageHeader.svelte';
   import Pagination from '@/components/Pagination.svelte';
+  import ReissueTicketForm from '@/components/ReissueTicketForm.svelte';
   import SortHeader from '@/components/SortHeader.svelte';
   import StateBadge from '@/components/StateBadge.svelte';
   import TicketForm from '@/components/TicketForm.svelte';
-  import { fetchAllUsers, fetchTicket, fetchTickets, printTicket, renderTicketPdf } from '%/api.ts';
+  import {
+    fetchAllUsers,
+    fetchTicket,
+    fetchTickets,
+    printTicket,
+    renderTicketPdf,
+    revokeTicket,
+  } from '%/api.ts';
   import { formatDatetime } from '%/formatters.ts';
   import { formatMinor } from '%/money.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
@@ -39,13 +50,15 @@
   import { type Ticket, type TicketState, ticketStateSchema } from '$/tickets.ts';
 
   type Filter = TicketState | 'all';
-  type RowAction = 'browser' | 'pdf' | 'print';
+  type RowAction = 'browser' | 'pdf' | 'print' | 'revoke';
   type SortKey = 'assignee' | 'price' | 'state' | 'valid' | 'visitor';
 
   const ICON_SIZE = 18;
   const SMALL_ICON_SIZE = 14;
   const USAGE_ICON_SIZE = 16;
   const BASE_COLUMNS = 7;
+  // Reissue, and revoke while the ticket is viable
+  const MANAGE_ACTIONS = 2;
   const FILTERS: Filter[] = ['all', ...ticketStateSchema.options];
   // Long enough for the browser to start the download before the URL goes
   const REVOKE_DELAY = 60_000;
@@ -59,11 +72,15 @@
   // Operators see only their own tickets and can't list accounts; only managers assign
   const isStaff = $derived(role !== 'operator');
   const canAssign = $derived(role === 'manager');
+  // Changing, revoking and reissuing are for admins and managers, as the API requires
+  const canManage = $derived(role !== 'operator');
   const canServerPrint = $derived(config.current?.server_printing ?? false);
   // The assignee column is staff-only
   const columns = $derived(BASE_COLUMNS + (isStaff ? 1 : 0));
   // Download and PDF always, then printing on the server and assigning where they're offered
-  const actionCount = $derived(2 + Number(canServerPrint) + Number(canAssign));
+  const actionCount = $derived(
+    2 + Number(canServerPrint) + Number(canAssign) + (canManage ? MANAGE_ACTIONS : 0)
+  );
 
   const pagination = createPagination();
 
@@ -79,6 +96,8 @@
   let isLoading = $state(true);
   let isCreating = $state(false);
   let assigning = $state<Ticket | null>(null);
+  let reissuing = $state<Ticket | null>(null);
+  let revoking = $state<Ticket | null>(null);
   let pending = $state<{ action: RowAction; id: string } | null>(null);
 
   const usernames = $derived(new Map(accounts.map((account) => [account.id, account.username])));
@@ -241,6 +260,37 @@
 
   const closeCreate = (): void => {
     isCreating = false;
+  };
+
+  const closeReissue = (): void => {
+    reissuing = null;
+  };
+
+  const closeRevoke = (): void => {
+    revoking = null;
+  };
+
+  // Revoking cancels the ticket and its BioStar access, so a modal asks first
+  const revoke = async (): Promise<void> => {
+    const csrfToken = auth.session?.csrf_token;
+    const ticket = revoking;
+
+    if (!(csrfToken && ticket) || pending) return;
+
+    pending = { action: 'revoke', id: ticket.id };
+
+    const result = await revokeTicket(csrfToken, ticket.id);
+
+    pending = null;
+
+    if (!result.ok) {
+      await notifyFailure(i18n.t.tickets.notRevoked, result.error);
+      return;
+    }
+
+    closeRevoke();
+    replace(result.data);
+    toaster.success({ description: result.data.readable_serial, title: i18n.t.tickets.wasRevoked });
   };
 
   const closeAssign = (): void => {
@@ -524,6 +574,35 @@
               {/if}
             </button>
           {/if}
+          {#if canManage}
+            <!-- Reissue is also how a ticket is edited; revoke only while it is viable -->
+            <button
+              aria-label={i18n.t.tickets.reissueFor(ticket.readable_serial)}
+              class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-primary"
+              disabled={pending !== null}
+              onclick={(): void => {
+                reissuing = ticket;
+              }}
+              title={i18n.t.tickets.reissue}
+              type="button"
+            >
+              <Repeat aria-hidden="true" size={ICON_SIZE} />
+            </button>
+            {#if ticket.state !== 'expired' && ticket.state !== 'revoked'}
+              <button
+                aria-label={i18n.t.tickets.revokeFor(ticket.readable_serial)}
+                class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-error"
+                disabled={pending !== null}
+                onclick={(): void => {
+                  revoking = ticket;
+                }}
+                title={i18n.t.tickets.revoke}
+                type="button"
+              >
+                <Ban aria-hidden="true" size={ICON_SIZE} />
+              </button>
+            {/if}
+          {/if}
           {#if canAssign}
             <button
               aria-label={i18n.t.tickets.assignFor(ticket.readable_serial)}
@@ -556,4 +635,19 @@
 
 {#if canAssign}
   <AssignForm {accounts} onAssigned={replace} onClose={closeAssign} ticket={assigning} />
+{/if}
+
+{#if canManage}
+  <ReissueTicketForm onClose={closeReissue} onReissued={replace} ticket={reissuing} />
+  <FormDialog
+    isDestructive
+    isOpen={revoking !== null}
+    isPending={pending?.action === 'revoke'}
+    onClose={closeRevoke}
+    onSubmit={revoke}
+    submitLabel={i18n.t.tickets.revoke}
+    title={i18n.t.tickets.revokeFor(revoking?.readable_serial ?? i18n.t.assign.fallback)}
+  >
+    <p>{revoking ? i18n.t.tickets.revokeConfirm(revoking.visitor_name) : ''}</p>
+  </FormDialog>
 {/if}
