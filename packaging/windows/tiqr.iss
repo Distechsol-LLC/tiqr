@@ -1090,6 +1090,13 @@ begin
     if Reinstalling then
       Confirmed := 'set TIQR_REINSTALL_CONFIRMED=1&& ';
     { cmd strips the outer quote, so exactly one more quote may open the executable's path. }
-    Exec(ExpandConstant('{cmd}'), '/C "' + Confirmed + '"' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode);
+    Log('Running tiqr install in a console window');
+    if not Exec(ExpandConstant('{cmd}'), '/C "' + Confirmed + '"' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+    begin
+      Log('The console window could not be started');
+      MsgBox('TiQR was copied, but the setup window could not be started. Open Command Prompt as administrator and run:' + NL + '"' + ExpandConstant('{app}\tiqr.exe') + '" install', mbError, MB_OK);
+    end
+    else
+      Log('tiqr install finished with exit code ' + IntToStr(ResultCode));
   end;
 end;
