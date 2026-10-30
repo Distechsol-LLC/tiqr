@@ -67,9 +67,9 @@ const routes = {
   },
   '/manager': {
     '/': Tickets,
-    '/accounts': Users,
     '/overview': Overview,
     '/ticket-types': TicketTypes,
+    '/users': Users,
     '/visitor-types': VisitorTypes,
     hooks: roleArea('manager'),
     layout: Dashboard,

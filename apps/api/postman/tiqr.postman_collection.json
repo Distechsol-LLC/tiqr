@@ -470,7 +470,7 @@
         {
           "name": "[WRITE] Delete user",
           "request": {
-            "description": "Admins only. Run **Deactivate user** first, or this is refused since **Reactivate user** ran above; then **Assign ticket** finds no `clerk`. **204**; **409** if active or they created or hold tickets.",
+            "description": "Admins only. Deletes a deactivated user only: after **Reactivate user** ran above, the account is active and this is refused with **409**. Run **Deactivate user** before this request; the account is then gone, so a later **Assign ticket** with `clerk` gets **404**. **204**; **409** if active or they created or hold tickets.",
             "method": "DELETE",
             "header": [
               {
@@ -1412,7 +1412,7 @@
             }
           ],
           "request": {
-            "description": "Passages in arrival order, one record per passage. Read by the `after` cursor (the `next_cursor` of the last page; 0 to start) and `limit` (1 to 500). Repeat with the same cursor to get the same records. Admins, managers and service keys with `tickets:read` (`serviceKey` header); operators get **403**. **200**.",
+            "description": "Passages in arrival order, one record per passage. Read by the `after` cursor (the `next_cursor` of the last page; 0 to start) and `limit` (1 to 500). Repeat with the same cursor to get the same records. Admins and managers, by session or by a service key with `tickets:read` (`Authorization: Bearer`, from an admin or manager account); operators get **403**. **200**.",
             "method": "GET",
             "header": [],
             "url": {

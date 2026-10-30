@@ -292,6 +292,9 @@ def test_operators_see_only_their_tickets_and_cannot_assign(client):
     )
     assigned = client.post(f"/api/tickets/{ticket_id}/assign", json={"assignee": "operator"})
     assert assigned.status_code == 200
+    login(client, "admin")
+    reassigned = client.post(f"/api/tickets/{ticket_id}/assign", json={"assignee": "operator"})
+    assert reassigned.status_code == 200
     login(client, "operator")
     assert client.get(f"/api/tickets/{ticket_id}").status_code == 200
     assert client.get(f"/api/tickets/{uuid4()}").status_code == 404

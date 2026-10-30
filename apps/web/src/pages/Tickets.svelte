@@ -69,18 +69,14 @@
   const SEARCH_DELAY = 300;
 
   const role = $derived(auth.session?.user.role ?? 'operator');
-  // Operators see only their own tickets and can't list accounts; only managers assign
+  // Operators see only their own tickets and can't list accounts; admins and managers assign
   const isStaff = $derived(role !== 'operator');
-  const canAssign = $derived(role === 'manager');
-  // Changing, revoking and reissuing are for admins and managers, as the API requires
-  const canManage = $derived(role !== 'operator');
+  const canAssign = $derived(role !== 'operator');
   const canServerPrint = $derived(config.current?.server_printing ?? false);
   // The assignee column is staff-only
   const columns = $derived(BASE_COLUMNS + (isStaff ? 1 : 0));
   // Download and PDF always, then printing on the server and assigning where they're offered
-  const actionCount = $derived(
-    2 + Number(canServerPrint) + Number(canAssign) + (canManage ? MANAGE_ACTIONS : 0)
-  );
+  const actionCount = $derived(2 + Number(canServerPrint) + Number(canAssign) + MANAGE_ACTIONS);
 
   const pagination = createPagination();
 
@@ -574,35 +570,6 @@
               {/if}
             </button>
           {/if}
-          {#if canManage}
-            <!-- Reissue is also how a ticket is edited; revoke only while it is viable -->
-            <button
-              aria-label={i18n.t.tickets.reissueFor(ticket.readable_serial)}
-              class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-primary"
-              disabled={pending !== null}
-              onclick={(): void => {
-                reissuing = ticket;
-              }}
-              title={i18n.t.tickets.reissue}
-              type="button"
-            >
-              <Repeat aria-hidden="true" size={ICON_SIZE} />
-            </button>
-            {#if ticket.state !== 'expired' && ticket.state !== 'revoked'}
-              <button
-                aria-label={i18n.t.tickets.revokeFor(ticket.readable_serial)}
-                class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-error"
-                disabled={pending !== null}
-                onclick={(): void => {
-                  revoking = ticket;
-                }}
-                title={i18n.t.tickets.revoke}
-                type="button"
-              >
-                <Ban aria-hidden="true" size={ICON_SIZE} />
-              </button>
-            {/if}
-          {/if}
           {#if canAssign}
             <button
               aria-label={i18n.t.tickets.assignFor(ticket.readable_serial)}
@@ -614,6 +581,33 @@
               type="button"
             >
               <UserRoundPen aria-hidden="true" size={ICON_SIZE} />
+            </button>
+          {/if}
+          <!-- Reissue is also how a ticket is edited; revoke only while it is viable -->
+          <button
+            aria-label={i18n.t.tickets.reissueFor(ticket.readable_serial)}
+            class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-primary"
+            disabled={pending !== null}
+            onclick={(): void => {
+              reissuing = ticket;
+            }}
+            title={i18n.t.tickets.reissue}
+            type="button"
+          >
+            <Repeat aria-hidden="true" size={ICON_SIZE} />
+          </button>
+          {#if ticket.state !== 'expired' && ticket.state !== 'revoked'}
+            <button
+              aria-label={i18n.t.tickets.revokeFor(ticket.readable_serial)}
+              class="btn-icon btn-icon-lg text-surface-950-50 hover:preset-tint-error"
+              disabled={pending !== null}
+              onclick={(): void => {
+                revoking = ticket;
+              }}
+              title={i18n.t.tickets.revoke}
+              type="button"
+            >
+              <Ban aria-hidden="true" size={ICON_SIZE} />
             </button>
           {/if}
         </div>
@@ -637,17 +631,15 @@
   <AssignForm {accounts} onAssigned={replace} onClose={closeAssign} ticket={assigning} />
 {/if}
 
-{#if canManage}
-  <ReissueTicketForm onClose={closeReissue} onReissued={replace} ticket={reissuing} />
-  <FormDialog
-    isDestructive
-    isOpen={revoking !== null}
-    isPending={pending?.action === 'revoke'}
-    onClose={closeRevoke}
-    onSubmit={revoke}
-    submitLabel={i18n.t.tickets.revoke}
-    title={i18n.t.tickets.revokeFor(revoking?.readable_serial ?? i18n.t.assign.fallback)}
-  >
-    <p>{revoking ? i18n.t.tickets.revokeConfirm(revoking.visitor_name) : ''}</p>
-  </FormDialog>
-{/if}
+<ReissueTicketForm onClose={closeReissue} onReissued={replace} ticket={reissuing} />
+<FormDialog
+  isDestructive
+  isOpen={revoking !== null}
+  isPending={pending?.action === 'revoke'}
+  onClose={closeRevoke}
+  onSubmit={revoke}
+  submitLabel={i18n.t.tickets.revoke}
+  title={i18n.t.tickets.revokeFor(revoking?.readable_serial ?? i18n.t.assign.fallback)}
+>
+  <p>{revoking ? i18n.t.tickets.revokeConfirm(revoking.visitor_name) : ''}</p>
+</FormDialog>

@@ -2408,7 +2408,7 @@
           "tickets"
         ],
         "summary": "Revoke Ticket",
-        "description": "Cancel a ticket and remove its access in BioStar. Admins and managers.\n\nRevoking a revoked ticket returns it unchanged. An expired ticket is a 409. If BioStar\nrefuses, the ticket stays as it was (a 502), and the attempt is audited.",
+        "description": "Cancel a ticket and remove its access in BioStar. Staff, or its assigned operator.\n\nRevoking a revoked ticket returns it unchanged. An expired ticket is a 409. If BioStar\nrefuses, the ticket stays as it was (a 502), and the attempt is audited.",
         "operationId": "revoke_ticket",
         "parameters": [
           {

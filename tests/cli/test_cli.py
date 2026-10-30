@@ -325,7 +325,7 @@ def test_permissions_are_enforced_by_service(cli_env):
     assert result.exit_code == 1
     assert not (cli_env[0] / "out" / f"{ticket_id}.pdf").exists()
     assert invoke(["stats", "--as", "operator"]).exit_code == 1
-    assert invoke(["ticket", "assign", ticket_id, "operator", "--as", "admin"]).exit_code == 1
+    assert invoke(["ticket", "assign", ticket_id, "operator", "--as", "operator"]).exit_code == 1
     own = output_json(create_ticket("operator"))
     visible = output_json(invoke(["ticket", "list", "--as", "operator"]))
     assert [ticket["id"] for ticket in visible] == [own["id"]]

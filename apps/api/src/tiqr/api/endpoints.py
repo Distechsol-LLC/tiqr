@@ -703,7 +703,7 @@ def patch_ticket(ticket_id: UUID, body: TicketPatch, me: WRITER, server: Server)
 def revoke_ticket(
     ticket_id: UUID, me: REVOKER, server: Server, body: RevokeIn | None = None
 ) -> TicketOut:
-    """Cancel a ticket and remove its access in BioStar. Admins and managers.
+    """Cancel a ticket and remove its access in BioStar. Staff, or its assigned operator.
 
     Revoking a revoked ticket returns it unchanged. An expired ticket is a 409. If BioStar
     refuses, the ticket stays as it was (a 502), and the attempt is audited.

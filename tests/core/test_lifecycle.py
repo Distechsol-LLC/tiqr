@@ -101,10 +101,32 @@ def test_an_expired_ticket_cannot_be_revoked(service, accounts, clock, make):
     assert "ticket.revoke.failed" in actions(service, ticket)
 
 
-def test_operators_cannot_revoke(service, accounts, make):
+def test_an_operator_can_revoke_a_ticket_assigned_to_them(service, accounts, registrar, make):
+    ticket = make()
+    service.assign_ticket(accounts["manager"], ticket.id, "operator")
+    revoked = service.revoke_ticket(accounts["operator"], ticket.id, "lost card")
+    assert revoked.state == TicketState.REVOKED
+    assert registrar.deactivated == [ticket.external_id]
+    entry = service.repository.list_audit(ticket.id)[-1]
+    assert (entry.action, entry.actor) == ("ticket.revoke", "operator")
+
+
+def test_an_operator_can_reissue_a_ticket_assigned_to_them(service, accounts, make):
+    ticket = make()
+    service.assign_ticket(accounts["manager"], ticket.id, "operator")
+    service.revoke_ticket(accounts["operator"], ticket.id)
+    reissued = service.reissue_ticket(accounts["operator"], ticket.id)
+    assert reissued.state == TicketState.ISSUED
+    assert actions(service, ticket)[-1] == "ticket.reissue"
+
+
+def test_operators_cannot_revoke_or_reissue_an_unassigned_ticket(service, accounts, make):
     ticket = make()
     with pytest.raises(PermissionDeniedError):
         service.revoke_ticket(accounts["operator"], ticket.id)
+    with pytest.raises(PermissionDeniedError):
+        service.reissue_ticket(accounts["operator"], ticket.id)
+    assert service.repository.get_ticket(ticket.id).state == TicketState.ISSUED
 
 
 def test_a_biostar_failure_leaves_the_ticket_issued_and_is_audited(

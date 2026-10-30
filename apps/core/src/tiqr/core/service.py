@@ -74,7 +74,6 @@ from tiqr.core.settings import validate_secret
 
 _ADMINS = frozenset({Role.ADMIN})
 _STAFF = frozenset({Role.ADMIN, Role.MANAGER})
-_MANAGERS = frozenset({Role.MANAGER})
 _TRANSITIONS = frozenset(
     {
         (TicketState.ISSUED, TicketState.PASSED),
@@ -857,7 +856,7 @@ class TicketService:
 
     def assign_ticket(self, actor: User, ticket_id: UUID, assignee_username: str) -> Ticket:
         actor = self._actor(actor)
-        self._require(actor, _MANAGERS)
+        self._require(actor, _STAFF)
         # Read first on its own so a discovered expiry commits even if assignment fails.
         self._read_ticket(ticket_id)
         with self.repository.transaction():
@@ -877,6 +876,16 @@ class TicketService:
         # Read first on its own so a discovered expiry commits even if the change is refused.
         return actor, self._read_ticket(ticket_id)
 
+    def _holder_ticket(self, actor: User, ticket_id: UUID) -> tuple[User, Ticket]:
+        """Staff for any ticket; an operator only for a ticket assigned to them."""
+        actor = self._actor(actor)
+        if actor.role == Role.OPERATOR:
+            ticket = self._read_ticket(ticket_id)
+            self._require_view(actor, ticket)
+            return actor, ticket
+        self._require(actor, _STAFF)
+        return actor, self._read_ticket(ticket_id)
+
     def _failed(
         self, actor: User, action: str, ticket_id: UUID, exc: Exception, reason: str | None
     ) -> None:
@@ -885,12 +894,12 @@ class TicketService:
         self._record(actor, f"{action}.failed", ticket, reason=reason, detail=str(exc)[:500])
 
     def revoke_ticket(self, actor: User, ticket_id: UUID, reason: str | None = None) -> Ticket:
-        """Cancel a ticket and remove its access in BioStar. Admins and managers.
+        """Cancel a ticket and remove its access in BioStar. Staff, or its assigned operator.
 
         Revoking a revoked ticket returns it as it is. An expired ticket cannot be revoked. If
         BioStar refuses, the ticket stays as it was and the error is raised, so a retry is safe.
         """
-        actor, _ = self._staff_ticket(actor, ticket_id)
+        actor, _ = self._holder_ticket(actor, ticket_id)
         reason = _clean_reason(reason)
         try:
             with self.repository.transaction():
@@ -1046,9 +1055,9 @@ class TicketService:
 
         The ticket keeps its id, serial and QR code and returns to issued. The new window must
         end in the future; BioStar is told of it and the account is enabled again. If BioStar
-        refuses, the ticket stays as it was.
+        refuses, the ticket stays as it was. Staff, or the operator it is assigned to.
         """
-        actor, old = self._staff_ticket(actor, ticket_id)
+        actor, old = self._holder_ticket(actor, ticket_id)
         try:
             return self._reissue_stored(actor, old.id, valid_from, valid_until)
         except Exception as exc:

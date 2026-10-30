@@ -1,7 +1,8 @@
 # TiQR API. Start the server (`uv run tiqr serve`), set the username in
 # http-client.env.json and the password in http-client.private.env.json, then run
 # Login first and the rest top to bottom. [WRITE] requests change data: use a test server.
-# Everything but Health, Branding, Login, Session and the license reads needs an active license.
+# Only Health, Branding, Login, Logout, Session, license status, license request code and license
+# activation work without an active license; everything else, license history included, needs one.
 # Login is rate-limited: 5 failed sign-ins per user and address in 15 minutes.
 
 
@@ -154,8 +155,9 @@ X-CSRF-Token: {{csrfToken}}
 }
 
 ### [WRITE] Delete user
-# Admins only. Run Deactivate user first, or this is refused since Reactivate ran above; then
-# Assign ticket below finds no "clerk". 204; 409 if active or they created or hold tickets.
+# Admins only. Deletes a deactivated user only: after Reactivate ran above, the account is active
+# and this is refused. Run Deactivate user before this request; then Assign ticket below gets 404
+# for "clerk". 204; 409 if active or they created or hold tickets.
 DELETE {{baseUrl}}/api/users/{{newUserId}}
 X-CSRF-Token: {{csrfToken}}
 
@@ -658,7 +660,8 @@ Authorization: Bearer {{serviceKey}}
 
 ### Passage feed (service key)
 # Passages in arrival order. Repeat with the same after cursor to get the same records. 200.
-# Needs tickets:read, and an operator's key gets 403.
+# Admins and managers only: needs tickets:read on a key from an admin or manager account; an
+# operator's key gets 403.
 GET {{baseUrl}}/api/passes?after=0&limit=500
 Authorization: Bearer {{serviceKey}}
 

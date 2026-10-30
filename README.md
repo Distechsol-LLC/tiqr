@@ -191,7 +191,7 @@ all their sessions, web and CLI. A new role applies from the user's next request
 admin can be neither demoted nor deactivated, by the web or the CLI, so somebody can always
 manage accounts.
 
-The creator is always the initial assignee, regardless of role. A manager may
+The creator is always the initial assignee, regardless of role. An admin or manager may
 assign to any existing account. Ticket usage types cannot be changed after issuance.
 
 ### Example session with the defaults
@@ -276,7 +276,7 @@ Run one server process per database: scheduling, login limits and the sync lock 
 | `POST /api/tickets/{id}/revoke` | — | Admins and managers; idempotent, `409` for an expired ticket |
 | `POST /api/tickets/{id}/transfer`, `POST /api/tickets/{id}/reissue` | — | Admins and managers; reissue also brings an expired ticket back |
 | `GET /api/tickets/{id}/audit` | — | Admins and managers |
-| `POST /api/tickets/{id}/assign` | `ticket assign` | Managers |
+| `POST /api/tickets/{id}/assign` | `ticket assign` | Admins and managers |
 | `POST /api/tickets/{id}/pdf` | `ticket save` | Returns the PDF and keeps it in `out/` |
 | `POST /api/tickets/{id}/print` | `ticket print` | Server printer; `409` unless `TIQR_SERVER_PRINTING` |
 | `GET /api/passes` | — | Admins, managers and service keys with `tickets:read`; the passage feed, read by `after` cursor |
@@ -342,10 +342,10 @@ The Tickets page:
   or multi-use), visitor, valid from and until, state badge with first-passage time, price with
   discount and ticket type, print and door-use counts, assignee (staff only), and actions.
 - **Actions:** download the PDF, print the PDF in the browser, print on the server
-  (only when `TIQR_SERVER_PRINTING=true`), and assign (managers only). Download and print are
+  (only when `TIQR_SERVER_PRINTING=true`), and assign (admins and managers). Download and print are
   enabled only for `issued` tickets.
 
-Operators see only their own tickets. Managers and admins see all tickets, and managers can
+Operators see only their own tickets. Managers and admins see all tickets, and admins and managers can
 assign them. The UI has light and dark themes and is available in English, Azerbaijani,
 Kazakh and Russian.
 

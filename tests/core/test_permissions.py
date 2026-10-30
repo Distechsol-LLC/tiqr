@@ -49,7 +49,7 @@ def test_permission_matrix_cell(service, accounts, clock, tmp_path, role, action
             return result
         return getattr(service, action)(actor)
 
-    allowed = (action != "assign" or role == Role.MANAGER) and (
+    allowed = (action != "assign" or role != Role.OPERATOR) and (
         action not in ("stats", "sync", "cleanup", "view_other") or role != Role.OPERATOR
     )
     if allowed:

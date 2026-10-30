@@ -178,7 +178,7 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/ticket-types` | session | List ticket types, by name, as a page (see Pagination). Every role may read them. |
-| POST | `/ticket-types` | session + CSRF | Add a ticket type. Body `{name, price_minor, currency}`; `price_minor` is whole minor units (1250 is 12.50), 0 to 100000000000; `currency` is required and must be one of the currencies `GET /branding` lists (those of the configured languages' regions: `USD`, `RUB`, `AZN`, `KZT`). Admins and managers. Returns `201`; `422` for a blank or taken name (case-insensitive). |
+| POST | `/ticket-types` | session + CSRF | Add a ticket type. Body `{name, price_minor, currency}`; `price_minor` is whole minor units (1250 is 12.50), 0 to 100000000000; `currency` is required and must be one of the currencies `GET /branding` lists (those of the configured languages' regions: `USD`, `RUB` and `AZN` by default, plus `KZT` once a `kk-KZ` language is configured). Admins and managers. Returns `201`; `422` for a blank or taken name (case-insensitive). |
 | PATCH | `/ticket-types/{type_id}` | session + CSRF | Change `name`, `price_minor` or `currency`; omitted fields are unchanged. A type may keep a currency that is no longer offered, but not move to one. Admins and managers. Issued tickets keep their price. |
 | DELETE | `/ticket-types/{type_id}` | session + CSRF | Remove a ticket type. Admins and managers. Returns `204`; issued tickets keep their price. |
 | GET | `/visitor-types` | session | List visitor types, by name, as a page (see Pagination). Every role may read them. |
@@ -190,10 +190,10 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/tickets` | session, or key `tickets:read` | List tickets, newest first (by readable serial), as a page (see Pagination). Optional filters: `?state=issued\|passed\|expired\|revoked` (only tickets in that state), `?search=` (serial, visitor, type or external code), `?external_code=` (exactly this code). Operators see only tickets assigned to them. |
+| GET | `/tickets` | session, or key `tickets:read` | List tickets, newest first (by readable serial), as a page (see Pagination). Optional filters: `?state=issued\|passed\|expired\|revoked` (only tickets in that state), `?search=` (serial, visitor, type or external code, up to 200 characters), `?external_code=` (exactly this code, up to 128 characters). Longer values are a `422`. Operators see only tickets assigned to them. |
 | POST | `/tickets` | session + CSRF, or key `tickets:write` | Issue a ticket (see Create body below). Returns `201`; `422` for bad input or an unknown `ticket_type`; `409` if `external_code` is taken; `502` if BioStar fails. |
 | GET | `/tickets/{ticket_id}` | session, or key `tickets:read` | One ticket. `403` for an operator if it is not assigned to them. |
-| POST | `/tickets/{ticket_id}/assign` | session + CSRF | Body `{assignee}`: the username of an existing, active account to assign the ticket to. Managers only. `404` if the account does not exist, `409` if it is deactivated. |
+| POST | `/tickets/{ticket_id}/assign` | session + CSRF | Body `{assignee}`: the username of an existing, active account to assign the ticket to. Admins and managers. `404` if the account does not exist, `409` if it is deactivated. |
 | POST | `/tickets/{ticket_id}/pdf` | session + CSRF | Render the one-page A4 badge and return it as `application/pdf`. Counts as a print, and the file is also saved to `out/`. Issued tickets only (`409` otherwise). |
 | POST | `/tickets/{ticket_id}/print` | session + CSRF | Print on the server's default printer. Needs `TIQR_SERVER_PRINTING=true` (`409` `server_printing_off` otherwise). Issued tickets only. Returns the updated ticket; `502` if the printer fails. |
 | PATCH | `/tickets/{ticket_id}` | session + CSRF, or key `tickets:write` | Move `valid_from` / `valid_until` (end after start), synced to BioStar. Admins and managers. Issued, or passed and multi-use, tickets only; otherwise `409`. |
@@ -267,9 +267,9 @@ Sync and cleanup share a lock with the scheduled jobs, so runs never overlap.
 
 | Role | Can |
 | --- | --- |
-| `admin` | Manage users (create, change role, deactivate, reset passwords, delete), licenses and service keys, plus everything a manager can do except assigning tickets |
+| `admin` | Manage users (create, change role, deactivate, reset passwords, delete), licenses and service keys, plus everything a manager can do |
 | `manager` | Assign tickets, change validity, revoke, transfer and reissue tickets, run sync, cleanup and stats, list users, create, deactivate or reactivate operators, and manage ticket types and visitor types |
-| `operator` | Issue tickets, and view and print only the tickets assigned to them |
+| `operator` | Issue tickets; view, print, revoke and reissue only the tickets assigned to them |
 
 Anyone active can issue tickets. Permissions are enforced in `tiqr-core`'s service layer, and this table summarizes them.
 
@@ -303,7 +303,7 @@ Ready-made requests live beside this file. Start the server, then:
 - **Postman:** import `postman/tiqr.postman_collection.json`, set the `username` and `password` collection variables, run **Login** first, then the folders top to bottom.
 - **HTTP client (JetBrains):** open `http/tiqr.http`, pick the `local` environment from `http/http-client.env.json`, put the `password` in `http/http-client.private.env.json` (not committed), run **Login** first, then the rest top to bottom.
 
-Requests marked **[WRITE]** change data: use a test server. Activate a license first, or everything except the license, auth and meta calls is refused. Don't share an export with a password filled in.
+Requests marked **[WRITE]** change data: use a test server. Activate a license first, or everything except health, branding, the auth calls and the license status, request-code and activation calls is refused. Don't share an export with a password filled in.
 
 ## Database
 

@@ -122,7 +122,6 @@ const en = {
   },
   nav: {
     account: 'Account',
-    accounts: 'Accounts',
     collapse: 'Collapse',
     expand: 'Expand',
     label: 'Main',
@@ -365,7 +364,7 @@ const en = {
     roleNotChanged: 'Role not changed',
     roleOf: (username: string): string => `Role of ${username}`,
     titleAdmin: 'Users',
-    titleManager: 'Accounts',
+    titleManager: 'Users',
     toggleStatus: 'Change status',
     userDeactivated: 'User deactivated',
     userDeleted: 'User deleted',

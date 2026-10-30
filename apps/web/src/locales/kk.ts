@@ -124,7 +124,6 @@ const kk: Messages = {
   },
   nav: {
     account: 'Есепкі жазба',
-    accounts: 'Есепкі жазбалар',
     collapse: 'Жию',
     expand: 'Жаю',
     label: 'Негізгі',
@@ -367,7 +366,7 @@ const kk: Messages = {
     roleNotChanged: 'Рөл өзгертілмеді',
     roleOf: (username: string): string => `${username} рөлі`,
     titleAdmin: 'Пайдаланушылар',
-    titleManager: 'Есепкі жазбалар',
+    titleManager: 'Пайдаланушылар',
     toggleStatus: 'Күйді өзгерту',
     userDeactivated: 'Пайдаланушы белсенсіз етілді',
     userDeleted: 'Пайдаланушы жойылды',

@@ -31,10 +31,10 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   manager: [
     { icon: Ticket, label: 'tickets', path: '/manager' },
-    { icon: UsersRound, label: 'accounts', path: '/manager/accounts' },
     { icon: Tag, label: 'ticketTypes', path: '/manager/ticket-types' },
     { icon: Percent, label: 'visitorTypes', path: '/manager/visitor-types' },
     { icon: ChartColumn, label: 'overview', path: '/manager/overview' },
+    { icon: UsersRound, label: 'users', path: '/manager/users' },
   ],
   operator: [{ icon: Ticket, label: 'tickets', path: '/operator' }],
 };

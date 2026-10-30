@@ -125,7 +125,6 @@ const az: Messages = {
   },
   nav: {
     account: 'Hesab',
-    accounts: 'Hesablar',
     collapse: 'Yığ',
     expand: 'Aç',
     label: 'Əsas',
@@ -367,7 +366,7 @@ const az: Messages = {
     roleNotChanged: 'Rol dəyişdirilmədi',
     roleOf: (username: string): string => `${username} rolu`,
     titleAdmin: 'İstifadəçilər',
-    titleManager: 'Hesablar',
+    titleManager: 'İstifadəçilər',
     toggleStatus: 'Statusu dəyiş',
     userDeactivated: 'İstifadəçi deaktiv edildi',
     userDeleted: 'İstifadəçi silindi',

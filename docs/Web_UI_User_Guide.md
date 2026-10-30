@@ -48,7 +48,7 @@ Your role decides which menu items you see. Your role is shown in the account me
 | Menu item | Operator | Manager | Admin |
 |---|:---:|:---:|:---:|
 | Tickets | Yes (assigned to you only) | Yes (all tickets) | Yes (all tickets) |
-| Accounts / Users | No | Yes (operators only) | Yes (all roles) |
+| Users | No | Yes (operators only) | Yes (all roles) |
 | Ticket types | No (used when creating tickets) | Yes | Yes |
 | Visitor types | No (used when creating tickets) | Yes | Yes |
 | Overview | No | Yes | Yes |
@@ -118,9 +118,9 @@ The assignee is the person responsible for the ticket. Operators see a ticket on
 assigned to them, and only that operator can then download or print it. Deactivated accounts cannot
 hold tickets; a manager must reassign them.
 
-## 6. Accounts (Manager and Admin)
+## 6. Users (Manager and Admin)
 
-The **Accounts** page (called **Users** for admins) lists sign-in accounts with their role and status.
+The **Users** page lists sign-in accounts with their role and status.
 
 ### Adding an account
 

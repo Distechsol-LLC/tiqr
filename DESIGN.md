@@ -130,7 +130,7 @@ This cannot eliminate the reader-to-server delay observed in
 
 All enforcement is in `TicketService`, which resolves actors from persisted
 accounts rather than trusting a caller-supplied role. Admin/manager see all states;
-operators see only currently assigned tickets. Only managers assign/reassign,
+operators see only currently assigned tickets. Admins and managers assign/reassign,
 including tickets initially assigned to an admin/manager. Assignees can be any
 existing account; the initial creator-role exception must not create nulls.
 

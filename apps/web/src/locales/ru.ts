@@ -127,7 +127,6 @@ const ru: Messages = {
   },
   nav: {
     account: 'Учётная запись',
-    accounts: 'Учётные записи',
     collapse: 'Свернуть',
     expand: 'Развернуть',
     label: 'Главное',
@@ -368,7 +367,7 @@ const ru: Messages = {
     roleNotChanged: 'Роль не изменена',
     roleOf: (username: string): string => `Роль ${username}`,
     titleAdmin: 'Пользователи',
-    titleManager: 'Учётные записи',
+    titleManager: 'Пользователи',
     toggleStatus: 'Изменить статус',
     userDeactivated: 'Пользователь деактивирован',
     userDeleted: 'Пользователь удалён',
