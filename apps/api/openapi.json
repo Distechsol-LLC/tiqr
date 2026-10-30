@@ -4006,7 +4006,7 @@
               }
             ],
             "title": "External Code",
-            "description": "Your own ticket code or barcode value; unique per tenant"
+            "description": "The BioStar pass code, used unchanged; leading and trailing spaces are trimmed. Either alphanumeric (letters, digits and hyphens, up to 32 characters) or numeric (exactly 12 or 16 digits, leading zeros kept). Unique per tenant: a revoked pass's code stays taken."
           },
           "event_session": {
             "anyOf": [
@@ -5165,7 +5165,7 @@
               }
             ],
             "title": "External Code",
-            "description": "Your own ticket code or barcode value; unique per tenant"
+            "description": "The BioStar pass code, used unchanged; leading and trailing spaces are trimmed. Either alphanumeric (letters, digits and hyphens, up to 32 characters) or numeric (exactly 12 or 16 digits, leading zeros kept). Unique per tenant: a revoked pass's code stays taken."
           },
           "event_session": {
             "anyOf": [

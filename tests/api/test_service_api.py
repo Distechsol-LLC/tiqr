@@ -106,6 +106,15 @@ def test_patch_changes_the_window_and_validates_it(admin, registrar):
     assert refused.status_code == 502
 
 
+def test_state_filter_lists_revoked_tickets(admin):
+    revoked = create_ticket(admin)
+    create_ticket(admin)
+    admin.post(f"/api/tickets/{revoked['id']}/revoke")
+    page = admin.get("/api/tickets", params={"state": "revoked"}).json()
+    assert [item["id"] for item in page["items"]] == [revoked["id"]]
+    assert page["total"] == 1
+
+
 def test_patch_of_a_revoked_ticket_is_a_409(admin):
     ticket = create_ticket(admin)
     admin.post(f"/api/tickets/{ticket['id']}/revoke")

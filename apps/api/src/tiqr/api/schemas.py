@@ -37,7 +37,14 @@ _Discount = Annotated[
 _Code = Annotated[
     str | None,
     StringConstraints(max_length=128),
-    Field(description="Your own ticket code or barcode value; unique per tenant"),
+    Field(
+        description=(
+            "The BioStar pass code, used unchanged; leading and trailing spaces are trimmed. "
+            "Either alphanumeric (letters, digits and hyphens, up to 32 characters) or numeric "
+            "(exactly 12 or 16 digits, leading zeros kept). Unique per tenant: a revoked pass's "
+            "code stays taken."
+        )
+    ),
 ]
 _Session = Annotated[
     str | None,

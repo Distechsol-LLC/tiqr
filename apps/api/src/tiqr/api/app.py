@@ -10,12 +10,13 @@ from starlette.concurrency import run_in_threadpool
 from tiqr.api import __version__
 from tiqr.api.config import ServerConfig
 from tiqr.api.deps import AppState
-from tiqr.api.endpoints import router
+from tiqr.api.endpoints import passage_record, router
 from tiqr.api.errors import install_error_handlers
 from tiqr.api.maintenance import Maintenance
 from tiqr.api.runtime import Runtime, open_runtime
 from tiqr.api.security import DOCS_PREFIX, LoginThrottle, install_guard, install_request_id
 from tiqr.api.web import WEB_ROOT, install_web
+from tiqr.api.webhook import PassWebhook
 from tiqr.core.service import TicketService
 
 
@@ -29,6 +30,13 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         with runtime() as opened:
+            webhook = None
+            if config.pass_webhook_url and config.pass_webhook_secret:
+                webhook = PassWebhook(config.pass_webhook_url, config.pass_webhook_secret)
+                webhook.start()
+                opened.service.on_passage = lambda event: webhook.publish(
+                    passage_record(opened.service, event)
+                )
             maintenance = scheduler(opened.service)
             app.state.tiqr = AppState(config, opened, LoginThrottle(), maintenance)
             maintenance.start()
@@ -37,6 +45,8 @@ def create_app(
             finally:
                 # Waits for a run in progress, off the event loop, before the database closes.
                 await run_in_threadpool(maintenance.stop)
+                if webhook is not None:
+                    await run_in_threadpool(webhook.stop)
 
     # The interactive docs are for development; production exposes no schema.
     app = FastAPI(

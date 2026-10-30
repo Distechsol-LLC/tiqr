@@ -82,8 +82,8 @@ from tiqr.api.schemas import (
 from tiqr.api.security import clear_session_cookie, cookie_name, set_session_cookie
 from tiqr.core.auth import WEB_SESSION_IDLE, AuthenticationError
 from tiqr.core.localtime import parse_input_datetime
-from tiqr.core.models import Currency, Ticket, TicketState
-from tiqr.core.service import IdempotencyConflictError
+from tiqr.core.models import AccessEvent, Currency, Ticket, TicketState
+from tiqr.core.service import IdempotencyConflictError, TicketService
 
 logger = logging.getLogger("tiqr.api")
 
@@ -446,6 +446,22 @@ def list_tickets(
     )
 
 
+def passage_record(service: TicketService, event: AccessEvent) -> PassageOut:
+    """One passage as the feed and the pass webhook both send it."""
+    ticket = service.passage_ticket(event.ticket_id) if event.ticket_id else None
+    return PassageOut(
+        event_id=event.event_id,
+        ticket_id=event.ticket_id,
+        external_code=ticket.external_code if ticket else None,
+        event_time=event.occurred_at,
+        point_id=event.point_id,
+        point_name=event.point_name,
+        direction=event.direction,
+        granted=event.granted,
+        outcome=event.outcome.value,
+    )
+
+
 @router.get("/passes", tags=["tickets"], responses=_refusals(401, 403, 422))
 def list_passes(
     me: READER,
@@ -455,22 +471,7 @@ def list_passes(
 ) -> PassagePage:
     """Passages in arrival order after the cursor, so a poll never misses one that arrived late."""
     events = server.service.passages(me.user, after, limit)
-    items: list[PassageOut] = []
-    for event in events:
-        ticket = server.service.passage_ticket(event.ticket_id) if event.ticket_id else None
-        items.append(
-            PassageOut(
-                event_id=event.event_id,
-                ticket_id=event.ticket_id,
-                external_code=ticket.external_code if ticket else None,
-                event_time=event.occurred_at,
-                point_id=event.point_id,
-                point_name=event.point_name,
-                direction=event.direction,
-                granted=event.granted,
-                outcome=event.outcome.value,
-            )
-        )
+    items = [passage_record(server.service, event) for event in events]
     next_cursor = events[-1].sequence if events else after
     return PassagePage(items=items, next_cursor=next_cursor)
 

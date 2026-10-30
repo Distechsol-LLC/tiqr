@@ -5,7 +5,7 @@ import re
 import secrets
 import threading
 from collections import Counter
-from collections.abc import Collection, Generator
+from collections.abc import Callable, Collection, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import replace
@@ -249,6 +249,8 @@ class TicketService:
         self.tenant = tenant
         # Held across a keyed request's lookup, work and save, so a retry cannot run it twice.
         self.idempotency_lock = threading.RLock()
+        # Told each passage a sync has committed; set by the server when a webhook is configured.
+        self.on_passage: Callable[[AccessEvent], None] | None = None
 
     def _now(self) -> datetime:
         return utc(self._clock())
@@ -1295,15 +1297,20 @@ class TicketService:
         """`sync` for a trusted in-process scheduler, which has no account to act as."""
         self._expire_all()
         events, cursor = self.event_source.fetch_events(self.repository.get_cursor())
-        stored = 0
+        stored: list[AccessEvent] = []
         with self.repository.transaction():
             for raw in sorted(events, key=lambda event: (event.occurred_at, event.event_id)):
                 if self.repository.get_event(raw.event_id) is not None:
                     continue
-                self.repository.add_event(self._apply_event(raw))
-                stored += 1
+                event = self._apply_event(raw)
+                self.repository.add_event(event)
+                stored.append(event)
             self.repository.save_cursor(cursor)
-        return stored
+        # Announced only once committed, so a rolled-back run tells no one about its passages.
+        for event in stored:
+            if self.on_passage is not None:
+                self.on_passage(event)
+        return len(stored)
 
     def passages(self, actor: User, after: int, limit: int) -> list[AccessEvent]:
         """Passages in arrival order after `after`, which is the sequence of the last one read."""
