@@ -44,12 +44,14 @@ from tiqr.core.settings import (
     branding_path,
     database_path,
     discard_access_group_id,
+    discard_pass_webhook,
     discard_secret,
     load_branding,
     load_environment,
     provision_secret,
     session_path,
     write_local_settings,
+    write_pass_webhook,
 )
 
 # Failures a user can act on; anything else is a bug and keeps its traceback.
@@ -85,10 +87,14 @@ ticket_app = typer.Typer(
     no_args_is_help=True, help="Create, inspect, assign, save and print tickets."
 )
 key_app = typer.Typer(no_args_is_help=True, help="Service API keys for the web API (admin).")
+webhook_app = typer.Typer(
+    no_args_is_help=True, help="Where each new passage is posted, and the secret that signs it."
+)
 license_app = typer.Typer(no_args_is_help=True, help="Request and activate this install's license.")
 app.add_typer(user_app, name="user")
 app.add_typer(license_app, name="license")
 app.add_typer(ticket_app, name="ticket")
+app.add_typer(webhook_app, name="webhook")
 app.add_typer(key_app, name="key")
 
 
@@ -329,6 +335,14 @@ def install(
         typer.Option(help="Address operators' PCs use; asked for, or this machine's LAN address."),
     ] = None,
     port: Annotated[int | None, typer.Option(help="TCP port; asked for, or 7102.")] = None,
+    pass_webhook_url: Annotated[
+        str | None,
+        typer.Option(help="Where each new passage is posted; asked for, blank for none."),
+    ] = None,
+    pass_webhook_secret: Annotated[
+        str | None,
+        typer.Option(help="Signs each webhook request; asked for, hidden, if the URL is set."),
+    ] = None,
     service: Annotated[
         bool, typer.Option("--service/--no-service", help="Register and start the service.")
     ] = True,
@@ -340,7 +354,8 @@ def install(
 
     Run it from the folder the service will run from, as an administrator (sudo on Linux). The
     executable is registered where it stands, and its folder holds the data. Terminal runs ask for
-    the address, port and first admin; scripts take the defaults. Each step can be skipped.
+    the address, port, pass webhook and first admin; scripts take the defaults. Each step can be
+    skipped.
     """
     with _errors():
         if (service or firewall) and not is_administrator():
@@ -369,6 +384,7 @@ def install(
         port = port or _ask("TCP port", 7102)
         if write_local_settings({"TIQR_HOST": host, "TIQR_PORT": str(port)}):
             typer.echo(f"Set TIQR_HOST and TIQR_PORT in {LOCAL_ENV_FILE}")
+        _pass_webhook_settings(pass_webhook_url, pass_webhook_secret)
 
         setup()
         with SQLiteRepository(Settings.from_env().database_path) as repository:
@@ -387,6 +403,16 @@ def install(
             typer.echo(f"TiQR is answering on {host}:{port}")
         _license_next_steps(host, port)
         _show_in_browser(host, port, service=service)
+
+
+def _pass_webhook_settings(url: str | None, secret: str | None) -> None:
+    """Ask for the pass webhook at a terminal when no flag is given; blank answers mean none."""
+    if url is None:
+        url = _ask("Pass webhook URL (blank for none)", "")
+    if secret is None and url.strip():
+        secret = _ask_secret("Pass webhook secret (hidden)")
+    if write_pass_webhook(url, secret):
+        typer.echo(f"Set the pass webhook in {LOCAL_ENV_FILE}")
 
 
 def _show_in_browser(host: str, port: int, *, service: bool) -> None:
@@ -420,6 +446,14 @@ def _ask[T](text: str, default: T) -> T:
     if _interactive():
         return typer.prompt(text, default=default, type=type(default))
     return default
+
+
+def _ask_secret(text: str) -> str:
+    """Ask for a secret at a terminal without echoing it; a script takes none."""
+    if _interactive():
+        password: str = typer.prompt(text, default="", hide_input=True, show_default=False)
+        return password
+    return ""
 
 
 def _interactive() -> bool:
@@ -480,6 +514,53 @@ def license_activate(
         status = runtime.service.activate_license(user, license_key)
         expires = status.expires_at.date().isoformat() if status.expires_at else "?"
         typer.echo(f"License active for {status.licensed_to}, until {expires}")
+
+
+@webhook_app.command("set")
+def webhook_set(
+    url: Annotated[
+        str | None, typer.Option(help="Where each new passage is posted; asked for if omitted.")
+    ] = None,
+    secret: Annotated[
+        str | None, typer.Option(help="Signs each request; asked for, hidden, if omitted.")
+    ] = None,
+) -> None:
+    """Set where each new passage is posted and the secret that signs it.
+
+    Blank answers keep what .env.local holds. Restart the TiQR service to apply the change.
+    """
+    with _errors():
+        if url is None:
+            url = typer.prompt("Webhook URL", default="", show_default=False)
+        if secret is None:
+            secret = typer.prompt("Webhook secret", default="", hide_input=True, show_default=False)
+        if write_pass_webhook(url, secret):
+            typer.echo(f"Set the pass webhook in {LOCAL_ENV_FILE}; restart the TiQR service")
+        else:
+            typer.echo("Nothing changed")
+
+
+@webhook_app.command("show")
+def webhook_show() -> None:
+    """Show the pass webhook URL and whether a secret is set; the secret is never printed."""
+    with _errors():
+        environment = load_environment()
+        _json(
+            {
+                "url": environment.get("TIQR_PASS_WEBHOOK_URL", "").strip() or None,
+                "secret_set": bool(environment.get("TIQR_PASS_WEBHOOK_SECRET", "").strip()),
+            }
+        )
+
+
+@webhook_app.command("clear")
+def webhook_clear() -> None:
+    """Remove the pass webhook from .env.local; restart the TiQR service to apply it."""
+    with _errors():
+        if discard_pass_webhook():
+            typer.echo(f"Removed the pass webhook from {LOCAL_ENV_FILE}; restart the TiQR service")
+        else:
+            typer.echo("No pass webhook was set")
 
 
 @user_app.command("add")

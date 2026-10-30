@@ -111,8 +111,11 @@ tiqr install [options]                     # the program itself, run as admin fr
 ```
 
 `tiqr install` takes `--source` (where `tiqr_brand.jsonc` and WinSW are; default the executable's
-folder), `--host`, `--port`, `--service/--no-service` and `--firewall/--no-firewall`. At a terminal
-it asks for anything missing; scripts take the defaults. `--no-service --no-firewall` runs on any
+folder), `--host`, `--port`, `--pass-webhook-url`, `--pass-webhook-secret`,
+`--service/--no-service` and `--firewall/--no-firewall`. At a terminal it asks for anything missing,
+including the pass webhook (the secret is hidden); scripts take the defaults, and a blank webhook
+means none. Change the webhook later with `tiqr webhook set`, `tiqr webhook show` and
+`tiqr webhook clear`, then restart the service. `--no-service --no-firewall` runs on any
 machine and is what the CI smoke test uses.
 
 Planned, not built: remote mode, the interactive wizard, `--answers` files and the signed
@@ -188,6 +191,7 @@ environment variables override both.
 | Setting | Set by |
 |---|---|
 | `TIQR_HOST`, `TIQR_PORT` | `tiqr install`: asked for, defaulting to this machine's LAN address and 7102 |
+| `TIQR_PASS_WEBHOOK_URL`, `TIQR_PASS_WEBHOOK_SECRET` | `tiqr install` or the setup wizard, or later with `tiqr webhook set`. Both or neither; the secret signs each request. Read at startup, so restart the service after a change |
 | `TIQR_SECRET_KEY` | `tiqr setup`, on the server. It never leaves the server, and the installer never reads it back |
 | `TIQR_HOME` | The service definition, set to the data folder. It must be a real environment variable, because `.env` files are found through it |
 | `TIQR_BIOSTAR_*`, `TIQR_BIOSTAR_VERIFY_TLS` | By hand in `.env.local`. Keep the BioStar password out of shared files. The library's `false` for `VERIFY_TLS` suits development only; installs should set `true` |

@@ -61,6 +61,11 @@
       "key": "serviceKeyId",
       "value": "",
       "description": "Set by Create service key."
+    },
+    {
+      "key": "serviceKey",
+      "value": "",
+      "description": "Set by Create service key. Used by the service-key requests."
     }
   ],
   "item": [
@@ -981,6 +986,213 @@
           }
         },
         {
+          "name": "[WRITE] Issue with external code (service key)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Keyed ticket issued', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Uses `serviceKey` (from **Create service key**), not the session, so no CSRF token. `external_code` becomes the BioStar pass code unchanged: alphanumeric up to 32 characters, or 12 or 16 digits. Change the code if it is taken. **201**; **409** `external_code_taken`; **422** `credential_format`.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{serviceKey}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "ext-EXT-0000000001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 12\",\n  \"visitor_type\": \"Freedom Afisha\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT-0000000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/tickets"
+          }
+        },
+        {
+          "name": "[WRITE] Repeat with the same Idempotency-Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Replayed, not created again', () => pm.response.to.have.status(201));",
+                  "pm.test('Replay header set', () => pm.expect(pm.response.headers.get('Idempotent-Replayed')).to.eql('true'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Same key and body as the request above: the first answer comes back, with `Idempotent-Replayed: true`, and no second pass is made in BioStar. **201** again.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{serviceKey}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "ext-EXT-0000000001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 12\",\n  \"visitor_type\": \"Freedom Afisha\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT-0000000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/tickets"
+          }
+        },
+        {
+          "name": "[WRITE] Same code, new key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('External code taken', () => pm.response.to.have.status(409));",
+                  "pm.test('Code says external_code_taken', () => pm.expect(pm.response.json().code).to.eql('external_code_taken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "The code is held by the pass above. **409** with `code` `external_code_taken`.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{serviceKey}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "ext-EXT-0000000001-again"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 13\",\n  \"visitor_type\": \"Freedom Afisha\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT-0000000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/tickets"
+          }
+        },
+        {
+          "name": "[WRITE] Unreadable external code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Credential format refused', () => pm.response.to.have.status(422));",
+                  "pm.test('Code says credential_format', () => pm.expect(pm.response.json().code).to.eql('credential_format'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "A code no reader accepts (a space inside). **422** with `code` `credential_format`; nothing is written.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{serviceKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 14\",\n  \"visitor_type\": \"Freedom Afisha\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT 0000000002\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/tickets"
+          }
+        },
+        {
+          "name": "Find by external code (service key)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Found by external code', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Exact match on the code, to reconcile after a lost reply. Needs `tickets:read`. **200**.",
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{serviceKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tickets?external_code=EXT-0000000001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tickets"
+              ],
+              "query": [
+                {
+                  "key": "external_code",
+                  "value": "EXT-0000000001"
+                }
+              ]
+            }
+          }
+        },
+        {
           "name": "[WRITE] Batch issue",
           "request": {
             "description": "Up to `TIQR_BATCH_MAX_SIZE` tickets. **200** with a result per item, unless the request is malformed. With `atomic` true, one failure undoes the rest (`rolled_back`, `skipped`).",
@@ -1049,13 +1261,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Service key created', () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set('serviceKeyId', pm.response.json().id);"
+                  "pm.collectionVariables.set('serviceKeyId', pm.response.json().id);",
+                  "pm.collectionVariables.set('serviceKey', pm.response.json().secret);"
                 ]
               }
             }
           ],
           "request": {
-            "description": "The `secret` is shown once. Saves `serviceKeyId`. **201**.",
+            "description": "The `secret` is shown once. Saves `serviceKeyId` and `serviceKey`. **201**.",
             "method": "POST",
             "header": [
               {
@@ -1070,7 +1283,7 @@
             "url": "{{baseUrl}}/api/service-keys",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"box-office\",\n  \"scopes\": [\n    \"tickets:read\",\n    \"tickets:write\"\n  ]\n}",
+              "raw": "{\n  \"name\": \"box-office\",\n  \"scopes\": [\n    \"tickets:read\",\n    \"tickets:write\",\n    \"tickets:revoke\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1133,7 +1346,7 @@
     },
     {
       "name": "Operations",
-      "description": "Admins and managers.",
+      "description": "Admins and managers. The passage feed also accepts a service key with `tickets:read`.",
       "item": [
         {
           "name": "[WRITE] Sync access events",
@@ -1183,6 +1396,45 @@
               }
             ],
             "url": "{{baseUrl}}/api/cleanup"
+          }
+        },
+        {
+          "name": "Passage feed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Passages read', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Passages in arrival order, one record per passage. Read by the `after` cursor (the `next_cursor` of the last page; 0 to start) and `limit` (1 to 500). Repeat with the same cursor to get the same records. Admins, managers and service keys with `tickets:read` (`serviceKey` header); operators get **403**. **200**.",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/passes?after=0&limit=500",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "passes"
+              ],
+              "query": [
+                {
+                  "key": "after",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "500"
+                }
+              ]
+            }
           }
         },
         {

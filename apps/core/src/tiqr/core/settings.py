@@ -272,6 +272,46 @@ def write_local_settings(values: Mapping[str, str], path: Path | None = None) ->
     return _edit_local_file(path, edit)
 
 
+def write_pass_webhook(url: str | None, secret: str | None, path: Path | None = None) -> bool:
+    """Save the pass webhook in the local env file; a blank argument keeps what the file holds.
+
+    The pair must end up whole, and the URL an http or https address, as ServerConfig requires.
+    """
+    path = path or PROJECT_ROOT / LOCAL_ENV_FILE
+    given = {
+        key: value.strip()
+        for key, value in (("TIQR_PASS_WEBHOOK_URL", url), ("TIQR_PASS_WEBHOOK_SECRET", secret))
+        if value and value.strip()
+    }
+    if not given:
+        return False
+    held = dotenv_values(path)
+    final_url = given.get("TIQR_PASS_WEBHOOK_URL") or (held.get("TIQR_PASS_WEBHOOK_URL") or "")
+    final_secret = given.get("TIQR_PASS_WEBHOOK_SECRET") or (
+        held.get("TIQR_PASS_WEBHOOK_SECRET") or ""
+    )
+    if final_url and not final_secret:
+        raise ValueError("Set TIQR_PASS_WEBHOOK_SECRET when TIQR_PASS_WEBHOOK_URL is set")
+    if final_secret and not final_url:
+        raise ValueError("Set TIQR_PASS_WEBHOOK_URL when TIQR_PASS_WEBHOOK_SECRET is set")
+    if final_url and urlsplit(final_url.strip()).scheme not in ("http", "https"):
+        raise ValueError("TIQR_PASS_WEBHOOK_URL must be an http:// or https:// address")
+    return write_local_settings(given, path)
+
+
+def discard_pass_webhook(path: Path | None = None) -> bool:
+    """Drop the pass webhook from the local env file; report whether one was there."""
+    path = path or PROJECT_ROOT / LOCAL_ENV_FILE
+    return _edit_local_file(
+        path,
+        lambda lines: [
+            line
+            for line in lines
+            if not line.startswith(("TIQR_PASS_WEBHOOK_URL=", "TIQR_PASS_WEBHOOK_SECRET="))
+        ],
+    )
+
+
 def discard_access_group_id(path: Path | None = None) -> bool:
     """Blank the pinned BioStar access group so setup manages it again."""
     path = path or PROJECT_ROOT / LOCAL_ENV_FILE

@@ -270,11 +270,22 @@ Run one server process per database: scheduling, login limits and the sync lock 
 | `GET /api/ticket-types`, `GET /api/visitor-types` | — | Any signed-in role |
 | `POST /api/ticket-types`, `PATCH`/`DELETE /api/ticket-types/{id}` | — | Admins and managers; a ticket type has a price |
 | `POST /api/visitor-types`, `PATCH`/`DELETE /api/visitor-types/{id}` | — | Admins and managers; a visitor type has a discount |
-| `GET /api/tickets?state=`, `POST /api/tickets`, `GET /api/tickets/{id}` | `ticket list`, `ticket create` | As the CLI; `POST` also takes an optional `ticket_type` |
+| `GET /api/tickets?state=`, `POST /api/tickets`, `GET /api/tickets/{id}` | `ticket list`, `ticket create` | As the CLI; `POST` also takes an optional `ticket_type` and `external_code` |
+| `POST /api/tickets/batch` | — | Admins, managers and operators; up to `TIQR_BATCH_MAX_SIZE` tickets, `atomic` all or nothing |
+| `PATCH /api/tickets/{id}` | — | Admins and managers; moves the validity window, synced to BioStar |
+| `POST /api/tickets/{id}/revoke` | — | Admins and managers; idempotent, `409` for an expired ticket |
+| `POST /api/tickets/{id}/transfer`, `POST /api/tickets/{id}/reissue` | — | Admins and managers; reissue also brings an expired ticket back |
+| `GET /api/tickets/{id}/audit` | — | Admins and managers |
 | `POST /api/tickets/{id}/assign` | `ticket assign` | Managers |
 | `POST /api/tickets/{id}/pdf` | `ticket save` | Returns the PDF and keeps it in `out/` |
 | `POST /api/tickets/{id}/print` | `ticket print` | Server printer; `409` unless `TIQR_SERVER_PRINTING` |
+| `GET /api/passes` | — | Admins, managers and service keys with `tickets:read`; the passage feed, read by `after` cursor |
+| `POST /api/service-keys`, `GET /api/service-keys`, `POST /api/service-keys/{id}/rotate`, `DELETE /api/service-keys/{id}` | — | Admins only, signed in; a key acts as one account, within its scopes |
 | `POST /api/sync`, `POST /api/cleanup`, `GET /api/stats` | `sync`, `cleanup`, `stats` | Admins and managers |
+
+Service keys (`Authorization: Bearer tqk_...`) let an integration call the ticket endpoints without a
+session or CSRF token. Their scopes are `tickets:read`, `tickets:write` and `tickets:revoke`. A wrong
+key is `401`, and the key is never second-guessed by a cookie. Only the key's hash is stored.
 
 Prices are whole minor units (cents): `price_minor` 1250 is 12.50. Naming a `ticket_type` when
 creating a ticket prices it, and a `visitor_type` that matches one defined in the catalog takes its
@@ -287,8 +298,11 @@ datetime rules: an ISO datetime with an offset, or without one in `timezone` (de
 `TIQR_DEFAULT_TZ`). Responses show datetimes in that zone, with their offset, and never include
 password hashes, QR payloads or BioStar IDs. Refusals are `{"detail": ..., "code": ...}`: `401`
 signed out, `403` forbidden, `404` not found, `409` wrong state, `422` invalid, `429` too many
-logins, `502` BioStar or server printer failure. Schema errors use FastAPI's `422` list format, and
-unexpected errors answer `500` without details, which go to the server log.
+logins, `502` BioStar or server printer failure. The `409` codes are told apart: `external_code_taken`,
+`idempotency_mismatch`, `invalid_state`, and `conflict` for the rest. A `422` with `credential_format`
+means an `external_code` the readers cannot read. Schema errors use FastAPI's `422` list format, and
+unexpected errors answer `500` without details, which go to the server log. Every response carries an
+`X-Request-Id`, which a caller may set to trace an incident.
 
 Signing in creates a server-side session in SQLite; only a SHA-256 hash of its random token is
 stored. The browser holds the token in an `HttpOnly`, `SameSite=Strict` cookie named

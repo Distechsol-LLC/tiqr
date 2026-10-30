@@ -403,6 +403,7 @@ X-CSRF-Token: {{csrfToken}}
     client.assert(response.status === 201, "Expected 201, got " + response.status);
   });
   client.global.set("serviceKeyId", response.body.id);
+  client.global.set("serviceKey", response.body.secret);
 %}
 
 ### List service keys
@@ -551,6 +552,132 @@ X-CSRF-Token: {{csrfToken}}
   });
 %}
 
+
+### [WRITE] Issue with external code (service key)
+# Uses the key from Create service key, not the session: Bearer, no CSRF token. The code is
+# the BioStar pass code, used unchanged: alphanumeric (up to 32) or 12 or 16 digits. Change the
+# code if it is taken already; a revoked pass keeps its code. 201.
+POST {{baseUrl}}/api/tickets
+Content-Type: application/json
+Authorization: Bearer {{serviceKey}}
+Idempotency-Key: ext-EXT-0000000001
+
+{
+  "visitor_name": "Sector A, row 5, seat 12",
+  "visitor_type": "Freedom Afisha",
+  "valid_from": "2030-06-01T09:00+05:00",
+  "valid_until": "2030-06-01T17:00+05:00",
+  "usage_type": "one_time",
+  "external_code": "EXT-0000000001"
+}
+
+> {%
+  client.test("Keyed ticket issued", function() {
+    client.assert(response.status === 201, "Expected 201, got " + response.status);
+  });
+%}
+
+### [WRITE] Repeat with the same Idempotency-Key
+# Same key and body: replays the first answer (201 again), with Idempotent-Replayed: true. No second pass.
+POST {{baseUrl}}/api/tickets
+Content-Type: application/json
+Authorization: Bearer {{serviceKey}}
+Idempotency-Key: ext-EXT-0000000001
+
+{
+  "visitor_name": "Sector A, row 5, seat 12",
+  "visitor_type": "Freedom Afisha",
+  "valid_from": "2030-06-01T09:00+05:00",
+  "valid_until": "2030-06-01T17:00+05:00",
+  "usage_type": "one_time",
+  "external_code": "EXT-0000000001"
+}
+
+> {%
+  client.test("Replayed", function() {
+    client.assert(response.status === 201, "Expected 201, got " + response.status);
+    client.assert(response.headers.valuesArray("Idempotent-Replayed").length > 0, "Expected a replay header");
+  });
+%}
+
+### [WRITE] Same code, new key
+# The code is taken by the pass above. 409 with code external_code_taken.
+POST {{baseUrl}}/api/tickets
+Content-Type: application/json
+Authorization: Bearer {{serviceKey}}
+Idempotency-Key: ext-EXT-0000000001-again
+
+{
+  "visitor_name": "Sector A, row 5, seat 13",
+  "visitor_type": "Freedom Afisha",
+  "valid_from": "2030-06-01T09:00+05:00",
+  "valid_until": "2030-06-01T17:00+05:00",
+  "usage_type": "one_time",
+  "external_code": "EXT-0000000001"
+}
+
+> {%
+  client.test("External code taken", function() {
+    client.assert(response.status === 409, "Expected 409, got " + response.status);
+    client.assert(response.body.code === "external_code_taken", "Expected external_code_taken");
+  });
+%}
+
+### Unreadable external code
+# A code no reader accepts (space inside). 422 with code credential_format; nothing is written.
+POST {{baseUrl}}/api/tickets
+Content-Type: application/json
+Authorization: Bearer {{serviceKey}}
+
+{
+  "visitor_name": "Sector A, row 5, seat 14",
+  "visitor_type": "Freedom Afisha",
+  "valid_from": "2030-06-01T09:00+05:00",
+  "valid_until": "2030-06-01T17:00+05:00",
+  "usage_type": "one_time",
+  "external_code": "EXT 0000000002"
+}
+
+> {%
+  client.test("Credential format refused", function() {
+    client.assert(response.status === 422, "Expected 422, got " + response.status);
+    client.assert(response.body.code === "credential_format", "Expected credential_format");
+  });
+%}
+
+### Find by external code (service key)
+# Exact match on the code, for reconciling after a lost reply. 200 with one item.
+GET {{baseUrl}}/api/tickets?external_code=EXT-0000000001
+Authorization: Bearer {{serviceKey}}
+
+> {%
+  client.test("Found by external code", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+### Passage feed (service key)
+# Passages in arrival order. Repeat with the same after cursor to get the same records. 200.
+# Needs tickets:read, and an operator's key gets 403.
+GET {{baseUrl}}/api/passes?after=0&limit=500
+Authorization: Bearer {{serviceKey}}
+
+> {%
+  client.test("Passage feed read", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
+
+### Service key without a session
+# A wrong or revoked key is 401, never a fallback to the cookie. 401.
+GET {{baseUrl}}/api/tickets?page=1&size=10
+Authorization: Bearer tqk_wrong-key
+
+> {%
+  client.test("Wrong key refused", function() {
+    client.assert(response.status === 401, "Expected 401, got " + response.status);
+  });
+%}
 
 ### Logout
 # Run last. 204.

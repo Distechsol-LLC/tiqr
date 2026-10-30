@@ -112,7 +112,19 @@ def test_install_asks_for_the_first_admin_at_a_terminal(home, release, monkeypat
     monkeypatch.setattr(commands, "create_first_admin", lambda: prompted.append(True))
 
     result = CliRunner().invoke(
-        app, ["install", "--source", str(release), "--host", "10.0.0.5", "--port", "7200", *QUIET]
+        app,
+        [
+            "install",
+            "--source",
+            str(release),
+            "--host",
+            "10.0.0.5",
+            "--port",
+            "7200",
+            "--pass-webhook-url",
+            "",
+            *QUIET,
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -417,7 +429,16 @@ def service_host(monkeypatch):
     return calls, state
 
 
-SERVICE_INSTALL = ["install", "--host", "10.0.0.5", "--port", "7200", "--no-firewall"]
+SERVICE_INSTALL = [
+    "install",
+    "--host",
+    "10.0.0.5",
+    "--port",
+    "7200",
+    "--pass-webhook-url",
+    "",
+    "--no-firewall",
+]
 
 
 def test_declining_a_reinstall_cancels_before_anything_changes(
@@ -481,6 +502,75 @@ def test_a_reinstall_the_script_already_confirmed_is_not_asked_again(
     assert result.exit_code == 0, result.output
     assert "Reinstall" not in result.output
     assert calls == ["uninstall", "register", "http://10.0.0.5:7200"]
+
+
+def test_install_saves_the_pass_webhook_given_as_flags(home, release):
+    result = CliRunner().invoke(
+        app,
+        [
+            "install",
+            "--source",
+            str(release),
+            "--pass-webhook-url",
+            "https://receiver.example.test/passes",
+            "--pass-webhook-secret",
+            "s3cret",
+            *QUIET,
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    env = (home / ".env.local").read_text()
+    assert "TIQR_PASS_WEBHOOK_URL=https://receiver.example.test/passes" in env
+    assert "TIQR_PASS_WEBHOOK_SECRET=s3cret" in env
+
+
+def test_install_rejects_a_webhook_url_without_a_secret(home, release):
+    result = CliRunner().invoke(
+        app,
+        [
+            "install",
+            "--source",
+            str(release),
+            "--pass-webhook-url",
+            "https://receiver.example.test/passes",
+            *QUIET,
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Set TIQR_PASS_WEBHOOK_SECRET when TIQR_PASS_WEBHOOK_URL is set" in result.output
+
+
+def test_webhook_set_and_clear_round_trip(home, release):
+    runner = CliRunner()
+    installed = runner.invoke(app, ["install", "--source", str(release), "--no-service", *QUIET])
+    assert installed.exit_code == 0, installed.output
+
+    result = runner.invoke(
+        app,
+        ["webhook", "set", "--url", "https://receiver.example.test/passes", "--secret", "s3cret"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "restart the TiQR service" in result.output
+
+    shown = runner.invoke(app, ["webhook", "show"])
+    assert shown.exit_code == 0, shown.output
+    assert "https://receiver.example.test/passes" in shown.output
+    assert "s3cret" not in shown.output
+
+    cleared = runner.invoke(app, ["webhook", "clear"])
+    assert cleared.exit_code == 0, cleared.output
+    assert "TIQR_PASS_WEBHOOK_URL" not in (home / ".env.local").read_text()
+
+
+def test_webhook_set_refuses_a_url_that_is_not_http(home):
+    result = CliRunner().invoke(
+        app, ["webhook", "set", "--url", "ftp://receiver.example.test", "--secret", "s3cret"]
+    )
+
+    assert result.exit_code == 1
+    assert "must be an http:// or https:// address" in result.output
 
 
 def test_browser_url_uses_loopback_for_an_unspecified_address():
