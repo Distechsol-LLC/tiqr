@@ -81,7 +81,7 @@ def test_revoking_an_expired_ticket_is_a_409(admin, clock):
     clock.now += timedelta(minutes=25)
     response = admin.post(f"/api/tickets/{ticket['id']}/revoke")
     assert response.status_code == 409
-    assert response.json()["code"] == "conflict"
+    assert response.json()["code"] == "invalid_state"
 
 
 def test_a_biostar_failure_on_revoke_is_a_502_and_keeps_the_ticket(admin, registrar):
@@ -104,6 +104,15 @@ def test_patch_changes_the_window_and_validates_it(admin, registrar):
     registrar.failing.add("set_window")
     refused = admin.patch(f"/api/tickets/{ticket['id']}", json={"valid_until": "2026-09-17T19:00"})
     assert refused.status_code == 502
+
+
+def test_state_filter_lists_revoked_tickets(admin):
+    revoked = create_ticket(admin)
+    create_ticket(admin)
+    admin.post(f"/api/tickets/{revoked['id']}/revoke")
+    page = admin.get("/api/tickets", params={"state": "revoked"}).json()
+    assert [item["id"] for item in page["items"]] == [revoked["id"]]
+    assert page["total"] == 1
 
 
 def test_patch_of_a_revoked_ticket_is_a_409(admin):
@@ -216,10 +225,10 @@ def test_batch_items_follow_the_idempotency_rules(admin):
     ]
     body = admin.post("/api/tickets/batch", json={"items": items}).json()
     assert [r["status"] for r in body["results"]] == ["created", "error"]
-    assert body["results"][1]["code"] == "conflict"
+    assert body["results"][1]["code"] == "idempotency_mismatch"
     changed = [ticket_body(visitor_name="Changed", idempotency_key="k")]
     again = admin.post("/api/tickets/batch", json={"items": changed}).json()
-    assert again["results"][0]["code"] == "conflict"
+    assert again["results"][0]["code"] == "idempotency_mismatch"
 
 
 def test_batch_header_key_derives_item_keys(admin):

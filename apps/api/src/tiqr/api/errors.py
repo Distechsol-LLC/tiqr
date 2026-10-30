@@ -10,7 +10,12 @@ from tiqr.core.auth import AuthenticationError
 from tiqr.core.biostar import BioStarError
 from tiqr.core.license import LicenseError
 from tiqr.core.printer import PrinterError
-from tiqr.core.service import NotFoundError, PermissionDeniedError, StateError
+from tiqr.core.service import (
+    CredentialFormatError,
+    NotFoundError,
+    PermissionDeniedError,
+    StateError,
+)
 
 logger = logging.getLogger("tiqr.api")
 
@@ -51,17 +56,23 @@ _STATUSES: tuple[tuple[type[Exception], int, str], ...] = (
     (PermissionDeniedError, 403, "forbidden"),
     (NotFoundError, 404, "not_found"),
     (StateError, 409, "conflict"),
+    (CredentialFormatError, 422, "credential_format"),
     (ValueError, 422, "invalid"),
     # The server's printer; BioStar's errors are handled below, with their codes.
     (PrinterError, 502, "printer"),
 )
 
 
+def _code_for(exc: Exception, default: str) -> str:
+    # A domain error may name its own finer code; StateError subclasses do.
+    return getattr(exc, "code", default) if isinstance(exc, StateError) else default
+
+
 def describe(exc: Exception) -> tuple[int, str, str]:
     """The status, code and message an exception gets as a response; for per-item results."""
     for exception, status, code in _STATUSES:
         if isinstance(exc, exception):
-            return status, code, str(exc)
+            return status, _code_for(exc, code), str(exc)
     if isinstance(exc, BioStarError):
         return 502, "biostar", biostar_detail(exc)
     return 500, "internal", "Internal server error"
@@ -69,7 +80,7 @@ def describe(exc: Exception) -> tuple[int, str, str]:
 
 def _domain_handler(status: int, code: str) -> _Handler:
     async def handler(_: Request, exc: Exception) -> JSONResponse:
-        return error_response(status, code, str(exc))
+        return error_response(status, _code_for(exc, code), str(exc))
 
     return handler
 

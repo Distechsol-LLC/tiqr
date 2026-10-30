@@ -61,7 +61,10 @@ class ServerConfig:
     # How long an Idempotency-Key remembers its answer.
     idempotency_ttl_hours: int = 24
     # Most tickets one POST /api/tickets/batch may carry.
-    batch_max_size: int = 100
+    batch_max_size: int = 500
+    # Where each new passage is posted, signed with the secret; unset means no webhook.
+    pass_webhook_url: str | None = None
+    pass_webhook_secret: str | None = None
 
     def __post_init__(self) -> None:
         if not 0 < self.port < 65536:  # noqa: PLR2004 - the TCP port range
@@ -72,6 +75,8 @@ class ServerConfig:
             raise ValueError("TIQR_IDEMPOTENCY_TTL_HOURS must be at least 1")
         if self.batch_max_size < 1:
             raise ValueError("TIQR_BATCH_MAX_SIZE must be at least 1")
+        if self.pass_webhook_url is not None and not self.pass_webhook_secret:
+            raise ValueError("Set TIQR_PASS_WEBHOOK_SECRET when TIQR_PASS_WEBHOOK_URL is set")
         # The docs describe every endpoint, so they never face the network.
         if self.dev and not _is_loopback(self.host):
             raise ValueError("--dev only listens on a loopback address, such as 127.0.0.1")
@@ -101,5 +106,7 @@ class ServerConfig:
             dev=dev,
             server_printing=_flag(environment, "SERVER_PRINTING", default=False),
             idempotency_ttl_hours=_number(environment, "IDEMPOTENCY_TTL_HOURS", 24),
-            batch_max_size=_number(environment, "BATCH_MAX_SIZE", 100),
+            batch_max_size=_number(environment, "BATCH_MAX_SIZE", 500),
+            pass_webhook_url=_value(environment, "PASS_WEBHOOK_URL") or None,
+            pass_webhook_secret=_value(environment, "PASS_WEBHOOK_SECRET") or None,
         )

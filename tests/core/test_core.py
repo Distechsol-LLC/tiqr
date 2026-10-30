@@ -520,10 +520,11 @@ def test_repository_roundtrip_utc_uuid_enums_and_cursor(service, accounts, clock
     assert repo.get_cursor() == cursor
     event = AccessEvent("id", ticket.id, clock.now, True, Outcome.APPLIED, clock.now)
     repo.add_event(event)
-    assert repo.get_event("id") == event
+    # The store assigns the feed sequence on insert, so the stored event carries it.
+    assert repo.get_event("id") == replace(event, sequence=1)
     with pytest.raises(sqlite3.IntegrityError):
         repo.add_event(event)
-    assert repo.get_event("id") == event
+    assert repo.get_event("id") == replace(event, sequence=1)
 
 
 def test_repository_transactions_roll_back(repository, accounts):

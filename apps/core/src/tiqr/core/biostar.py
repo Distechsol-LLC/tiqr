@@ -98,6 +98,21 @@ def _related_id(value: object) -> str | None:
     return _identifier(value)
 
 
+def _related_name(value: object) -> str | None:
+    if _is_json_object(value):
+        name = value.get("name") or value.get("description")
+        return name if isinstance(name, str) and name else None
+    return None
+
+
+def _direction(event_name: str) -> str | None:
+    if "EXIT" in event_name:
+        return "exit"
+    if "ENTRY" in event_name or "ENTER" in event_name:
+        return "entry"
+    return None
+
+
 def _object_list(value: object) -> list[JsonObject]:
     return (
         [row for row in cast(list[object], value) if _is_json_object(row)]
@@ -334,6 +349,9 @@ class BioStarClient:
             raise ValueError(
                 f"The ticket QR payload must contain exactly {PAYLOAD_LENGTH} characters"
             )
+        return self.create_card(card_id)
+
+    def create_card(self, card_id: str) -> str:
         payload = self.request(
             "POST",
             "cards",
@@ -567,7 +585,13 @@ class BioStarXRegistrar(Registrar):
             card_id = self.client.create_qr_card(ticket.qr_payload)
             registration = replace(registration, card_id=card_id)
             self.repository.save_registration(registration)
-            self.client.update_user(external_id, {"cards": [{"id": card_id}]})
+            cards = [{"id": card_id}]
+            if ticket.external_code:
+                external_card_id = self.client.create_card(ticket.external_code)
+                registration = replace(registration, external_card_id=external_card_id)
+                self.repository.save_registration(registration)
+                cards.append({"id": external_card_id})
+            self.client.update_user(external_id, {"cards": cards})
         except Exception as primary:
             try:
                 self._cleanup(registration, qr_payload=ticket.qr_payload)
@@ -660,6 +684,11 @@ class BioStarXRegistrar(Registrar):
             self._delete_verified(
                 lambda: self.client.delete_card(card_id), lambda: self._card_exists(card_id)
             )
+        if external_card_id := registration.external_card_id:
+            self._delete_verified(
+                lambda: self.client.delete_card(external_card_id),
+                lambda: self._card_exists(external_card_id),
+            )
         self.repository.save_registration(replace(registration, card_removed=True))
 
     def remove(self, external_id: str) -> None:
@@ -714,7 +743,16 @@ class BioStarXEventSource(EventSource):
             granted = False
         else:
             return None
-        return RawEvent(event_id, _related_id(row.get("user_id")), occurred_at, granted)
+        point_id = _related_id(row.get("device_id"))
+        return RawEvent(
+            event_id,
+            _related_id(row.get("user_id")),
+            occurred_at,
+            granted,
+            point_id=point_id,
+            point_name=_related_name(row.get("device_id")),
+            direction=_direction(name),
+        )
 
     def _since(self, cursor: SyncCursor | None, upper: datetime) -> datetime:
         if cursor is not None:

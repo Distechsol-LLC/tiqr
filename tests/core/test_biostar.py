@@ -340,6 +340,25 @@ def test_registration_window_group_card_assignment_and_no_operator_permission(
     assert repository.get_ticket(ticket.id) == ticket
 
 
+def test_external_code_gets_its_own_card_alongside_the_qr_payload(config, repository, ticket):
+    server = Server()
+    coded = replace(ticket, external_code="004821930057")
+    with client(config, server) as api:
+        registrar = BioStarXRegistrar(api, repository)
+        external_id = registrar.register(coded)
+        registrar.remove(external_id)
+    card_posts = [
+        json.loads(r.content)["CardCollection"]["rows"][0]["card_id"]
+        for r in server.requests
+        if r.method == "POST" and r.url.path == "/api/cards"
+    ]
+    assert card_posts == [coded.qr_payload, "004821930057"]
+    assert repository.get_registration(external_id) == Registration(
+        external_id, "30", True, True, external_card_id="30"
+    )
+    assert not server.cards
+
+
 @pytest.mark.parametrize("length", [0, 31, 33])
 def test_register_rejects_non_32_payload_before_http(config, repository, ticket, length):
     server = Server()

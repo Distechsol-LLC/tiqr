@@ -137,6 +137,7 @@ var
   TimeZonePage: TInputQueryWizardPage;
   HostPage: TInputQueryWizardPage;
   PortPage: TInputQueryWizardPage;
+  PassWebhookPage: TInputQueryWizardPage;
   TlsPage: TInputOptionWizardPage;
   TlsFilesPage: TInputFileWizardPage;
   PrintingPage: TInputOptionWizardPage;
@@ -750,6 +751,23 @@ begin
     Result := ValidateBioStarTls(B);
 end;
 
+{ Both or neither. A URL must be http or https; neither value may hold a double quote or a percent sign,
+  since they are passed to tiqr install on the cmd command line. }
+function ValidatePassWebhook(const Url, Secret: String): String;
+begin
+  Result := '';
+  if (Url = '') and (Secret = '') then
+    Exit;
+  if Url = '' then
+    Result := 'Enter the webhook URL too, or clear the secret.'
+  else if Secret = '' then
+    Result := 'Enter the webhook secret too, or clear the URL.'
+  else if (Pos('"', Url + Secret) > 0) or (Pos('%', Url + Secret) > 0) then
+    Result := 'The webhook URL and secret must not contain double quotes or percent signs.'
+  else if (Pos('http://', Lowercase(Url)) <> 1) and (Pos('https://', Lowercase(Url)) <> 1) then
+    Result := 'The webhook URL must start with http:// or https://.';
+end;
+
 function ValidateAll(const B: TBrand): String;
 begin
   Result := ValidateAppName(B);
@@ -879,7 +897,13 @@ begin
   PortPage.Values[0] := DefaultPort;
   After := PortPage.ID;
 
-  { 9. TLS: on or off, then the certificate files when on (tls_cert and tls_key are the schema's TLS keys). }
+  { 9. Pass webhook: optional, and both or neither. The secret is masked on the page. }
+  PassWebhookPage := CreateInputQueryPage(After, 'Pass webhook', 'Where should each new pass be posted? (optional)', 'Leave both blank for none. TiQR POSTs each new passage to the URL, signed with the secret.');
+  PassWebhookPage.Add('Webhook URL (https://...):', False);
+  PassWebhookPage.Add('Webhook secret:', True);
+  After := PassWebhookPage.ID;
+
+  { 10. TLS: on or off, then the certificate files when on (tls_cert and tls_key are the schema's TLS keys). }
   TlsPage := CreateInputOptionPage(After, 'TLS', 'Should the server use HTTPS?', 'HTTPS needs a certificate and its private key; the next page asks for them. Off serves plain HTTP.', True, False);
   TlsPage.Add('Off (plain HTTP)');
   TlsPage.Add('On (HTTPS)');
@@ -890,14 +914,14 @@ begin
   TlsFilesPage.Add('Private key (PEM):', 'PEM files (*.pem;*.key)|*.pem;*.key|All files (*.*)|*.*', '.key');
   After := TlsFilesPage.ID;
 
-  { 10. Server printing }
+  { 11. Server printing }
   PrintingPage := CreateInputOptionPage(After, 'Server printing', 'Print on the server''s own printer?', 'On lets operators print badges on the server''s default printer from the web UI. Off keeps download and browser printing only.', True, False);
   PrintingPage.Add('Off');
   PrintingPage.Add('On');
   PrintingPage.Values[0] := True;
   After := PrintingPage.ID;
 
-  { 11. BioStar: local mode or the whole block (a partly filled block is an error in the app). }
+  { 12. BioStar: local mode or the whole block (a partly filled block is an error in the app). }
   BioModePage := CreateInputOptionPage(After, 'BioStar', 'Should TiQR open doors through BioStar?', 'Local mode needs nothing more. With BioStar, the next pages ask for its settings. The BioStar password is not stored in tiqr_brand.jsonc: add TIQR_BIOSTAR_PASSWORD to .env.local.', True, False);
   BioModePage.Add('Local mode (no BioStar)');
   BioModePage.Add('Connect to BioStar');
@@ -964,7 +988,10 @@ var
   Problem: String;
 begin
   Result := True;
-  Problem := ValidatePage(CurPageID, ReadBrand);
+  if CurPageID = PassWebhookPage.ID then
+    Problem := ValidatePassWebhook(Trim(PassWebhookPage.Values[0]), Trim(PassWebhookPage.Values[1]))
+  else
+    Problem := ValidatePage(CurPageID, ReadBrand);
   if Problem <> '' then
   begin
     MsgBox(Problem, mbError, MB_OK);
@@ -1037,6 +1064,8 @@ begin
   Result := '';
   Brand := ReadBrand;
   Result := ValidateAll(Brand);
+  if Result = '' then
+    Result := ValidatePassWebhook(Trim(PassWebhookPage.Values[0]), Trim(PassWebhookPage.Values[1]));
   if Result <> '' then
     Exit;
 
@@ -1091,7 +1120,8 @@ begin
       Confirmed := 'set TIQR_REINSTALL_CONFIRMED=1&& ';
     { cmd strips the outer quote, so exactly one more quote may open the executable's path. }
     Log('Running tiqr install in a console window');
-    if not Exec(ExpandConstant('{cmd}'), '/C "' + Confirmed + '"' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+    { The webhook goes as flags, so the console does not ask for it again; blank values mean none. }
+    if not Exec(ExpandConstant('{cmd}'), '/C "' + Confirmed + '"' + ExpandConstant('{app}\tiqr.exe') + '" install --source "' + ExpandConstant('{app}') + '" --host ' + Host + ' --port ' + Port + ' --pass-webhook-url "' + Trim(PassWebhookPage.Values[0]) + '" --pass-webhook-secret "' + Trim(PassWebhookPage.Values[1]) + '" || (pause & exit /b 1)"', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) then
     begin
       Log('The console window could not be started');
       MsgBox('TiQR was copied, but the setup window could not be started. Open Command Prompt as administrator and run:' + NL + '"' + ExpandConstant('{app}\tiqr.exe') + '" install', mbError, MB_OK);

@@ -1993,6 +1993,103 @@
         }
       }
     },
+    "/api/passes": {
+      "get": {
+        "tags": [
+          "tickets"
+        ],
+        "summary": "List Passes",
+        "description": "Passages in arrival order after the cursor, so a poll never misses one that arrived late.",
+        "operationId": "list_passes",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "The next_cursor of the last page read",
+              "default": 0,
+              "title": "After"
+            },
+            "description": "The next_cursor of the last page read"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 500,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassagePage"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 List Passes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tickets/batch": {
       "post": {
         "tags": [
@@ -3909,7 +4006,7 @@
               }
             ],
             "title": "External Code",
-            "description": "Your own ticket code or barcode value; unique per tenant"
+            "description": "The BioStar pass code, used unchanged; leading and trailing spaces are trimmed. Either alphanumeric (letters, digits and hyphens, up to 32 characters) or numeric (exactly 12 or 16 digits, leading zeros kept). Unique per tenant: a revoked pass's code stays taken."
           },
           "event_session": {
             "anyOf": [
@@ -4188,6 +4285,10 @@
               "cross_origin",
               "not_found",
               "conflict",
+              "external_code_taken",
+              "idempotency_mismatch",
+              "invalid_state",
+              "credential_format",
               "server_printing_off",
               "invalid",
               "batch_too_large",
@@ -4444,6 +4545,120 @@
           "password"
         ],
         "title": "LoginIn"
+      },
+      "PassageOut": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "ticket_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket Id"
+          },
+          "external_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Code"
+          },
+          "event_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Event Time"
+          },
+          "point_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Point Id"
+          },
+          "point_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Point Name"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction",
+            "description": "entry or exit, when BioStar says"
+          },
+          "granted": {
+            "type": "boolean",
+            "title": "Granted"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "ticket_id",
+          "external_code",
+          "event_time",
+          "point_id",
+          "point_name",
+          "direction",
+          "granted",
+          "outcome"
+        ],
+        "title": "PassageOut",
+        "description": "One passage. A multi-use pass gives one record per passage."
+      },
+      "PassagePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PassageOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "type": "integer",
+            "title": "Next Cursor",
+            "description": "Pass this as `after` to read on; repeating it returns the same items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "PassagePage"
       },
       "ReissueIn": {
         "properties": {
@@ -4950,7 +5165,7 @@
               }
             ],
             "title": "External Code",
-            "description": "Your own ticket code or barcode value; unique per tenant"
+            "description": "The BioStar pass code, used unchanged; leading and trailing spaces are trimmed. Either alphanumeric (letters, digits and hyphens, up to 32 characters) or numeric (exactly 12 or 16 digits, leading zeros kept). Unique per tenant: a revoked pass's code stays taken."
           },
           "event_session": {
             "anyOf": [
