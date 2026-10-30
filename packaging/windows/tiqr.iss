@@ -16,7 +16,7 @@
 #ifndef BundleDir
   #define BundleDir "..\..\bundle\tiqr-Windows-X64"
 #endif
-#define SkeletonThemesUrl "https://www.skeleton.dev/docs/svelte/design/themes"
+#define SkeletonThemesUrl "https://skeleton.dev/docs/svelte/design/themes"
 
 [Setup]
 AppId={{0C70AC7B-EF86-4DD2-9776-791215A62B49}

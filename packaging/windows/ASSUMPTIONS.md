@@ -62,7 +62,7 @@ bundle: `iscc /DBundleDir=bundle\tiqr-Windows-X64 /DAppVersion=<version> packagi
 - **Uninstall.** Removes `tiqr_brand.jsonc`, its `.bak` and the logo from both the install folder and the
   data folder. The user's original image is not in the list. The service, database and
   `%ProgramData%\TiQR` are not touched; unregistering the service is still a manual step.
-- **Skeleton link.** `https://www.skeleton.dev/docs/svelte/design/themes` (found by search; the
+- **Skeleton link.** `https://skeleton.dev/docs/svelte/design/themes` (found by search; the
   `[SKELETON_UI_THEME_URL]` and `[SUPPORTED_LANGUAGES]` placeholders in the task were left unfilled, so the
   language list comes from `core/languages.py`).
 

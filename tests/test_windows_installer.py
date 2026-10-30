@@ -67,9 +67,7 @@ def test_generator_writes_the_schemas_keys_in_order() -> None:
 
 
 def test_theme_page_links_the_skeleton_themes() -> None:
-    assert (
-        '#define SkeletonThemesUrl "https://www.skeleton.dev/docs/svelte/design/themes"' in SCRIPT
-    )
+    assert '#define SkeletonThemesUrl "https://skeleton.dev/docs/svelte/design/themes"' in SCRIPT
     assert "Link.OnClick := @ThemeLinkClick" in SCRIPT
 
 

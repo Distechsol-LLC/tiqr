@@ -7,7 +7,7 @@
   "app_name": "TiQR", // default: TiQR
   "logo_path": null, // default: none
   // "default" is vintage; or any Skeleton theme name (e.g. "cerberus", "dracula").
-  "theme": "default", // default: default (vintage)
+  "theme": "default", // default: default (vintage) https://skeleton.dev/docs/svelte/design/themes
   // The browser's language is used when offered; otherwise the first language is the default.
   "languages": ["en-US", "ru-RU", "az-AZ"], // default: en-US, ru-RU, az-AZ
 
