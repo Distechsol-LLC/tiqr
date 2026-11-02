@@ -267,7 +267,8 @@ Run one server process per database: scheduling, login limits and the sync lock 
 | `GET /api/users`, `POST /api/users` | `user list`, `user add` | See [Permissions](#permissions) |
 | `PATCH /api/users/{id}` with any of `role`, `active`, `password` | `user role`, `user deactivate`, `user activate`, `user password` | Admins; managers change `active` for operators |
 | `DELETE /api/users/{id}` | `user delete` | Admins; deactivated users without tickets |
-| `GET /api/ticket-types`, `GET /api/visitor-types` | — | Any signed-in role |
+| `GET /api/ticket-types` | — | Any signed-in role |
+| `GET /api/visitor-types` | — | Any signed-in role, and service keys with `tickets:read` |
 | `POST /api/ticket-types`, `PATCH`/`DELETE /api/ticket-types/{id}` | — | Admins and managers; a ticket type has a price |
 | `POST /api/visitor-types`, `PATCH`/`DELETE /api/visitor-types/{id}` | — | Admins and managers; a visitor type has a discount |
 | `GET /api/tickets?state=`, `POST /api/tickets`, `GET /api/tickets/{id}` | `ticket list`, `ticket create` | As the CLI; `POST` also takes an optional `ticket_type` and `external_code` |

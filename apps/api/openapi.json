@@ -1377,7 +1377,7 @@
           "catalog"
         ],
         "summary": "List Visitor Types",
-        "description": "One page of visitor types, by name. Every signed-in role may read them.",
+        "description": "One page of visitor types, by name. Any signed-in role, or a key with `tickets:read`.",
         "operationId": "list_visitor_types",
         "parameters": [
           {
@@ -1431,6 +1431,16 @@
           },
           "401": {
             "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {

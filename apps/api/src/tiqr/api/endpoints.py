@@ -376,9 +376,9 @@ def delete_ticket_type(type_id: UUID, me: Signed, server: Server) -> None:
     server.service.delete_ticket_type(me.user, type_id)
 
 
-@router.get("/visitor-types", tags=["catalog"], responses=_refusals(401, 422))
-def list_visitor_types(me: Signed, server: Server, paging: Paging) -> VisitorTypePage:
-    """One page of visitor types, by name. Every signed-in role may read them."""
+@router.get("/visitor-types", tags=["catalog"], responses=_refusals(401, 403, 422))
+def list_visitor_types(me: READER, server: Server, paging: Paging) -> VisitorTypePage:
+    """One page of visitor types, by name. Any signed-in role, or a key with `tickets:read`."""
     types = server.service.list_visitor_types(me.user)
     return VisitorTypePage(
         items=[VisitorTypeOut.of(item) for item in paging.slice(types)],
