@@ -14,7 +14,7 @@ from tiqr.api.runtime import Runtime
 from tiqr.api.security import CSRF_HEADER, SAFE_METHODS, LoginThrottle, cookie_name
 from tiqr.core.auth import SIGNED_OUT, AuthenticationError
 from tiqr.core.models import ApiKey, User, WebSession
-from tiqr.core.service import SCOPE_READ, SCOPE_REVOKE, SCOPE_WRITE, TicketService
+from tiqr.core.service import SCOPE_PASSES, SCOPE_READ, SCOPE_REVOKE, SCOPE_WRITE, TicketService
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +120,7 @@ def scoped(scope: str, *more: str) -> Callable[..., Caller]:
 READER = Annotated[Caller, Depends(scoped(SCOPE_READ))]
 WRITER = Annotated[Caller, Depends(scoped(SCOPE_WRITE))]
 REVOKER = Annotated[Caller, Depends(scoped(SCOPE_REVOKE))]
+PASSES_READER = Annotated[Caller, Depends(scoped(SCOPE_PASSES))]
 IdempotencyKey = Annotated[
     str | None,
     Header(

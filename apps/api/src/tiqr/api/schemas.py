@@ -222,8 +222,8 @@ class ServiceKeyIn(_Request):
 
     name: _Name
     scopes: Annotated[
-        list[Literal["tickets:read", "tickets:write", "tickets:revoke"]],
-        Field(min_length=1, description="What the key may do; reads, writes, or revokes"),
+        list[Literal["tickets:read", "tickets:write", "tickets:revoke", "passes:read"]],
+        Field(min_length=1, description="What the key may do; reads, writes, revokes, or passages"),
     ]
     acts_as: Annotated[
         _Username | None, Field(description="Account the key acts as; default the caller's own")

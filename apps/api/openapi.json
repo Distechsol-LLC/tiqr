@@ -4877,13 +4877,14 @@
               "enum": [
                 "tickets:read",
                 "tickets:write",
-                "tickets:revoke"
+                "tickets:revoke",
+                "passes:read"
               ]
             },
             "type": "array",
             "minItems": 1,
             "title": "Scopes",
-            "description": "What the key may do; reads, writes, or revokes"
+            "description": "What the key may do; reads, writes, revokes, or passages"
           },
           "acts_as": {
             "anyOf": [

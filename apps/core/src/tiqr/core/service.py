@@ -92,7 +92,8 @@ KEY_PREFIX = "tqk_"
 SCOPE_READ = "tickets:read"
 SCOPE_WRITE = "tickets:write"
 SCOPE_REVOKE = "tickets:revoke"
-SCOPES = frozenset({SCOPE_READ, SCOPE_WRITE, SCOPE_REVOKE})
+SCOPE_PASSES = "passes:read"
+SCOPES = frozenset({SCOPE_READ, SCOPE_WRITE, SCOPE_REVOKE, SCOPE_PASSES})
 # Who an action is credited to when it is not the account itself, such as an API key.
 _ATTRIBUTION: ContextVar[str | None] = ContextVar("tiqr_attribution", default=None)
 
@@ -930,8 +931,10 @@ class TicketService:
         valid_from: datetime | None = None,
         valid_until: datetime | None = None,
         event_session: str | _Unset | None = _UNSET,
+        holder: bool = False,
     ) -> Ticket:
-        actor, _ = self._staff_ticket(actor, ticket_id)
+        resolve = self._holder_ticket if holder else self._staff_ticket
+        actor, _ = resolve(actor, ticket_id)
         try:
             return self._amend_stored(
                 actor, ticket_id, action, valid_from, valid_until, event_session
@@ -1009,7 +1012,7 @@ class TicketService:
         valid_from: datetime | None = None,
         valid_until: datetime | None = None,
     ) -> Ticket:
-        """Move a ticket's validity window, in BioStar too. Admins and managers.
+        """Move a ticket's validity window, in BioStar too. Staff, or its assigned operator.
 
         Allowed while the ticket is issued, or passed and multi-use. Either end may be left as
         it is; the end must be after the start.
@@ -1022,6 +1025,7 @@ class TicketService:
             "ticket.update_validity",
             valid_from=valid_from,
             valid_until=valid_until,
+            holder=True,
         )
 
     def transfer_ticket(
@@ -1326,9 +1330,16 @@ class TicketService:
                 self.on_passage(event)
         return len(stored)
 
-    def passages(self, actor: User, after: int, limit: int) -> list[AccessEvent]:
-        """Passages in arrival order after `after`, which is the sequence of the last one read."""
-        self._require(self._actor(actor), _STAFF)
+    def passages(
+        self, actor: User, after: int, limit: int, *, scoped_key: bool = False
+    ) -> list[AccessEvent]:
+        """Passages in arrival order after `after`, which is the sequence of the last one read.
+
+        Staff, or a service key holding `passes:read`, whatever account it acts as.
+        """
+        actor = self._actor(actor)
+        if not scoped_key:
+            self._require(actor, _STAFF)
         if after < 0:
             raise ValueError("The cursor must not be negative")
         if not 1 <= limit <= _MAX_PASSAGES:

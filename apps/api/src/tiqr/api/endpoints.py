@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from tiqr.api import __version__
 from tiqr.api.deps import (
+    PASSES_READER,
     READER,
     REVOKER,
     WRITER,
@@ -464,7 +465,7 @@ def passage_record(service: TicketService, event: AccessEvent) -> PassageOut:
 
 @router.get("/passes", tags=["tickets"], responses=_refusals(401, 403, 422))
 def list_passes(
-    me: READER,
+    me: PASSES_READER,
     server: Server,
     after: Annotated[int, Query(ge=0, description="The next_cursor of the last page read")] = 0,
     limit: Annotated[int, Query(ge=1, le=500)] = 500,
@@ -476,7 +477,7 @@ def list_passes(
     `outcome` is one of applied, denied, ignored_unknown_ticket, ignored_outside_window,
     ignored_second_one_time_scan or ignored_expired; a new value may appear in a later release.
     """
-    events = server.service.passages(me.user, after, limit)
+    events = server.service.passages(me.user, after, limit, scoped_key=me.key is not None)
     items = [passage_record(server.service, event) for event in events]
     next_cursor = events[-1].sequence if events else after
     return PassagePage(items=items, next_cursor=next_cursor)

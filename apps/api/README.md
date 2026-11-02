@@ -196,13 +196,13 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 | POST | `/tickets/{ticket_id}/assign` | session + CSRF | Body `{assignee}`: the username of an existing, active account to assign the ticket to. Admins and managers. `404` if the account does not exist, `409` if it is deactivated. |
 | POST | `/tickets/{ticket_id}/pdf` | session + CSRF | Render the one-page A4 badge and return it as `application/pdf`. Counts as a print, and the file is also saved to `out/`. Issued tickets only (`409` otherwise). |
 | POST | `/tickets/{ticket_id}/print` | session + CSRF | Print on the server's default printer. Needs `TIQR_SERVER_PRINTING=true` (`409` `server_printing_off` otherwise). Issued tickets only. Returns the updated ticket; `502` if the printer fails. |
-| PATCH | `/tickets/{ticket_id}` | session + CSRF, or key `tickets:write` | Move `valid_from` / `valid_until` (end after start), synced to BioStar. Admins and managers. Issued, or passed and multi-use, tickets only; otherwise `409`. |
+| PATCH | `/tickets/{ticket_id}` | session + CSRF, or key `tickets:write` | Move `valid_from` / `valid_until` (end after start), synced to BioStar. Staff, or the operator the ticket is assigned to. Issued, or passed and multi-use, tickets only; otherwise `409`. |
 | POST | `/tickets/{ticket_id}/revoke` | session + CSRF, or key `tickets:revoke` | Cancel a ticket (`{"reason"}` optional, audited) and disable its BioStar user. Idempotent: a revoked ticket is returned as is. Expired is `409`; a BioStar failure is `502` and changes nothing. |
 | POST | `/tickets/{ticket_id}/transfer` | session + CSRF, or key `tickets:write` | Move to another `event_session` (and optionally a new window), keeping id, state and audit history. |
 | POST | `/tickets/{ticket_id}/reissue` | session + CSRF, or key `tickets:write` | Reissue a ticket in any state as the same ticket, back to issued; the window may move and must end in the future. This is also how a ticket is edited. Returns the ticket. |
 | POST | `/tickets/batch` | session + CSRF, or key `tickets:write` | Body `{items, atomic}`. Always `200` unless the request is malformed; returns `{atomic, committed, created, failed, results}`, each result `created` / `replayed` / `error` / `rolled_back` / `skipped`. At most `TIQR_BATCH_MAX_SIZE` items. |
 | GET | `/tickets/{ticket_id}/audit` | session, or key `tickets:read` | The ticket's audit trail, oldest first (admins and managers). |
-| GET | `/passes` | session, or key `tickets:read` | The passage feed, in arrival order. Query `?after=` (the `next_cursor` of the last page read, default 0) and `?limit=` (1 to 500, default 500). Each record gives `event_id`, `ticket_id`, `external_code`, `event_time` (UTC, shown with `Z`), `point_id`, `point_name`, `direction` (`entry` or `exit`, when BioStar says), `granted` and `outcome` (see Passage feed below). A repeat with the same cursor returns the same records; a late event lands after the cursor it missed, so none are lost. Admins, managers and service keys with `tickets:read`; operators get `403`. |
+| GET | `/passes` | session, or key `passes:read` | The passage feed, in arrival order. Query `?after=` (the `next_cursor` of the last page read, default 0) and `?limit=` (1 to 500, default 500). Each record gives `event_id`, `ticket_id`, `external_code`, `event_time` (UTC, shown with `Z`), `point_id`, `point_name`, `direction` (`entry` or `exit`, when BioStar says), `granted` and `outcome` (see Passage feed below). A repeat with the same cursor returns the same records; a late event lands after the cursor it missed, so none are lost. Admins and managers, and service keys with `passes:read` (whatever account the key acts as); operators get `403`. A `passes:read` key reads the feed for all tickets, not only those assigned to its account: it is an all-tickets read scope, so grant it only to trusted integrations. |
 
 #### Create body
 
@@ -275,11 +275,11 @@ Admins only, signed in with a session (a key cannot manage keys).
 ### Service-to-service calls
 
 Send `Authorization: Bearer tqk_...` (or `X-API-Key`). A key acts as one account, so that role's limits
-apply, within its scopes (`tickets:read`, `tickets:write`, `tickets:revoke`). It needs no session and no
+apply, within its scopes (`tickets:read`, `tickets:write`, `tickets:revoke`, `passes:read`). It needs no session and no
 CSRF token; browsers keep the cookie and `X-CSRF-Token`, unchanged. A wrong key is a `401`, never
 a fallback to the cookie. Only hashes are stored.
 
-For an integration, use a dedicated `manager` account. Its key needs `tickets:read` for the `/passes` feed, `tickets:write` for creating, reissuing, transferring and moving tickets (`PATCH /tickets/{id}`), and `tickets:revoke` for revoking. Scopes are checked against the endpoint, but the account's role also applies, so `PATCH` and the feed need an admin or manager account.
+An integration reads passages with a key holding `passes:read`, which the `/passes` feed accepts whatever account the key acts as, so an operator account is enough for that. That scope reads the feed for all tickets, not only the key's own, so grant it only to trusted integrations. Staff-only work (assign, transfer, sync, cleanup, stats, users) still needs an admin or manager account, so for those use a dedicated `manager` account. Ticket keys need `tickets:write` for creating, reissuing and transferring tickets, and `tickets:revoke` for revoking; `PATCH /tickets/{id}` also accepts an operator's key on a ticket assigned to that operator.
 
 ### Idempotency
 
@@ -306,7 +306,7 @@ Sync and cleanup share a lock with the scheduled jobs, so runs never overlap.
 | --- | --- |
 | `admin` | Manage users (create, change role, deactivate, reset passwords, delete), licenses and service keys, plus everything a manager can do |
 | `manager` | Assign tickets, change validity, revoke, transfer and reissue tickets, run sync, cleanup and stats, list users, create, deactivate or reactivate operators, and manage ticket types and visitor types |
-| `operator` | Issue tickets; view, print, revoke and reissue only the tickets assigned to them |
+| `operator` | Issue tickets; view, print, revoke, reissue and change the validity of only the tickets assigned to them |
 
 Anyone active can issue tickets. Permissions are enforced in `tiqr-core`'s service layer, and this table summarizes them.
 

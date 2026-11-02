@@ -369,3 +369,31 @@ def test_transfer_moves_the_ticket_to_another_session(admin):
     assert revoked.status_code == 200
     again = admin.post(f"/api/tickets/{ticket['id']}/transfer", json={"event_session": "Late"})
     assert again.status_code == 409
+
+
+def test_a_passes_key_reads_the_feed_whatever_account_it_acts_as(admin, machine, make_client):
+    reader = machine(new_key(admin, "passes:read", acts_as="operator")["secret"])
+    assert reader.get("/api/passes").status_code == 200
+    denied = machine(new_key(admin, "tickets:read", acts_as="operator")["secret"])
+    refused = denied.get("/api/passes")
+    assert refused.status_code == 403
+    assert refused.json()["code"] == "scope"
+    with make_client() as session:
+        login(session, "operator")
+        assert session.get("/api/passes").status_code == 403
+
+
+def test_an_operator_key_changes_validity_only_on_its_own_ticket(admin, machine):
+    ticket = create_ticket(admin)
+    assigned = admin.post(f"/api/tickets/{ticket['id']}/assign", json={"assignee": "operator"})
+    assert assigned.status_code == 200
+    holder = machine(new_key(admin, "tickets:write", acts_as="operator")["secret"])
+    changed = holder.patch(f"/api/tickets/{ticket['id']}", json={"valid_until": "2026-09-17T18:00"})
+    assert changed.status_code == 200
+    assert changed.json()["valid_until"].startswith("2026-09-17T18:00")
+    unassigned = create_ticket(admin)
+    body = {"valid_until": "2026-09-17T18:00"}
+    assert holder.patch(f"/api/tickets/{unassigned['id']}", json=body).status_code == 403
+    # Transfer stays staff-only, even on the operator's own ticket.
+    moved = holder.post(f"/api/tickets/{ticket['id']}/transfer", json={"event_session": "Gala"})
+    assert moved.status_code == 403
