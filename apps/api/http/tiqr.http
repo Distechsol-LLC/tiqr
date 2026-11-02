@@ -233,6 +233,25 @@ X-CSRF-Token: {{csrfToken}}
 DELETE {{baseUrl}}/api/visitor-types/{{visitorTypeId}}
 X-CSRF-Token: {{csrfToken}}
 
+### [WRITE] Create visitor type for tickets
+# Tickets may only name a type from this list, so the ticket samples below use Contractor. Change
+# the name if it exists already. Saves visitorTypeId. 201; 422 for a blank or taken name.
+POST {{baseUrl}}/api/visitor-types
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "name": "Contractor",
+  "discount_percent": 20
+}
+
+> {%
+  client.test("Ticket visitor type created", function() {
+    client.assert(response.status === 201, "Expected 201, got " + response.status);
+  });
+  client.global.set("visitorTypeId", response.body.id);
+%}
+
 ### [WRITE] Delete ticket type
 # Issued tickets keep their price. 204; 404 if gone.
 DELETE {{baseUrl}}/api/ticket-types/{{ticketTypeId}}
@@ -259,7 +278,8 @@ X-CSRF-Token: {{csrfToken}}
 ### [WRITE] Issue ticket
 # Saves ticketId. Times without an offset use "timezone". Optional: ticket_type, external_code,
 # event_session. Add an Idempotency-Key header to make a retry safe.
-# 201; 422 for bad input (or an unknown ticket_type); 409 if external_code is taken.
+# 201; 422 for bad input, an unknown ticket_type or a visitor_type not in the catalog; 409 if
+# external_code is taken.
 POST {{baseUrl}}/api/tickets
 Content-Type: application/json
 X-CSRF-Token: {{csrfToken}}
@@ -370,7 +390,7 @@ X-CSRF-Token: {{csrfToken}}
   "items": [
     {
       "visitor_name": "Ada",
-      "visitor_type": "Guest",
+      "visitor_type": "Contractor",
       "valid_from": "2030-06-01T09:00",
       "valid_until": "2030-06-01T17:00",
       "usage_type": "one_time"
@@ -557,8 +577,8 @@ X-CSRF-Token: {{csrfToken}}
 
 ### [WRITE] Issue with external code (service key)
 # Uses the key from Create service key, not the session: Bearer, no CSRF token. The code is
-# the BioStar pass code, used unchanged: alphanumeric (up to 32) or 12 or 16 digits. Change the
-# code if it is taken already; a revoked pass keeps its code. 201.
+# the BioStar pass code, used unchanged: alphanumeric (up to 32) or numeric, 12 or 16 digits with
+# leading zeros kept. Change the code if it is taken already; a revoked pass keeps its code. 201.
 POST {{baseUrl}}/api/tickets
 Content-Type: application/json
 Authorization: Bearer {{serviceKey}}
@@ -566,7 +586,7 @@ Idempotency-Key: ext-EXT-0000000001
 
 {
   "visitor_name": "Sector A, row 5, seat 12",
-  "visitor_type": "Freedom Afisha",
+  "visitor_type": "Contractor",
   "valid_from": "2030-06-01T09:00+05:00",
   "valid_until": "2030-06-01T17:00+05:00",
   "usage_type": "one_time",
@@ -588,7 +608,7 @@ Idempotency-Key: ext-EXT-0000000001
 
 {
   "visitor_name": "Sector A, row 5, seat 12",
-  "visitor_type": "Freedom Afisha",
+  "visitor_type": "Contractor",
   "valid_from": "2030-06-01T09:00+05:00",
   "valid_until": "2030-06-01T17:00+05:00",
   "usage_type": "one_time",
@@ -611,7 +631,7 @@ Idempotency-Key: ext-EXT-0000000001-again
 
 {
   "visitor_name": "Sector A, row 5, seat 13",
-  "visitor_type": "Freedom Afisha",
+  "visitor_type": "Contractor",
   "valid_from": "2030-06-01T09:00+05:00",
   "valid_until": "2030-06-01T17:00+05:00",
   "usage_type": "one_time",
@@ -633,7 +653,7 @@ Authorization: Bearer {{serviceKey}}
 
 {
   "visitor_name": "Sector A, row 5, seat 14",
-  "visitor_type": "Freedom Afisha",
+  "visitor_type": "Contractor",
   "valid_from": "2030-06-01T09:00+05:00",
   "valid_until": "2030-06-01T17:00+05:00",
   "usage_type": "one_time",

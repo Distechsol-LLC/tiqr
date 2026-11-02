@@ -54,6 +54,8 @@ def registrar(service):
 
 @pytest.fixture
 def make(service, accounts):
+    service.create_visitor_type(accounts["admin"], "Visitor")
+
     def create(**overrides):
         arguments = {
             "visitor_name": "Ali",

@@ -469,7 +469,13 @@ def list_passes(
     after: Annotated[int, Query(ge=0, description="The next_cursor of the last page read")] = 0,
     limit: Annotated[int, Query(ge=1, le=500)] = 500,
 ) -> PassagePage:
-    """Passages in arrival order after the cursor, so a poll never misses one that arrived late."""
+    """Passages in arrival order after the cursor, so a poll never misses one that arrived late.
+
+    Records are kept indefinitely; nothing deletes them. A cursor is a sequence number, so one
+    that points at nothing returns an empty page with `next_cursor` equal to the cursor sent.
+    `outcome` is one of applied, denied, ignored_unknown_ticket, ignored_outside_window,
+    ignored_second_one_time_scan or ignored_expired; a new value may appear in a later release.
+    """
     events = server.service.passages(me.user, after, limit)
     items = [passage_record(server.service, event) for event in events]
     next_cursor = events[-1].sequence if events else after

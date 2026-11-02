@@ -14,6 +14,7 @@ PASSWORD = "correct-password"
 
 
 def issue(service, actor, clock):
+    service.create_visitor_type(service.repository.user_by_name("admin"), "Guest")
     return service.create_ticket(
         actor,
         visitor_name="Name",

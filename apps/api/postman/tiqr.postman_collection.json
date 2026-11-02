@@ -652,6 +652,45 @@
           }
         },
         {
+          "name": "[WRITE] Create visitor type for tickets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Ticket visitor type created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('visitorTypeId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "description": "Tickets may only name a type from the catalog, so the ticket samples use `Contractor`. Change the name if it exists already. Saves `visitorTypeId`. **201**; **422** for a blank or taken name.",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/visitor-types",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Contractor\",\n  \"discount_percent\": 20\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "[WRITE] Delete ticket type",
           "request": {
             "description": "Issued tickets keep their price. **204**; **404** if gone.",
@@ -1017,7 +1056,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 12\",\n  \"visitor_type\": \"Freedom Afisha\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT-0000000001\"\n}",
+              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 12\",\n  \"visitor_type\": \"Contractor\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT-0000000001\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1060,7 +1099,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 12\",\n  \"visitor_type\": \"Freedom Afisha\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT-0000000001\"\n}",
+              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 12\",\n  \"visitor_type\": \"Contractor\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT-0000000001\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1103,7 +1142,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 13\",\n  \"visitor_type\": \"Freedom Afisha\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT-0000000001\"\n}",
+              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 13\",\n  \"visitor_type\": \"Contractor\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT-0000000001\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1142,7 +1181,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 14\",\n  \"visitor_type\": \"Freedom Afisha\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT 0000000002\"\n}",
+              "raw": "{\n  \"visitor_name\": \"Sector A, row 5, seat 14\",\n  \"visitor_type\": \"Contractor\",\n  \"valid_from\": \"2030-06-01T09:00+05:00\",\n  \"valid_until\": \"2030-06-01T17:00+05:00\",\n  \"usage_type\": \"one_time\",\n  \"external_code\": \"EXT 0000000002\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1210,7 +1249,7 @@
             "url": "{{baseUrl}}/api/tickets/batch",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"atomic\": false,\n  \"items\": [\n    {\n      \"visitor_name\": \"Ada\",\n      \"visitor_type\": \"Guest\",\n      \"valid_from\": \"2030-06-01T09:00\",\n      \"valid_until\": \"2030-06-01T17:00\",\n      \"usage_type\": \"one_time\"\n    }\n  ]\n}",
+              "raw": "{\n  \"atomic\": false,\n  \"items\": [\n    {\n      \"visitor_name\": \"Ada\",\n      \"visitor_type\": \"Contractor\",\n      \"valid_from\": \"2030-06-01T09:00\",\n      \"valid_until\": \"2030-06-01T17:00\",\n      \"usage_type\": \"one_time\"\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

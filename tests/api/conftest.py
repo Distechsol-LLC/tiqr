@@ -24,6 +24,8 @@ TLS = {"tls_cert": Path("cert.pem"), "tls_key": Path("key.pem")}
 def service(service, accounts, issue):
     # The API refuses everything without a license, so its tests start with a paid one.
     service.activate_license(accounts["admin"], issue())
+    # Tickets must name a catalog visitor type, so the suite's usual type is registered.
+    service.create_visitor_type(accounts["admin"], "Visitor")
     return service
 
 

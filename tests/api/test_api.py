@@ -629,7 +629,7 @@ def test_visitor_types_are_managed_by_staff_and_read_by_everyone(client):
     assert student["discount_percent"] == 30
 
     login(client, "operator")
-    assert client.get("/api/visitor-types").json()["items"] == [student]
+    assert student in client.get("/api/visitor-types").json()["items"]
     assert client.post("/api/visitor-types", json={"name": "Staff"}).status_code == 403
     assert client.delete(f"/api/visitor-types/{student['id']}").status_code == 403
 

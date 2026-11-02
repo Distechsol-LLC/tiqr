@@ -289,9 +289,9 @@ session or CSRF token. Their scopes are `tickets:read`, `tickets:write` and `tic
 key is `401`, and the key is never second-guessed by a cookie. Only the key's hash is stored.
 
 Prices are whole minor units (cents): `price_minor` 1250 is 12.50. Naming a `ticket_type` when
-creating a ticket prices it, and a `visitor_type` that matches one defined in the catalog takes its
-`discount_percent` off that price, rounding half up; any other visitor type is kept as written, at
-no discount. The ticket keeps the name, base price and discount it was made with, so editing or
+creating a ticket prices it, and the `visitor_type` must match one defined in the catalog; its
+`discount_percent` comes off that price, rounding half up. Any other visitor type is refused.
+The ticket keeps the name, base price and discount it was made with, so editing or
 deleting a type later never changes issued tickets. Names are unique whatever their case.
 
 Rendering a PDF is a `POST` because every render counts as a print. Ticket bodies take the CLI's

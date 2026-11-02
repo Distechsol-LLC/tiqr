@@ -10,6 +10,12 @@ from tiqr.core.models import Outcome, RawEvent, TicketState, UsageType
 from tiqr.core.service import StateError
 
 
+@pytest.fixture(autouse=True)
+def visitor_types(service, accounts):
+    service.create_visitor_type(accounts["admin"], "Student")
+    service.create_visitor_type(accounts["admin"], "Guest")
+
+
 def issue(service, accounts, clock, usage=UsageType.ONE_TIME, actor="operator"):
     return service.create_ticket(
         accounts[actor],
