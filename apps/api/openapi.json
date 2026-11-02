@@ -1377,7 +1377,7 @@
           "catalog"
         ],
         "summary": "List Visitor Types",
-        "description": "One page of visitor types, by name. Every signed-in role may read them.",
+        "description": "One page of visitor types, by name. Any signed-in role, or a key with `tickets:read`.",
         "operationId": "list_visitor_types",
         "parameters": [
           {
@@ -1431,6 +1431,16 @@
           },
           "401": {
             "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
             "content": {
               "application/json": {
                 "schema": {
@@ -1999,7 +2009,7 @@
           "tickets"
         ],
         "summary": "List Passes",
-        "description": "Passages in arrival order after the cursor, so a poll never misses one that arrived late.",
+        "description": "Passages in arrival order after the cursor, so a poll never misses one that arrived late.\n\nRecords are kept indefinitely; nothing deletes them. A cursor is a sequence number, so one\nthat points at nothing returns an empty page with `next_cursor` equal to the cursor sent.\n`outcome` is one of applied, denied, ignored_unknown_ticket, ignored_outside_window,\nignored_second_one_time_scan or ignored_expired; a new value may appear in a later release.",
         "operationId": "list_passes",
         "parameters": [
           {
@@ -3928,7 +3938,7 @@
                 "valid_from": "2030-06-01T09:00",
                 "valid_until": "2030-06-01T17:00",
                 "visitor_name": "Ada",
-                "visitor_type": "Guest"
+                "visitor_type": "Contractor"
               }
             ]
           }
@@ -3944,7 +3954,8 @@
           "visitor_type": {
             "type": "string",
             "maxLength": 200,
-            "title": "Visitor Type"
+            "title": "Visitor Type",
+            "description": "A visitor type from GET /visitor-types; any other name is a 422"
           },
           "valid_from": {
             "type": "string",
@@ -4620,7 +4631,8 @@
           },
           "outcome": {
             "type": "string",
-            "title": "Outcome"
+            "title": "Outcome",
+            "description": "applied, denied, ignored_unknown_ticket, ignored_outside_window, ignored_second_one_time_scan or ignored_expired; new values may appear later"
           }
         },
         "type": "object",
@@ -5103,7 +5115,8 @@
           "visitor_type": {
             "type": "string",
             "maxLength": 200,
-            "title": "Visitor Type"
+            "title": "Visitor Type",
+            "description": "A visitor type from GET /visitor-types; any other name is a 422"
           },
           "valid_from": {
             "type": "string",

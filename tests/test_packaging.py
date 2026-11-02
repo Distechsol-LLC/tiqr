@@ -193,6 +193,7 @@ try:
     now = datetime(2030, 1, 1, 8, tzinfo=UTC)
     service = TicketService(repository, "installed-wheel-signing-key", clock=lambda: now)
     actor = service.add_user("admin", "wheel-password", Role.ADMIN)
+    service.create_visitor_type(actor, "Visitor")
     ticket = service.create_ticket(actor, visitor_name="Əli Иванов", visitor_type="Visitor",
         valid_from=now, valid_until=now + timedelta(hours=1), usage_type=UsageType.MULTI_USE)
     path = service.print_ticket(actor, ticket.id, root / "smoke-output", renderer=render_pdf)

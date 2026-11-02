@@ -163,6 +163,7 @@ def test_staff_create_and_list_users(service, accounts, role):
 
 
 def test_scheduled_runs_need_no_actor(service, accounts, clock):
+    service.create_visitor_type(accounts["admin"], "Guest")
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Name",

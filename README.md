@@ -267,7 +267,8 @@ Run one server process per database: scheduling, login limits and the sync lock 
 | `GET /api/users`, `POST /api/users` | `user list`, `user add` | See [Permissions](#permissions) |
 | `PATCH /api/users/{id}` with any of `role`, `active`, `password` | `user role`, `user deactivate`, `user activate`, `user password` | Admins; managers change `active` for operators |
 | `DELETE /api/users/{id}` | `user delete` | Admins; deactivated users without tickets |
-| `GET /api/ticket-types`, `GET /api/visitor-types` | — | Any signed-in role |
+| `GET /api/ticket-types` | — | Any signed-in role |
+| `GET /api/visitor-types` | — | Any signed-in role, and service keys with `tickets:read` |
 | `POST /api/ticket-types`, `PATCH`/`DELETE /api/ticket-types/{id}` | — | Admins and managers; a ticket type has a price |
 | `POST /api/visitor-types`, `PATCH`/`DELETE /api/visitor-types/{id}` | — | Admins and managers; a visitor type has a discount |
 | `GET /api/tickets?state=`, `POST /api/tickets`, `GET /api/tickets/{id}` | `ticket list`, `ticket create` | As the CLI; `POST` also takes an optional `ticket_type` and `external_code` |
@@ -288,9 +289,9 @@ session or CSRF token. Their scopes are `tickets:read`, `tickets:write` and `tic
 key is `401`, and the key is never second-guessed by a cookie. Only the key's hash is stored.
 
 Prices are whole minor units (cents): `price_minor` 1250 is 12.50. Naming a `ticket_type` when
-creating a ticket prices it, and a `visitor_type` that matches one defined in the catalog takes its
-`discount_percent` off that price, rounding half up; any other visitor type is kept as written, at
-no discount. The ticket keeps the name, base price and discount it was made with, so editing or
+creating a ticket prices it, and the `visitor_type` must match one defined in the catalog; its
+`discount_percent` comes off that price, rounding half up. Any other visitor type is refused.
+The ticket keeps the name, base price and discount it was made with, so editing or
 deleting a type later never changes issued tickets. Names are unique whatever their case.
 
 Rendering a PDF is a `POST` because every render counts as a print. Ticket bodies take the CLI's

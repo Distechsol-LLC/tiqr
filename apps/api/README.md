@@ -181,7 +181,7 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 | POST | `/ticket-types` | session + CSRF | Add a ticket type. Body `{name, price_minor, currency}`; `price_minor` is whole minor units (1250 is 12.50), 0 to 100000000000; `currency` is required and must be one of the currencies `GET /branding` lists (those of the configured languages' regions: `USD`, `RUB` and `AZN` by default, plus `KZT` once a `kk-KZ` language is configured). Admins and managers. Returns `201`; `422` for a blank or taken name (case-insensitive). |
 | PATCH | `/ticket-types/{type_id}` | session + CSRF | Change `name`, `price_minor` or `currency`; omitted fields are unchanged. A type may keep a currency that is no longer offered, but not move to one. Admins and managers. Issued tickets keep their price. |
 | DELETE | `/ticket-types/{type_id}` | session + CSRF | Remove a ticket type. Admins and managers. Returns `204`; issued tickets keep their price. |
-| GET | `/visitor-types` | session | List visitor types, by name, as a page (see Pagination). Every role may read them. |
+| GET | `/visitor-types` | session, or key with `tickets:read` | List visitor types, by name, as a page (see Pagination). Every role may read them; an integration key reads them to pick a `visitor_type` name for ticket creation. |
 | POST | `/visitor-types` | session + CSRF | Add a visitor type. Body `{name, discount_percent}`; the discount is a whole number from 0 (the default) to 100. Admins and managers. Returns `201`. |
 | PATCH | `/visitor-types/{type_id}` | session + CSRF | Change `name` or `discount_percent`; omitted fields are unchanged. Admins and managers. Issued tickets keep their discount. |
 | DELETE | `/visitor-types/{type_id}` | session + CSRF | Remove a visitor type. Admins and managers. Returns `204`; issued tickets keep their discount. |
@@ -202,7 +202,7 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 | POST | `/tickets/{ticket_id}/reissue` | session + CSRF, or key `tickets:write` | Reissue a ticket in any state as the same ticket, back to issued; the window may move and must end in the future. This is also how a ticket is edited. Returns the ticket. |
 | POST | `/tickets/batch` | session + CSRF, or key `tickets:write` | Body `{items, atomic}`. Always `200` unless the request is malformed; returns `{atomic, committed, created, failed, results}`, each result `created` / `replayed` / `error` / `rolled_back` / `skipped`. At most `TIQR_BATCH_MAX_SIZE` items. |
 | GET | `/tickets/{ticket_id}/audit` | session, or key `tickets:read` | The ticket's audit trail, oldest first (admins and managers). |
-| GET | `/passes` | session, or key `tickets:read` | The passage feed, in arrival order. Query `?after=` (the `next_cursor` of the last page read, default 0) and `?limit=` (1 to 500, default 500). Each record gives `event_id`, `ticket_id`, `external_code`, `event_time` (UTC, shown with `Z`), `point_id`, `point_name`, `direction` (`entry` or `exit`, when BioStar says), `granted` and `outcome`. A repeat with the same cursor returns the same records; a late event lands after the cursor it missed, so none are lost. Admins, managers and service keys with `tickets:read`; operators get `403`. |
+| GET | `/passes` | session, or key `tickets:read` | The passage feed, in arrival order. Query `?after=` (the `next_cursor` of the last page read, default 0) and `?limit=` (1 to 500, default 500). Each record gives `event_id`, `ticket_id`, `external_code`, `event_time` (UTC, shown with `Z`), `point_id`, `point_name`, `direction` (`entry` or `exit`, when BioStar says), `granted` and `outcome` (see Passage feed below). A repeat with the same cursor returns the same records; a late event lands after the cursor it missed, so none are lost. Admins, managers and service keys with `tickets:read`; operators get `403`. |
 
 #### Create body
 
@@ -218,13 +218,48 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 ```
 
 - `usage_type` is `one_time` or `multi_use`.
-- `ticket_type` is optional: the name of a catalog ticket type, which prices the ticket. A `visitor_type` from the catalog takes its discount off that price.
+- `ticket_type` is optional: the name of a catalog ticket type, which prices the ticket.
+- `visitor_type` is required to be a name from the catalog (`GET /visitor-types`); free text is refused with `422` (code `invalid`, message `Unknown visitor type`). Its discount comes off the ticket type's price. Admins and managers create visitor types with `POST /visitor-types`; integrators use only the names they are given.
 - `timezone` is optional. It defaults to the server's `TIQR_DEFAULT_TZ`.
-- `external_code` is optional. It is the BioStar pass code, used unchanged; leading and trailing spaces are trimmed. Allowed formats: alphanumeric, up to 32 characters of letters, digits and hyphens; or numeric, exactly 12 or 16 digits with leading zeros kept. It must be unique per tenant, and the code of a revoked pass remains occupied. A code the readers cannot read is a `422` `credential_format`.
+- `external_code` is optional. It is the BioStar pass code, used unchanged; leading and trailing spaces are trimmed. Allowed formats: alphanumeric, up to 32 characters of letters, digits and hyphens; or numeric, exactly 12 or 16 digits with leading zeros kept. It must be unique per tenant, and the code of a revoked pass remains occupied. A code the readers cannot read is a `422` `credential_format`. Freedom's readers take 16-digit numeric codes with leading zeros only, so issue codes in that format.
 - `event_session` is optional (at most 200 characters).
 - Names are at most 200 characters.
 
 A ticket response contains `id`, `readable_serial`, `visitor_name`, `visitor_type`, `valid_from`, `valid_until`, `usage_type`, `state` (`issued`, `passed`, `expired` or `revoked`), `created_by`, `assigned_operator`, `created_at`, `passed_at`, `print_count`, `use_count`, `ticket_type`, `base_price_minor`, `discount_percent`, `price_minor`, `currency` (the price fields are null without a ticket type), `timezone`, `external_code` and `event_session`. All datetimes are shown in `timezone`.
+
+### Passage feed
+
+Each passage is one record, the same as the body of a pass webhook call. `outcome` is one of:
+
+- `applied`: a granted scan of a valid ticket, inside its window.
+- `denied`: the reader refused the scan (`granted` is `false`). If the reader's credential belongs to a ticket, `ticket_id` and `external_code` are filled in; if it belongs to no ticket, both are `null`.
+- `ignored_unknown_ticket`: a granted scan whose credential matches no ticket; `ticket_id` and `external_code` are `null`.
+- `ignored_outside_window`: a granted scan outside the ticket's validity window.
+- `ignored_second_one_time_scan`: a one-time ticket that has already been used.
+- `ignored_expired`: the ticket is expired or revoked.
+
+These six values are what the server produces today. The field is typed as a string, so a new value can appear in a later release; the API does not announce new values in advance, so clients should treat an unrecognised `outcome` as a record to log, not a failure.
+
+TiQR never deletes passage records: the scheduled cleanup only removes BioStar registrations of finished tickets, and no purge touches the feed. Retention is therefore indefinite, well beyond 30 days. A cursor is a sequence number (`sequence > after`), not a reference to a row. The feed returns the records after the cursor, so a cursor that points at nothing, or one ahead of the latest record, gives an empty page with no error, and `next_cursor` equal to the cursor sent, so polling with it is safe. A negative cursor is a `422`.
+
+### Pass webhook
+
+When `TIQR_PASS_WEBHOOK_URL` and `TIQR_PASS_WEBHOOK_SECRET` are set, each new passage is sent as a `POST` with a JSON body identical to a feed record. Headers:
+
+- `X-Tiqr-Timestamp`: integer Unix time in whole seconds (UTC). A new value is taken for every attempt.
+- `X-Tiqr-Signature`: `sha256=` followed by the lowercase hex HMAC-SHA256, keyed with `TIQR_PASS_WEBHOOK_SECRET`, of the string `<timestamp>.<body>`. The timestamp is written in decimal, then one `.`, then the raw body bytes exactly as received, with no newline added and no other separator.
+
+To verify, rebuild that string from the `X-Tiqr-Timestamp` value and the raw body, compute the HMAC, and compare it with the header in constant time. Recommended tolerance: accept a timestamp within ±5 minutes of your clock. TiQR does not enforce a window; this check belongs to the receiver.
+
+Delivery: up to 5 attempts (the first plus 4 retries), waiting 1, 2, 4 and 8 seconds between them, with a 5-second timeout per attempt. An attempt succeeds on any `2xx` status; any other status, a timeout or a connection error is retried. Each retry has a new timestamp and so a new signature, so the same `event_id` can arrive more than once: deduplicate on `event_id`. After the last failed attempt TiQR logs the failure and stops; it does not resend later. Anything missed is still in the `/passes` feed, which is the source of truth, so poll it from the last `next_cursor` to catch up.
+
+### BioStar writes
+
+Creating a ticket (`POST /tickets`, `POST /tickets/batch`) registers the pass in BioStar, sets its access window, then saves the ticket. A `201` or a batch result `created` therefore means the pass is written in BioStar and saved here. If a step fails, the BioStar registration is removed again and nothing is saved.
+
+If BioStar is unreachable, creation returns `502` with code `biostar`, and no ticket is created, the same as a refused request. Revoke (`POST /tickets/{id}/revoke`) returns `502` and changes nothing when BioStar fails, so a revoke is only complete on a `200`.
+
+TiQR does not set how long a change takes to reach a reader. That depends on BioStar and the readers' sync on site, so the delay must be measured on site.
 
 ### Service keys
 
@@ -243,6 +278,8 @@ Send `Authorization: Bearer tqk_...` (or `X-API-Key`). A key acts as one account
 apply, within its scopes (`tickets:read`, `tickets:write`, `tickets:revoke`). It needs no session and no
 CSRF token; browsers keep the cookie and `X-CSRF-Token`, unchanged. A wrong key is a `401`, never
 a fallback to the cookie. Only hashes are stored.
+
+For an integration, use a dedicated `manager` account. Its key needs `tickets:read` for the `/passes` feed, `tickets:write` for creating, reissuing, transferring and moving tickets (`PATCH /tickets/{id}`), and `tickets:revoke` for revoking. Scopes are checked against the endpoint, but the account's role also applies, so `PATCH` and the feed need an admin or manager account.
 
 ### Idempotency
 

@@ -263,6 +263,7 @@ def test_render_failure_does_not_increment_the_print_count(
     service, accounts, clock, tmp_path, monkeypatch
 ):
     actor = accounts["admin"]
+    service.create_visitor_type(actor, "Visitor")
     ticket = service.create_ticket(
         actor,
         visitor_name="Guest",

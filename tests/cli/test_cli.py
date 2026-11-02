@@ -15,7 +15,7 @@ from tiqr.core import runtime as core_runtime
 from tiqr.core.biostar import BioStarError
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
 from tiqr.core.license import build_request_code, parse_request_code
-from tiqr.core.models import LicenseRecord, RawEvent, Role
+from tiqr.core.models import LicenseRecord, RawEvent, Role, VisitorType
 from tiqr.core.repository import _MIGRATIONS, SQLiteRepository
 from tiqr.core.service import TicketService
 
@@ -53,6 +53,10 @@ def cli_env(tmp_path, monkeypatch, license_pair, project_root):
             repository.activate_license(
                 LicenseRecord(vendor_key(license_pair), NOW, NOW + timedelta(days=365), "Acme")
             )
+        # Tickets must name a catalog visitor type, so the suite's usual types are registered.
+        for name in ("Visitor", "Guest", "V"):
+            if repository.visitor_type_by_name(name) is None:
+                repository.add_visitor_type(VisitorType(uuid4(), name, 0))
         return TicketService(
             repository,
             secret_key,

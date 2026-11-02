@@ -92,6 +92,7 @@ def test_qr_rejects_forgery_without_crashing(bad):
 
 
 def test_qr_signs_no_personal_data_and_detects_tampering(service, accounts, clock):
+    service.create_visitor_type(accounts["admin"], "Sensitive type")
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Sensitive name",
@@ -109,6 +110,7 @@ def test_qr_signs_no_personal_data_and_detects_tampering(service, accounts, cloc
 
 def test_service_issues_tickets_under_the_configured_prefix(repository, accounts, clock):
     service = TicketService(repository, "test-prefix-secret-0123456789", clock=clock, prefix="DTS")
+    service.create_visitor_type(accounts["admin"], "Guest")
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Visitor",
@@ -470,6 +472,7 @@ def test_live_url_validation(url):
 
 @pytest.mark.parametrize(("zone", "hour"), [("Asia/Baku", 4), ("Asia/Almaty", 5)])
 def test_timezone_normalization_at_core_input(service, accounts, clock, zone, hour):
+    service.create_visitor_type(accounts["admin"], "Guest")
     local = datetime(2026, 9, 17, 12, tzinfo=ZoneInfo(zone))
     clock.now = utc(local)
     ticket = service.create_ticket(
@@ -501,6 +504,7 @@ def test_subsecond_window_rejected_instead_of_silently_widened(service, accounts
 
 
 def test_repository_roundtrip_utc_uuid_enums_and_cursor(service, accounts, clock):
+    service.create_visitor_type(accounts["admin"], "Guest")
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Əli",

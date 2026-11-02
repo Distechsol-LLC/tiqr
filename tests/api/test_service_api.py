@@ -280,6 +280,18 @@ def test_scopes_are_enforced(admin, machine):
     assert reader.get("/api/service-keys").status_code == 401
 
 
+def test_a_read_key_lists_visitor_types_and_a_write_only_key_does_not(admin, machine):
+    admin.post("/api/visitor-types", json={"name": "Student", "discount_percent": 30})
+    reader = machine(new_key(admin, "tickets:read")["secret"])
+    listed = reader.get("/api/visitor-types")
+    assert listed.status_code == 200
+    assert "Student" in [item["name"] for item in listed.json()["items"]]
+    writer = machine(new_key(admin, "tickets:write")["secret"])
+    denied = writer.get("/api/visitor-types")
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "scope"
+
+
 def test_bad_revoked_or_expired_keys_are_refused(admin, machine, clock):
     created = new_key(admin, "tickets:read")
     assert machine("tqk_wrong").get("/api/tickets").status_code == 401

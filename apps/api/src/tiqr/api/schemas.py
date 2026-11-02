@@ -88,7 +88,9 @@ class UserPatch(_Request):
 
 class TicketIn(_Request):
     visitor_name: _Name
-    visitor_type: _Name
+    visitor_type: Annotated[
+        _Name, Field(description="A visitor type from GET /visitor-types; any other name is a 422")
+    ]
     valid_from: _LocalDatetime
     valid_until: _LocalDatetime
     usage_type: UsageType
@@ -181,7 +183,7 @@ class BatchIn(_Request):
                     "items": [
                         {
                             "visitor_name": "Ada",
-                            "visitor_type": "Guest",
+                            "visitor_type": "Contractor",
                             "valid_from": "2030-06-01T09:00",
                             "valid_until": "2030-06-01T17:00",
                             "usage_type": "one_time",
@@ -456,7 +458,13 @@ class PassageOut(BaseModel):
     point_name: str | None
     direction: Annotated[str | None, Field(description="entry or exit, when BioStar says")]
     granted: bool
-    outcome: str
+    outcome: Annotated[
+        str,
+        Field(
+            description="applied, denied, ignored_unknown_ticket, ignored_outside_window, "
+            "ignored_second_one_time_scan or ignored_expired; new values may appear later"
+        ),
+    ]
 
 
 class PassagePage(BaseModel):

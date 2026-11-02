@@ -205,6 +205,7 @@ def test_maintenance_thread_stops_after_the_run_in_progress():
 
 
 def test_the_server_schedules_sync_from_startup(make_client, service, accounts, clock):
+    service.create_visitor_type(accounts["admin"], "Guest")
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Name",

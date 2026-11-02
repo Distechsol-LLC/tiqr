@@ -10,6 +10,11 @@ from tiqr.core.service import NotFoundError, PermissionDeniedError, StateError
 ACTIONS = ("create", "view", "view_other", "assign", "stats", "sync", "cleanup", "print", "reprint")
 
 
+@pytest.fixture(autouse=True)
+def visitor_type(service, accounts):
+    service.create_visitor_type(accounts["admin"], "Guest")
+
+
 def issue(service, accounts, clock, actor="operator", usage=UsageType.ONE_TIME):
     return service.create_ticket(
         accounts[actor],

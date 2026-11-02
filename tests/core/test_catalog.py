@@ -170,12 +170,13 @@ def test_ticket_price_is_the_type_price_less_the_visitor_discount(service, accou
     assert service.repository.get_ticket(ticket.id) == ticket
 
 
-def test_other_visitor_types_pay_the_full_price(service, accounts, clock):
+def test_visitor_types_outside_the_catalog_are_refused(service, accounts, clock):
     service.create_ticket_type(accounts["admin"], "Day pass", 1250, Currency.USD)
 
-    ticket = issue(service, accounts, clock, ticket_type="Day pass", visitor_type="Walk-in")
-
-    assert (ticket.visitor_type, ticket.discount_percent, ticket.price) == ("Walk-in", 0, 1250)
+    with pytest.raises(ValueError, match="Unknown visitor type"):
+        issue(service, accounts, clock, ticket_type="Day pass", visitor_type="Walk-in")
+    assert service.repository.list_tickets() == []
+    assert service.registrar.removed == []
 
 
 def test_tickets_without_a_ticket_type_have_no_price(service, accounts, clock):
@@ -214,6 +215,7 @@ def test_issued_tickets_keep_their_price_when_the_catalog_changes(service, accou
 def test_tickets_from_before_the_catalog_upgrade_without_a_price(
     service, accounts, clock, tmp_path
 ):
+    service.create_visitor_type(accounts["admin"], "Guest")
     ticket = issue(service, accounts, clock)
     path = tmp_path / "v3.db"
     with sqlite3.connect(path) as connection:

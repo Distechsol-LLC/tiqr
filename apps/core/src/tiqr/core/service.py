@@ -751,6 +751,14 @@ class TicketService:
                 raise NotFoundError("Visitor type not found")
             self.repository.delete_visitor_type(type_id)
 
+    def _priced_ticket_type(self, ticket_type: str | None) -> TicketType | None:
+        if ticket_type is None:
+            return None
+        priced = self.repository.ticket_type_by_name(ticket_type.strip())
+        if priced is None:
+            raise ValueError("Unknown ticket type")
+        return priced
+
     def create_ticket(  # noqa: PLR0913 - a ticket's definition is its own arguments
         self,
         actor: User,
@@ -764,9 +772,8 @@ class TicketService:
         external_code: str | None = None,
         event_session: str | None = None,
     ) -> Ticket:
-        """Issue a ticket. Naming a catalog `ticket_type` prices it, and a `visitor_type` from
-        the catalog takes its discount off that price; any other visitor type is kept as written,
-        at no discount.
+        """Issue a ticket. Naming a catalog `ticket_type` prices it, and the `visitor_type` must be
+        one from the catalog; its discount comes off that price.
         """
         actor = self._actor(actor)
         start, end, now = utc(valid_from), utc(valid_until), self._now()
@@ -779,12 +786,10 @@ class TicketService:
         code = _clean_code(external_code)
         if code and self.repository.ticket_by_external_code(self.tenant, code):
             raise ExternalCodeTakenError("A ticket with this external code already exists")
-        priced = None
-        if ticket_type is not None:
-            priced = self.repository.ticket_type_by_name(ticket_type.strip())
-            if priced is None:
-                raise ValueError("Unknown ticket type")
+        priced = self._priced_ticket_type(ticket_type)
         known = self.repository.visitor_type_by_name(visitor_type.strip())
+        if known is None:
+            raise ValueError("Unknown visitor type")
         serial = make_serial(
             self.repository.allocate(f"serial:{now:%Y%m%d}"), now.date(), self.prefix
         )
@@ -794,7 +799,7 @@ class TicketService:
             qr_payload=build_payload(serial, self.secret_key, self.prefix),
             readable_serial=serial,
             visitor_name=visitor_name.strip(),
-            visitor_type=known.name if known else visitor_type.strip(),
+            visitor_type=known.name,
             valid_from=start,
             valid_until=end,
             usage_type=UsageType(usage_type),
@@ -804,7 +809,7 @@ class TicketService:
             created_at=now,
             ticket_type=priced.name if priced else None,
             base_price=priced.price if priced else None,
-            discount_percent=known.discount_percent if known else 0,
+            discount_percent=known.discount_percent,
             currency=priced.currency if priced else None,
             external_code=code,
             tenant_id=self.tenant,
