@@ -46,7 +46,7 @@ uv sync --locked
 | `TIQR_IDEMPOTENCY_TTL_HOURS` | `24` | How long an `Idempotency-Key` remembers its answer. |
 | `TIQR_BATCH_MAX_SIZE` | `500` | Most tickets one `POST /tickets/batch` may carry; more is a `422`. |
 | `TIQR_PASS_WEBHOOK_URL`, `TIQR_PASS_WEBHOOK_SECRET` | unset | Optional. Each new passage is POSTed to the URL, signed with the secret in `X-Tiqr-Signature` (`sha256=` HMAC over `X-Tiqr-Timestamp` and the body). Failed deliveries are retried, then left to the `/passes` feed. Set both, or neither. |
-| `TIQR_BIOSTAR_BASE_URL`, `_USERNAME`, `_PASSWORD`, `_DEVICE_IDS` | unset | BioStar connection. Set all four, or none for local mode; a partial set is an error. `_PASSWORD` belongs in `.env.local`, not the brand file. |
+| `TIQR_BIOSTAR_BASE_URL`, `_USERNAME`, `_PASSWORD`, `_DEVICE_IDS` | unset | BioStar connection. Set all four, or none for local mode; a partial set is an error. `_PASSWORD` may also be set as `biostar.password` in the brand file. |
 | `TIQR_BIOSTAR_ACCESS_GROUP_ID` | unset | Optional. If blank, TiQR uses its own access group named `TiQR AG`, which `tiqr setup` creates. |
 | `TIQR_BIOSTAR_VERIFY_TLS` | `false` | `true` verifies BioStar's TLS certificate. |
 | `TIQR_BIOSTAR_TIMEOUT` | `30` | Seconds to wait for a BioStar reply. |

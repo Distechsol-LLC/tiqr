@@ -41,11 +41,12 @@ bundle: `iscc /DBundleDir=bundle\tiqr-Windows-X64 /DAppVersion=<version> packagi
 - `server_printing`, `verify_tls`: JSON booleans. `timeout`: positive number (`2.5` allowed);
   `door_open_duration`, `door_open_timeout`: integers of 1 or more.
 - BioStar: all-or-nothing. Local mode writes every field `null`. With BioStar, `base_url` (HTTPS, no
-  credentials, ends at the host or `/api`), `username` and at least one device ID are required.
+  credentials, ends at the host or `/api`), `username`, `password` and at least one device ID are required.
 - `device_ids` is written as a JSON array of strings (the template shows only `null`). The app accepts
   an array or a string either way.
-- **Passwords are not collected.** The BioStar password is not a key in the file and must go in
-  `.env.local` as `TIQR_BIOSTAR_PASSWORD`; the app refuses a BioStar block without it.
+- **Password.** `biostar.password` is a key in the file, written by the wizard's BioStar connection page
+  (a masked field). It is required with the block, like the user name. Blank means `null`, which the
+  app refuses in a BioStar block.
 - Output is pure ASCII: non-ASCII text (for example a Russian app name) is written as `\uXXXX`
   escapes. It is valid JSON, and avoids the byte order mark the app's parser rejects.
 

@@ -285,6 +285,19 @@ def test_local_file_completes_blank_biostar_placeholders(monkeypatch, tmp_path):
     assert not settings.biostar.verify_tls
 
 
+def test_biostar_password_from_brand_file_is_read(monkeypatch, project_root):
+    for key in tuple(__import__("os").environ):
+        if key.startswith("TIQR_"):
+            monkeypatch.delenv(key)
+    (project_root / BRANDING_FILE).write_text(
+        '{"app_name": "A", "theme": "x", "languages": ["en-US"], "biostar": {'
+        '"base_url": "https://example.com", "username": "admin", "password": "from-brand", '
+        '"device_ids": ["1"]}}'
+    )
+    monkeypatch.setenv("TIQR_SECRET_KEY", "d23bfaf431a349fea87c38ddcb62ff10")
+    assert Settings.from_env().biostar.password == "from-brand"
+
+
 def test_full_live_configuration_is_explicit(monkeypatch, tmp_path):
     values = {
         "BASE_URL": "https://example.com/api",
@@ -440,10 +453,6 @@ def test_file_settings_override_env_files_but_not_the_environment(monkeypatch, t
         ('{"app_name": "A", "theme": "x", "languages": ["en-US"], "db": "x.db"}', "db"),
         ('{"app_name": "A", "theme": "x", "languages": ["en-US"], "out": "pdfs"}', "out"),
         ('{"app_name": "A", "languages": ["en-US"]}', "missing theme"),
-        (
-            '{"app_name": "A", "theme": "x", "languages": ["en-US"], "biostar": {"password": "p"}}',
-            "biostar.password",
-        ),
         (
             '{"app_name": "A", "theme": "x", "languages": ["en-US"], "secret_key": "k"}',
             "secret_key",

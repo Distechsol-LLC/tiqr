@@ -82,8 +82,8 @@ _BIOSTAR_OPTIONAL = (
 _JSONC_TOKEN = re.compile(r'("(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/', re.DOTALL)
 _TRAILING_COMMA = re.compile(r'("(?:\\.|[^"\\])*")|,(?=\s*[}\]])')
 _BRANDING_KEYS = frozenset({"app_name", "logo_path", "theme", "languages"})
-# The rest of the file's keys are the TIQR_* settings of the same name. The signing key and the
-# BioStar password are not among them: those stay in .env.local, out of a file that gets shared.
+# The rest of the file's keys are the TIQR_* settings of the same name. The signing key is not among
+# them: it stays in .env.local, out of a file that gets shared.
 _SETTING_KEYS = frozenset(
     {"prefix", "default_tz", "host", "port", "tls_cert", "tls_key", "server_printing"}
 )
@@ -91,6 +91,7 @@ _BIOSTAR_KEYS = frozenset(
     {
         "base_url",
         "username",
+        "password",
         "device_ids",
         "access_group_id",
         "verify_tls",
@@ -422,11 +423,14 @@ class BioStarSettings:
         optional = (_biostar_value(environment, name) for name in _BIOSTAR_OPTIONAL)
         if not any(required.values()) and not any(optional):
             return None
-        if not all(required.values()):
-            raise ValueError(
-                "Incomplete BioStar settings; set TIQR_BIOSTAR_BASE_URL, USERNAME, PASSWORD "
-                "and DEVICE_IDS"
+        missing = [f"TIQR_BIOSTAR_{name}" for name, value in required.items() if not value]
+        if missing:
+            hint = (
+                f" Set biostar.password in {BRANDING_FILE}."
+                if "TIQR_BIOSTAR_PASSWORD" in missing
+                else ""
             )
+            raise ValueError(f"Incomplete BioStar settings; set {', '.join(missing)}.{hint}")
         return cls(
             base_url=required["BASE_URL"],
             username=required["USERNAME"],

@@ -1,7 +1,7 @@
 // Read on every start from TIQR_HOME (beside the executable when unset). `tiqr install` copies it there.
 // Restart to apply changes.
 // Precedence: .env < .env.local < this file < environment. Null keeps the lower layer.
-// Never put TIQR_SECRET_KEY or the BioStar password here; they belong in .env.local.
+// Never put TIQR_SECRET_KEY here; it belongs in .env.local.
 {
   // Branding (required)
   "app_name": "TiQR", // default: TiQR
@@ -26,6 +26,7 @@
   "biostar": {
     "base_url": null, // default: none; required with the block
     "username": null, // default: none; required with the block
+    "password": null, // default: none; required with the block
     "device_ids": null, // default: none; required with the block
     "access_group_id": null, // default: blank, TiQR manages its own group
     "verify_tls": null, // default: false

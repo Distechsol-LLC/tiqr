@@ -42,8 +42,8 @@ the server at load, so one build serves any of them) and may also set the other 
 `prefix`, `default_tz`, the server's `host`, `port`, `tls_cert`, `tls_key`,
 `server_printing`, and a `biostar` block. Each is the
 `TIQR_*` setting of the same name; the file wins over `.env` and `.env.local`, real environment
-variables win over it, and `null` leaves a key to the layers below. `TIQR_SECRET_KEY` and the
-BioStar password are refused there. `theme` is `default` (the Vintage theme) or any Skeleton theme
+variables win over it, and `null` leaves a key to the layers below. `TIQR_SECRET_KEY` is refused
+there; the BioStar password goes in `biostar.password`. `theme` is `default` (the Vintage theme) or any Skeleton theme
 name, and a visitor's browser language is shown when `languages` offers it; otherwise the first of `languages` is shown. A partly filled BioStar block is an error.
 An installed service sets `TIQR_HOME` in its real environment instead, and the project root
 becomes that folder: config, database, PDFs and the CLI session then stay put while release
@@ -62,7 +62,7 @@ flag in `.env`, because local mode must keep working.
 | `TIQR_PREFIX` | `TQR`; any three printable ASCII characters except `:` and `-`, prefixing new readable serials and QR payloads |
 | `TIQR_BIOSTAR_BASE_URL` | HTTPS host URL, optionally ending in `/api` |
 | `TIQR_BIOSTAR_USERNAME` | BioStar account username |
-| `TIQR_BIOSTAR_PASSWORD` | BioStar account password |
+| `TIQR_BIOSTAR_PASSWORD` | BioStar account password; `biostar.password` in the brand file also works |
 | `TIQR_BIOSTAR_DEVICE_IDS` | Comma-separated existing reader IDs, at least one |
 | `TIQR_BIOSTAR_ACCESS_GROUP_ID` | Optional existing access group ID; blank lets `tiqr setup` manage a group named `TiQR AG` |
 | `TIQR_BIOSTAR_VERIFY_TLS` | `false`; set `true` to verify the server's TLS certificate against the operating system's trust store, where an internal CA can be installed. Verification is off by default, so enable it for any server reached over an untrusted network |

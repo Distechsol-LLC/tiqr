@@ -194,7 +194,7 @@ environment variables override both.
 | `TIQR_PASS_WEBHOOK_URL`, `TIQR_PASS_WEBHOOK_SECRET` | `tiqr install` or the setup wizard, or later with `tiqr webhook set`. Both or neither; the secret signs each request. Read at startup, so restart the service after a change |
 | `TIQR_SECRET_KEY` | `tiqr setup`, on the server. It never leaves the server, and the installer never reads it back |
 | `TIQR_HOME` | The service definition, set to the data folder. It must be a real environment variable, because `.env` files are found through it |
-| `TIQR_BIOSTAR_*`, `TIQR_BIOSTAR_VERIFY_TLS` | By hand in `.env.local`. Keep the BioStar password out of shared files. The library's `false` for `VERIFY_TLS` suits development only; installs should set `true` |
+| `TIQR_BIOSTAR_*`, `TIQR_BIOSTAR_VERIFY_TLS` | By hand in `.env.local`, or in the brand file (`biostar` block, including `password`). Keep the BioStar password out of shared files. The library's `false` for `VERIFY_TLS` suits development only; installs should set `true` |
 | `TIQR_DEFAULT_TZ`, `TIQR_SERVER_PRINTING` | By hand in `.env.local` |
 | `TIQR_TLS_CERT`, `TIQR_TLS_KEY` | By hand: the customer's certificate. The installer does not generate one yet |
 

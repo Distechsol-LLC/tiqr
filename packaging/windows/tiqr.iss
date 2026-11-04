@@ -118,6 +118,7 @@ type
     BioStarOn: Boolean;
     BioBaseUrl: String;
     BioUsername: String;
+    BioPassword: String;
     BioDeviceIds: String;
     BioAccessGroup: String;
     BioVerifyTls: Boolean;
@@ -459,6 +460,8 @@ begin
     Exit;
   if B.BioUsername = '' then
     Result := 'Enter the BioStar user name. It is required when BioStar is used.'
+  else if B.BioPassword = '' then
+    Result := 'Enter the BioStar password. It is required when BioStar is used.'
   else if NormalizeList(B.BioDeviceIds) = '' then
     Result := 'Enter at least one BioStar device ID (separate several with commas). It is required when BioStar is used.';
 end;
@@ -606,7 +609,7 @@ begin
     '// Written by the TiQR installer. Read on every start from TIQR_HOME (beside the executable when unset).' + NL +
     '// Edit it by hand and restart TiQR to apply the change; no reinstall is needed.' + NL +
     '// Precedence: .env < .env.local < this file < environment. Null keeps the lower layer.' + NL +
-    '// Never put TIQR_SECRET_KEY or the BioStar password here; they belong in .env.local.' + NL +
+    '// Never put TIQR_SECRET_KEY here; it belongs in .env.local.' + NL +
     '{' + NL +
     '  // Branding (required)' + NL +
     Entry('  ', 'app_name', JsonString(B.AppName), 'default: TiQR', False) +
@@ -631,6 +634,7 @@ begin
     '  "biostar": {' + NL +
     Entry('    ', 'base_url', JsonText(B.BioBaseUrl), 'default: none; required with the block', False) +
     Entry('    ', 'username', JsonText(B.BioUsername), 'default: none; required with the block', False) +
+    Entry('    ', 'password', JsonText(B.BioPassword), 'default: none; required with the block', False) +
     Entry('    ', 'device_ids', JsonList(NormalizeList(B.BioDeviceIds), ','), 'default: none; required with the block', False) +
     Entry('    ', 'access_group_id', JsonText(B.BioAccessGroup), 'default: blank, TiQR manages its own group', False) +
     Entry('    ', 'verify_tls', BioVerifyTls, 'default: false', False) +
@@ -700,6 +704,7 @@ begin
   Result.BioStarOn := BioModePage.Values[1];
   Result.BioBaseUrl := '';
   Result.BioUsername := '';
+  Result.BioPassword := '';
   Result.BioDeviceIds := '';
   Result.BioAccessGroup := '';
   Result.BioVerifyTls := False;
@@ -710,6 +715,7 @@ begin
   begin
     Result.BioBaseUrl := Trim(BioConnectionPage.Values[0]);
     Result.BioUsername := Trim(BioConnectionPage.Values[1]);
+    Result.BioPassword := BioConnectionPage.Values[4];
     Result.BioDeviceIds := Trim(BioConnectionPage.Values[2]);
     Result.BioAccessGroup := Trim(BioConnectionPage.Values[3]);
     Result.BioVerifyTls := BioTlsPage.Values[0];
@@ -922,16 +928,17 @@ begin
   After := PrintingPage.ID;
 
   { 12. BioStar: local mode or the whole block (a partly filled block is an error in the app). }
-  BioModePage := CreateInputOptionPage(After, 'BioStar', 'Should TiQR open doors through BioStar?', 'Local mode needs nothing more. With BioStar, the next pages ask for its settings. The BioStar password is not stored in tiqr_brand.jsonc: add TIQR_BIOSTAR_PASSWORD to .env.local.', True, False);
+  BioModePage := CreateInputOptionPage(After, 'BioStar', 'Should TiQR open doors through BioStar?', 'Local mode needs nothing more. With BioStar, the next pages ask for its settings, including the password, which is saved in tiqr_brand.jsonc.', True, False);
   BioModePage.Add('Local mode (no BioStar)');
   BioModePage.Add('Connect to BioStar');
   BioModePage.Values[0] := True;
   After := BioModePage.ID;
-  BioConnectionPage := CreateInputQueryPage(After, 'BioStar connection', 'Where is BioStar?', 'The first three are required.');
+  BioConnectionPage := CreateInputQueryPage(After, 'BioStar connection', 'Where is BioStar?', 'The first four are required.');
   BioConnectionPage.Add('Address (https://host or https://host/api):', False);
   BioConnectionPage.Add('User name:', False);
   BioConnectionPage.Add('Device IDs (comma-separated):', False);
   BioConnectionPage.Add('Access group ID (blank: TiQR manages its own group):', False);
+  BioConnectionPage.Add('Password:', True);
   After := BioConnectionPage.ID;
   BioTimingPage := CreateInputQueryPage(After, 'BioStar timing', 'How long should BioStar calls and doors wait?', 'Seconds. Blank keeps the default shown.');
   BioTimingPage.Add('Request timeout (above 0, default 30):', False);
