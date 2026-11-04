@@ -90,6 +90,9 @@ const
   DefaultPrefix = 'TQR';
   DefaultHost = '127.0.0.1';
   DefaultPort = '7102';
+  DefaultBioTimeout = '30';
+  DefaultBioDoorDuration = '3';
+  DefaultBioDoorTimeout = '10';
 
   LogoExtensions = '.png|.svg|.jpg|.jpeg';
   LogoMaxBytes = 20971520;
