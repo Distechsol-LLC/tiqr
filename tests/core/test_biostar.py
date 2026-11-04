@@ -309,6 +309,33 @@ def test_empty_string_rows_is_an_empty_collection():
     assert _rows({"EventCollection": {"rows": ""}, "Response": {"code": "0"}}) == []
 
 
+def test_missing_collection_error_names_top_level_keys_not_values():
+    payload = {"Response": {"code": "0", "message": "Success"}, "Other": {"name": "secret"}}
+    with pytest.raises(BioStarError) as failure:
+        _rows(payload)
+    assert str(failure.value) == (
+        "Missing or ambiguous BioStar collection: keys=['Other', 'Response'] collections=[]"
+    )
+    assert "secret" not in str(failure.value)
+
+
+def test_ambiguous_collections_error_names_each_shape_not_row_values():
+    payload = {
+        "UserCollection": {"total": "1", "rows": [{"user_id": "secret"}]},
+        "PageCollection": {"total": "2", "rows": [{"id": "secret-2"}]},
+        **SUCCESS,
+    }
+    with pytest.raises(BioStarError) as failure:
+        _rows(payload)
+    assert str(failure.value) == (
+        "Missing or ambiguous BioStar collection: "
+        "keys=['PageCollection', 'Response', 'UserCollection'] "
+        "collections=[\"keys=['rows', 'total'] rows=list elements=['dict']\", "
+        "\"keys=['rows', 'total'] rows=list elements=['dict']\"]"
+    )
+    assert "secret" not in str(failure.value)
+
+
 def test_registration_window_group_card_assignment_and_no_operator_permission(
     config, repository, ticket
 ):
