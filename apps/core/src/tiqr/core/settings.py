@@ -424,8 +424,8 @@ class BioStarSettings:
             raise ValueError("BioStar base URL must end at the host or /api")
         if not all(value.strip() for value in (self.username, self.password)):
             raise ValueError("BioStar username and password are required")
-        if not self.device_ids or not all(device.strip() for device in self.device_ids):
-            raise ValueError("At least one BioStar device ID is required")
+        if not all(device.strip() for device in self.device_ids):
+            raise ValueError("BioStar device IDs must not be blank")
         if self.timeout <= 0:
             raise ValueError("BioStar timeout must be positive")
         if self.door_open_duration < 1 or self.door_open_timeout < 1:
@@ -446,11 +446,14 @@ class BioStarSettings:
                 else ""
             )
             raise ValueError(f"Incomplete BioStar settings; set {', '.join(missing)}.{hint}")
+        device_ids = _device_ids(required["DEVICE_IDS"])
+        if not device_ids:
+            raise ValueError("At least one BioStar device ID is required")
         return cls(
             base_url=required["BASE_URL"],
             username=required["USERNAME"],
             password=required["PASSWORD"],
-            device_ids=_device_ids(required["DEVICE_IDS"]),
+            device_ids=device_ids,
             access_group_id=_biostar_value(environment, "ACCESS_GROUP_ID"),
             verify_tls=_biostar_flag(environment, "VERIFY_TLS", default=False),
             timeout=float(_biostar_value(environment, "TIMEOUT", "30")),

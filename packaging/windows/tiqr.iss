@@ -90,9 +90,6 @@ const
   DefaultPrefix = 'TQR';
   DefaultHost = '127.0.0.1';
   DefaultPort = '7102';
-  DefaultBioTimeout = '30';
-  DefaultBioDoorDuration = '3';
-  DefaultBioDoorTimeout = '10';
 
   LogoExtensions = '.png|.svg|.jpg|.jpeg';
   LogoMaxBytes = 20971520;
@@ -115,16 +112,6 @@ type
     TlsCert: String;
     TlsKey: String;
     ServerPrinting: Boolean;
-    BioStarOn: Boolean;
-    BioBaseUrl: String;
-    BioUsername: String;
-    BioPassword: String;
-    BioDeviceIds: String;
-    BioAccessGroup: String;
-    BioVerifyTls: Boolean;
-    BioTimeout: String;
-    BioDoorDuration: String;
-    BioDoorTimeout: String;
   end;
 
 var
@@ -142,10 +129,6 @@ var
   TlsPage: TInputOptionWizardPage;
   TlsFilesPage: TInputFileWizardPage;
   PrintingPage: TInputOptionWizardPage;
-  BioModePage: TInputOptionWizardPage;
-  BioConnectionPage: TInputQueryWizardPage;
-  BioTimingPage: TInputQueryWizardPage;
-  BioTlsPage: TInputOptionWizardPage;
 
   KnownTimeZones: String;
   Reinstalling: Boolean;
@@ -188,75 +171,10 @@ begin
       Result := False;
 end;
 
-{ Leading zeros are dropped so the text is a valid JSON number; "0" stays "0". }
-function StripLeadingZeros(const Digits: String): String;
-begin
-  Result := Digits;
-  while (Length(Result) > 1) and (Result[1] = '0') do
-    Delete(Result, 1, 1);
-end;
-
 function IsWholeNumber(const Text: String): Boolean;
 begin
   { Nine digits fit an Integer and are far beyond any sensible port or interval. }
   Result := IsDigits(Text) and (Length(Text) <= 9);
-end;
-
-{ A positive decimal such as 30 or 2.5, as the constructor's timeout allows (a float above zero).
-  Returns the JSON form in Normalized. }
-function ParsePositiveDecimal(const Text: String; var Normalized: String): Boolean;
-var
-  Dot: Integer;
-  Whole, Fraction: String;
-begin
-  Result := False;
-  Dot := Pos('.', Text);
-  if Dot = 0 then
-  begin
-    Whole := Text;
-    Fraction := '';
-  end
-  else
-  begin
-    Whole := Copy(Text, 1, Dot - 1);
-    Fraction := Copy(Text, Dot + 1, Length(Text));
-    if Fraction = '' then
-      Exit;
-  end;
-  if not IsWholeNumber(Whole) then
-    Exit;
-  if (Fraction <> '') and (not IsDigits(Fraction) or (Length(Fraction) > 9)) then
-    Exit;
-  Whole := StripLeadingZeros(Whole);
-  while (Fraction <> '') and (Fraction[Length(Fraction)] = '0') do
-    Delete(Fraction, Length(Fraction), 1);
-  if (Whole = '0') and (Fraction = '') then
-    Exit;
-  Normalized := Whole;
-  if Fraction <> '' then
-    Normalized := Normalized + '.' + Fraction;
-  Result := True;
-end;
-
-{ Trims each comma-separated item and drops blanks and repeats, keeping order (core's _device_ids). }
-function NormalizeList(const Text: String): String;
-var
-  Items: TArrayOfString;
-  I: Integer;
-  Item: String;
-begin
-  Result := '';
-  Items := SplitText(Text, ',');
-  for I := 0 to GetArrayLength(Items) - 1 do
-  begin
-    Item := Trim(Items[I]);
-    if (Item <> '') and (Pos(',' + Item + ',', ',' + Result + ',') = 0) then
-    begin
-      if Result <> '' then
-        Result := Result + ',';
-      Result := Result + Item;
-    end;
-  end;
 end;
 
 { ---------------------------------------------------------------------------------------------
@@ -411,80 +329,6 @@ begin
 end;
 
 
-{ HTTPS, no credentials, query or fragment, ending at the host or /api (BioStarSettings). }
-function ValidateBioStarUrl(const Url: String): String;
-var
-  Rest, HostPart, PathPart: String;
-  Slash: Integer;
-begin
-  Result := 'The BioStar address must be an HTTPS URL without credentials, such as https://biostar.example.com';
-  Rest := Url;
-  if Lowercase(Copy(Rest, 1, 8)) <> 'https://' then
-    Exit;
-  Delete(Rest, 1, 8);
-  if (Pos('?', Rest) > 0) or (Pos('#', Rest) > 0) or (Pos(' ', Rest) > 0) then
-    Exit;
-  Slash := Pos('/', Rest);
-  if Slash = 0 then
-  begin
-    HostPart := Rest;
-    PathPart := '';
-  end
-  else
-  begin
-    HostPart := Copy(Rest, 1, Slash - 1);
-    PathPart := Copy(Rest, Slash, Length(Rest));
-  end;
-  if (HostPart = '') or (Pos('@', HostPart) > 0) then
-    Exit;
-  while (PathPart <> '') and (PathPart[Length(PathPart)] = '/') do
-    Delete(PathPart, Length(PathPart), 1);
-  if (PathPart <> '') and (PathPart <> '/api') then
-  begin
-    Result := 'The BioStar address must end at the host or at /api.';
-    Exit;
-  end;
-  Result := '';
-end;
-
-function ValidateBioStarConnection(const B: TBrand): String;
-begin
-  Result := '';
-  if not B.BioStarOn then
-    Exit;
-  if B.BioBaseUrl = '' then
-    Result := 'Enter the BioStar address. It is required when BioStar is used.'
-  else
-    Result := ValidateBioStarUrl(B.BioBaseUrl);
-  if Result <> '' then
-    Exit;
-  if B.BioUsername = '' then
-    Result := 'Enter the BioStar user name. It is required when BioStar is used.'
-  else if B.BioPassword = '' then
-    Result := 'Enter the BioStar password. It is required when BioStar is used.'
-  else if NormalizeList(B.BioDeviceIds) = '' then
-    Result := 'Enter at least one BioStar device ID (separate several with commas). It is required when BioStar is used.';
-end;
-
-function ValidateBioStarTiming(const B: TBrand): String;
-var
-  Normalized: String;
-begin
-  Result := '';
-  if not B.BioStarOn then
-    Exit;
-  if (B.BioTimeout <> '') and not ParsePositiveDecimal(B.BioTimeout, Normalized) then
-    Result := 'The BioStar timeout must be a number of seconds above 0, such as 30 or 2.5.'
-  else if (B.BioDoorDuration <> '') and (not IsWholeNumber(B.BioDoorDuration) or (StrToInt(B.BioDoorDuration) < 1)) then
-    Result := 'The door open duration must be a whole number of seconds, 1 or more.'
-  else if (B.BioDoorTimeout <> '') and (not IsWholeNumber(B.BioDoorTimeout) or (StrToInt(B.BioDoorTimeout) < 1)) then
-    Result := 'The door open timeout must be a whole number of seconds, 1 or more.';
-end;
-
-function ValidateBioStarTls(const B: TBrand): String;
-begin
-  Result := '';
-end;
 
 { ---------------------------------------------------------------------------------------------
   The generator: the one place tiqr_brand.jsonc is written. Values reach it only through TBrand.
@@ -555,15 +399,6 @@ begin
     Result := IntToStr(StrToInt(Text));
 end;
 
-function JsonDecimal(const Text: String): String;
-var
-  Normalized: String;
-begin
-  if (Text <> '') and ParsePositiveDecimal(Text, Normalized) then
-    Result := Normalized
-  else
-    Result := 'null';
-end;
 
 { A JSON array of strings from a list split on Separator; null when the list is empty. }
 function JsonList(const Text: String; Separator: Char): String;
@@ -598,13 +433,7 @@ begin
 end;
 
 function BuildBrandJsonc(const B: TBrand): String;
-var
-  BioVerifyTls: String;
 begin
-  { Local mode leaves the whole BioStar block null, so a half-filled block cannot be written. }
-  BioVerifyTls := 'null';
-  if B.BioStarOn then
-    BioVerifyTls := JsonBool(B.BioVerifyTls);
   Result :=
     '// Written by the TiQR installer. Read on every start from TIQR_HOME (beside the executable when unset).' + NL +
     '// Edit it by hand and restart TiQR to apply the change; no reinstall is needed.' + NL +
@@ -630,17 +459,17 @@ begin
     Entry('  ', 'tls_key', JsonText(B.TlsKey), 'default: none (plain HTTP)', False) +
     Entry('  ', 'server_printing', JsonBool(B.ServerPrinting), 'default: false', False) +
     NL +
-    '  // BioStar (leave all null for local mode; a partly filled block is an error)' + NL +
+    '  // BioStar is set up later from inside the web app; every field stays null.' + NL +
     '  "biostar": {' + NL +
-    Entry('    ', 'base_url', JsonText(B.BioBaseUrl), 'default: none; required with the block', False) +
-    Entry('    ', 'username', JsonText(B.BioUsername), 'default: none; required with the block', False) +
-    Entry('    ', 'password', JsonText(B.BioPassword), 'default: none; required with the block', False) +
-    Entry('    ', 'device_ids', JsonList(NormalizeList(B.BioDeviceIds), ','), 'default: none; required with the block', False) +
-    Entry('    ', 'access_group_id', JsonText(B.BioAccessGroup), 'default: blank, TiQR manages its own group', False) +
-    Entry('    ', 'verify_tls', BioVerifyTls, 'default: false', False) +
-    Entry('    ', 'timeout', JsonDecimal(B.BioTimeout), 'default: 30 seconds', False) +
-    Entry('    ', 'door_open_duration', JsonWhole(B.BioDoorDuration), 'default: 3 seconds', False) +
-    Entry('    ', 'door_open_timeout', JsonWhole(B.BioDoorTimeout), 'default: 10 seconds', True) +
+    Entry('    ', 'base_url', 'null', 'default: none; set from the web app', False) +
+    Entry('    ', 'username', 'null', 'default: none; set from the web app', False) +
+    Entry('    ', 'password', 'null', 'default: none; set from the web app', False) +
+    Entry('    ', 'device_ids', 'null', 'default: none; set from the web app', False) +
+    Entry('    ', 'access_group_id', 'null', 'default: blank, TiQR manages its own group', False) +
+    Entry('    ', 'verify_tls', 'null', 'default: false', False) +
+    Entry('    ', 'timeout', 'null', 'default: 30 seconds', False) +
+    Entry('    ', 'door_open_duration', 'null', 'default: 3 seconds', False) +
+    Entry('    ', 'door_open_timeout', 'null', 'default: 10 seconds', True) +
     '  }' + NL +
     '}' + NL;
 end;
@@ -701,28 +530,6 @@ begin
     Result.TlsKey := Key;
   end;
   Result.ServerPrinting := PrintingPage.Values[1];
-  Result.BioStarOn := BioModePage.Values[1];
-  Result.BioBaseUrl := '';
-  Result.BioUsername := '';
-  Result.BioPassword := '';
-  Result.BioDeviceIds := '';
-  Result.BioAccessGroup := '';
-  Result.BioVerifyTls := False;
-  Result.BioTimeout := '';
-  Result.BioDoorDuration := '';
-  Result.BioDoorTimeout := '';
-  if Result.BioStarOn then
-  begin
-    Result.BioBaseUrl := Trim(BioConnectionPage.Values[0]);
-    Result.BioUsername := Trim(BioConnectionPage.Values[1]);
-    Result.BioPassword := BioConnectionPage.Values[4];
-    Result.BioDeviceIds := Trim(BioConnectionPage.Values[2]);
-    Result.BioAccessGroup := Trim(BioConnectionPage.Values[3]);
-    Result.BioVerifyTls := BioTlsPage.Values[0];
-    Result.BioTimeout := Trim(BioTimingPage.Values[0]);
-    Result.BioDoorDuration := Trim(BioTimingPage.Values[1]);
-    Result.BioDoorTimeout := Trim(BioTimingPage.Values[2]);
-  end;
 end;
 
 { The error for one page, or '' when it is fine (or is not a page with input). }
@@ -748,13 +555,7 @@ begin
   else if PageID = TlsFilesPage.ID then
     Result := ValidateTls(B)
   else if PageID = PrintingPage.ID then
-    Result := ValidateServerPrinting(B)
-  else if PageID = BioConnectionPage.ID then
-    Result := ValidateBioStarConnection(B)
-  else if PageID = BioTimingPage.ID then
-    Result := ValidateBioStarTiming(B)
-  else if PageID = BioTlsPage.ID then
-    Result := ValidateBioStarTls(B);
+    Result := ValidateServerPrinting(B);
 end;
 
 { Both or neither. A URL must be http or https; neither value may hold a double quote or a percent sign,
@@ -785,8 +586,6 @@ begin
   if Result = '' then Result := ValidateHost(B);
   if Result = '' then Result := ValidatePort(B);
   if Result = '' then Result := ValidateTls(B);
-  if Result = '' then Result := ValidateBioStarConnection(B);
-  if Result = '' then Result := ValidateBioStarTiming(B);
 end;
 
 { ---------------------------------------------------------------------------------------------
@@ -927,29 +726,6 @@ begin
   PrintingPage.Values[0] := True;
   After := PrintingPage.ID;
 
-  { 12. BioStar: local mode or the whole block (a partly filled block is an error in the app). }
-  BioModePage := CreateInputOptionPage(After, 'BioStar', 'Should TiQR open doors through BioStar?', 'Local mode needs nothing more. With BioStar, the next pages ask for its settings, including the password, which is saved in tiqr_brand.jsonc.', True, False);
-  BioModePage.Add('Local mode (no BioStar)');
-  BioModePage.Add('Connect to BioStar');
-  BioModePage.Values[0] := True;
-  After := BioModePage.ID;
-  BioConnectionPage := CreateInputQueryPage(After, 'BioStar connection', 'Where is BioStar?', 'The first four are required.');
-  BioConnectionPage.Add('Address (https://host or https://host/api):', False);
-  BioConnectionPage.Add('User name:', False);
-  BioConnectionPage.Add('Device IDs (comma-separated):', False);
-  BioConnectionPage.Add('Access group ID (blank: TiQR manages its own group):', False);
-  BioConnectionPage.Add('Password:', True);
-  After := BioConnectionPage.ID;
-  BioTimingPage := CreateInputQueryPage(After, 'BioStar timing', 'How long should BioStar calls and doors wait?', 'Seconds. Blank keeps the default shown.');
-  BioTimingPage.Add('Request timeout (above 0, default 30):', False);
-  BioTimingPage.Add('Door open duration (1 or more, default 3):', False);
-  BioTimingPage.Add('Door open timeout (1 or more, default 10):', False);
-  BioTimingPage.Values[0] := DefaultBioTimeout;
-  BioTimingPage.Values[1] := DefaultBioDoorDuration;
-  BioTimingPage.Values[2] := DefaultBioDoorTimeout;
-  After := BioTimingPage.ID;
-  BioTlsPage := CreateInputOptionPage(After, 'BioStar certificate', 'Check BioStar''s TLS certificate?', 'Turn this on when BioStar has a certificate your server trusts. The app''s own default is off.', False, False);
-  BioTlsPage.Add('Verify the BioStar TLS certificate');
 end;
 
 { ---------------------------------------------------------------------------------------------
@@ -984,9 +760,7 @@ function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
   if PageID = TlsFilesPage.ID then
-    Result := not TlsPage.Values[1]
-  else if (PageID = BioConnectionPage.ID) or (PageID = BioTimingPage.ID) or (PageID = BioTlsPage.ID) then
-    Result := not BioModePage.Values[1];
+    Result := not TlsPage.Values[1];
 end;
 
 { Nothing moves forward until the page's values pass; the message says what to fix. }

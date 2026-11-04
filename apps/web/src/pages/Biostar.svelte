@@ -28,7 +28,7 @@
   let baseUrl = $state('');
   let username = $state('');
   let password = $state('');
-  let deviceIds = $state('');
+  let selectedIds = $state<string[]>([]);
   let verifyTls = $state(false);
   let devices = $state<BiostarDevice[]>([]);
   let logs = $state<BiostarLog[]>([]);
@@ -38,18 +38,12 @@
 
   const text = $derived(i18n.t.biostar);
   const timezone = $derived(config.current?.timezone ?? 'UTC');
-  const chosen = $derived(
-    deviceIds
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean)
-  );
 
   const fill = (data: Biostar): void => {
     current = data;
     baseUrl = data.base_url;
     username = data.username;
-    deviceIds = data.device_ids.join(',');
+    selectedIds = [...data.device_ids];
     verifyTls = data.verify_tls;
     password = '';
   };
@@ -96,9 +90,9 @@
   };
 
   const toggle = (id: string): void => {
-    deviceIds = (chosen.includes(id) ? chosen.filter((item) => item !== id) : [...chosen, id]).join(
-      ','
-    );
+    selectedIds = selectedIds.includes(id)
+      ? selectedIds.filter((item) => item !== id)
+      : [...selectedIds, id];
   };
 
   const onToggle = (event: Event): void => {
@@ -118,7 +112,7 @@
 
     const hasPassword = Boolean(password) || current?.has_password;
 
-    if (!(baseUrl.trim() && username.trim() && hasPassword) || chosen.length === 0) {
+    if (!(baseUrl.trim() && username.trim() && hasPassword)) {
       refusal = text.required;
       return;
     }
@@ -127,7 +121,7 @@
 
     const result = await saveBiostar(csrfToken, {
       base_url: baseUrl.trim(),
-      device_ids: chosen,
+      device_ids: selectedIds,
       password,
       username: username.trim(),
       verify_tls: verifyTls,
@@ -208,13 +202,6 @@
         {#if current?.has_password}
           <p class="text-surface-600-400 -mt-2 text-xs">{text.passwordKept}</p>
         {/if}
-        <FloatingInput
-          autocomplete="off"
-          id="biostar-devices"
-          label={text.deviceIds}
-          bind:value={deviceIds}
-        />
-        <p class="text-surface-600-400 -mt-2 text-xs">{text.deviceIdsHint}</p>
 
         <label class="flex items-center gap-2 text-sm">
           <input class="checkbox" type="checkbox" bind:checked={verifyTls} />
@@ -292,7 +279,7 @@
                     <td>
                       <input
                         aria-label={device.name || device.id}
-                        checked={chosen.includes(device.id)}
+                        checked={selectedIds.includes(device.id)}
                         class="checkbox"
                         data-id={device.id}
                         onchange={onToggle}
