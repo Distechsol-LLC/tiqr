@@ -1,6 +1,7 @@
 import ChartColumn from '@lucide/svelte/icons/chart-column';
 import KeyRound from '@lucide/svelte/icons/key-round';
 import Percent from '@lucide/svelte/icons/percent';
+import Plug from '@lucide/svelte/icons/plug';
 import Tag from '@lucide/svelte/icons/tag';
 import Ticket from '@lucide/svelte/icons/ticket';
 import UsersRound from '@lucide/svelte/icons/users-round';
@@ -27,6 +28,7 @@ const NAV: Record<Role, NavItem[]> = {
     { icon: Percent, label: 'visitorTypes', path: '/admin/visitor-types' },
     { icon: ChartColumn, label: 'overview', path: '/admin/overview' },
     { icon: UsersRound, label: 'users', path: '/admin/users' },
+    { icon: Plug, label: 'biostar', path: '/admin/biostar' },
     { icon: KeyRound, label: 'license', path: '/admin/license' },
   ],
   manager: [

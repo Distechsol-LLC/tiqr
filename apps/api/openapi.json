@@ -3802,6 +3802,437 @@
           }
         }
       }
+    },
+    "/api/biostar": {
+      "get": {
+        "tags": [
+          "biostar"
+        ],
+        "summary": "Biostar Settings",
+        "description": "The saved connection, without its password (admin).",
+        "operationId": "biostar_settings",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BioStarOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "biostar"
+        ],
+        "summary": "Save Biostar Settings",
+        "description": "Check the connection, save it, and use it from now on (admin).\n\nA blank password keeps the saved one. Nothing is saved when BioStar refuses the login.",
+        "operationId": "save_biostar_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BioStarIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BioStarOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "biostar"
+        ],
+        "summary": "Disconnect Biostar",
+        "description": "Forget the connection and go back to local mode (admin).",
+        "operationId": "disconnect_biostar",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/biostar/devices": {
+      "get": {
+        "tags": [
+          "biostar"
+        ],
+        "summary": "Biostar Devices",
+        "description": "The readers BioStar knows, marking those TiQR uses (admin).",
+        "operationId": "biostar_devices",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceOut"
+                  },
+                  "type": "array",
+                  "title": "Response Biostar Devices"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/biostar/logs": {
+      "get": {
+        "tags": [
+          "biostar"
+        ],
+        "summary": "Biostar Logs",
+        "description": "The newest scans the readers reported, newest first (admin).",
+        "operationId": "biostar_logs",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LogOut"
+                  },
+                  "title": "Response Biostar Logs"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4165,6 +4596,118 @@
         ],
         "title": "BatchOut"
       },
+      "BioStarIn": {
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Base Url"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 150,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "title": "Password",
+            "default": ""
+          },
+          "device_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "type": "array",
+            "title": "Device Ids"
+          },
+          "access_group_id": {
+            "type": "string",
+            "maxLength": 50,
+            "title": "Access Group Id",
+            "default": ""
+          },
+          "verify_tls": {
+            "type": "boolean",
+            "title": "Verify Tls",
+            "default": false
+          },
+          "door_open_duration": {
+            "type": "integer",
+            "title": "Door Open Duration",
+            "default": 3
+          },
+          "door_open_timeout": {
+            "type": "integer",
+            "title": "Door Open Timeout",
+            "default": 10
+          }
+        },
+        "type": "object",
+        "required": [
+          "base_url",
+          "username",
+          "device_ids"
+        ],
+        "title": "BioStarIn"
+      },
+      "BioStarOut": {
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "title": "Configured"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url",
+            "default": ""
+          },
+          "username": {
+            "type": "string",
+            "title": "Username",
+            "default": ""
+          },
+          "has_password": {
+            "type": "boolean",
+            "title": "Has Password",
+            "default": false
+          },
+          "device_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Device Ids",
+            "default": []
+          },
+          "access_group_id": {
+            "type": "string",
+            "title": "Access Group Id",
+            "default": ""
+          },
+          "verify_tls": {
+            "type": "boolean",
+            "title": "Verify Tls",
+            "default": false
+          },
+          "door_open_duration": {
+            "type": "integer",
+            "title": "Door Open Duration",
+            "default": 3
+          },
+          "door_open_timeout": {
+            "type": "integer",
+            "title": "Door Open Timeout",
+            "default": 10
+          }
+        },
+        "type": "object",
+        "required": [
+          "configured"
+        ],
+        "title": "BioStarOut"
+      },
       "BrandingOut": {
         "properties": {
           "app_name": {
@@ -4279,6 +4822,39 @@
           "KZT"
         ],
         "title": "Currency"
+      },
+      "DeviceOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "address",
+          "status",
+          "selected"
+        ],
+        "title": "DeviceOut"
       },
       "ErrorOut": {
         "properties": {
@@ -4535,6 +5111,71 @@
           "standard"
         ],
         "title": "LicenseType"
+      },
+      "LogOut": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "event_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Event Time"
+          },
+          "point_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Point Id"
+          },
+          "point_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Point Name"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "granted": {
+            "type": "boolean",
+            "title": "Granted"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_time",
+          "point_id",
+          "point_name",
+          "direction",
+          "granted",
+          "outcome"
+        ],
+        "title": "LogOut"
       },
       "LoginIn": {
         "properties": {

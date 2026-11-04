@@ -313,6 +313,21 @@ def discard_pass_webhook(path: Path | None = None) -> bool:
     )
 
 
+def write_biostar_settings(settings: BioStarSettings | None, path: Path | None = None) -> bool:
+    """Save the BioStar connection in the local env file; None blanks it (local mode)."""
+    values = {
+        "TIQR_BIOSTAR_BASE_URL": settings.base_url if settings else "",
+        "TIQR_BIOSTAR_USERNAME": settings.username if settings else "",
+        "TIQR_BIOSTAR_PASSWORD": settings.password if settings else "",
+        "TIQR_BIOSTAR_DEVICE_IDS": ",".join(settings.device_ids) if settings else "",
+        "TIQR_BIOSTAR_ACCESS_GROUP_ID": settings.access_group_id if settings else "",
+        "TIQR_BIOSTAR_VERIFY_TLS": str(settings.verify_tls).lower() if settings else "",
+        "TIQR_BIOSTAR_DOOR_OPEN_DURATION": str(settings.door_open_duration) if settings else "",
+        "TIQR_BIOSTAR_DOOR_OPEN_TIMEOUT": str(settings.door_open_timeout) if settings else "",
+    }
+    return write_local_settings(values, path)
+
+
 def discard_access_group_id(path: Path | None = None) -> bool:
     """Blank the pinned BioStar access group so setup manages it again."""
     path = path or PROJECT_ROOT / LOCAL_ENV_FILE

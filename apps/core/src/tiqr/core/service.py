@@ -33,6 +33,7 @@ from tiqr.core.auth import (
     verify_password,
     web_token_hash,
 )
+from tiqr.core.biostar import BioStarClient, BioStarXEventSource, BioStarXRegistrar
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
 from tiqr.core.license import (
     PUBLIC_KEY,
@@ -70,7 +71,7 @@ from tiqr.core.models import (
 )
 from tiqr.core.ports import Clock, EventSource, PdfRenderer, Registrar, Repository
 from tiqr.core.qr import DEFAULT_PREFIX, build_payload, make_serial, validate_prefix
-from tiqr.core.settings import validate_secret
+from tiqr.core.settings import BioStarSettings, validate_secret
 
 _ADMINS = frozenset({Role.ADMIN})
 _STAFF = frozenset({Role.ADMIN, Role.MANAGER})
@@ -251,6 +252,8 @@ class TicketService:
         self.idempotency_lock = threading.RLock()
         # Told each passage a sync has committed; set by the server when a webhook is configured.
         self.on_passage: Callable[[AccessEvent], None] | None = None
+        # The swappable BioStar connection, set by `open_service`; None where none is managed.
+        self.biostar_link: BioStarLink | None = None
 
     def _now(self) -> datetime:
         return utc(self._clock())
@@ -528,6 +531,16 @@ class TicketService:
             record = self.repository.active_license()
             if record is not None:
                 self.repository.deactivate_licenses()
+
+    def require_admin(self, actor: User) -> None:
+        self._require(self._actor(actor), _ADMINS)
+
+    def recent_events(self, actor: User, limit: int) -> list[AccessEvent]:
+        """The newest scans the door readers reported, by time (admin)."""
+        self.require_admin(actor)
+        events = self.repository.list_events()
+        events.sort(key=lambda event: (event.occurred_at, event.sequence), reverse=True)
+        return events[:limit]
 
     def license_history(self, actor: User) -> list[LicenseRecord]:
         self._require(self._actor(actor), _ADMINS)
@@ -1399,3 +1412,36 @@ class TicketService:
             },
             ticket_types=_by_ticket_type(tickets),
         )
+
+
+class BioStarLink:
+    """The service's BioStar connection, which can be replaced while the service runs."""
+
+    def __init__(
+        self, settings: BioStarSettings | None = None, client: BioStarClient | None = None
+    ) -> None:
+        self.settings = settings
+        self.client = client
+        self.service: TicketService | None = None
+
+    def connect(self, settings: BioStarSettings | None) -> None:
+        """Point the service at `settings`, or at the in-memory fakes when None."""
+        if self.service is None:
+            raise RuntimeError("The link is not bound to a service")
+        previous = self.client
+        if settings is None:
+            self.client = None
+            self.service.registrar = InMemoryRegistrar()
+            self.service.event_source = InMemoryEventSource()
+        else:
+            self.client = BioStarClient(settings)
+            self.service.registrar = BioStarXRegistrar(self.client, self.service.repository)
+            self.service.event_source = BioStarXEventSource(self.client, self.service.repository)
+        self.settings = settings
+        if previous is not None:
+            previous.close()
+
+    def close(self) -> None:
+        if self.client is not None:
+            self.client.close()
+            self.client = None

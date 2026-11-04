@@ -6,7 +6,7 @@ from contextlib import ExitStack, contextmanager
 from tiqr.core.biostar import BioStarClient, BioStarXEventSource, BioStarXRegistrar
 from tiqr.core.ports import EventSource, Registrar
 from tiqr.core.repository import SQLiteRepository
-from tiqr.core.service import TicketService
+from tiqr.core.service import BioStarLink, TicketService
 from tiqr.core.settings import Settings
 
 
@@ -18,15 +18,20 @@ def open_service(settings: Settings) -> Generator[TicketService]:
         repository.initialize()
         registrar: Registrar | None = None
         event_source: EventSource | None = None
+        link = BioStarLink(settings.biostar)
+        # The link closes whichever client is current, including one swapped in later.
+        stack.callback(link.close)
         if settings.biostar is not None:
-            client = BioStarClient(settings.biostar)
-            stack.callback(client.close)
-            registrar = BioStarXRegistrar(client, repository)
-            event_source = BioStarXEventSource(client, repository)
-        yield TicketService(
+            link.client = BioStarClient(settings.biostar)
+            registrar = BioStarXRegistrar(link.client, repository)
+            event_source = BioStarXEventSource(link.client, repository)
+        service = TicketService(
             repository,
             settings.secret_key,
             registrar=registrar,
             event_source=event_source,
             prefix=settings.prefix,
         )
+        link.service = service
+        service.biostar_link = link
+        yield service

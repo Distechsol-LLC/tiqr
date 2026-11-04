@@ -382,6 +382,9 @@ class BioStarClient:
     def delete_card(self, internal_id: str) -> None:
         self.request("DELETE", "cards", params={"id": internal_id})
 
+    def list_devices(self) -> list[JsonObject]:
+        return _rows(self.request("GET", "devices"))
+
     def list_event_types(self) -> list[JsonObject]:
         return _rows(
             self.request(

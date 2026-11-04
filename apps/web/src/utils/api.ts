@@ -9,6 +9,15 @@ import {
   sessionSchema,
   userSchema,
 } from '$/auth.ts';
+import {
+  type Biostar,
+  type BiostarDevice,
+  type BiostarInput,
+  type BiostarLog,
+  biostarDeviceSchema,
+  biostarLogSchema,
+  biostarSchema,
+} from '$/biostar.ts';
 import { type Branding, brandingSchema } from '$/branding.ts';
 import {
   type TicketType,
@@ -130,7 +139,7 @@ const request = async <T>(
 
 // Every write carries the session's CSRF token; the API refuses it otherwise
 const write = (
-  method: 'DELETE' | 'PATCH' | 'POST',
+  method: 'DELETE' | 'PATCH' | 'POST' | 'PUT',
   csrfToken: string,
   body?: unknown
 ): RequestInit => ({
@@ -175,6 +184,21 @@ const activateLicense = (
     licenseStatusSchema,
     write('POST', csrfToken, { license_key: licenseKey })
   );
+
+const fetchBiostar = (): Promise<ApiResult<Biostar>> => request('/biostar', biostarSchema);
+
+// Checks the login first; nothing is saved when BioStar refuses it
+const saveBiostar = (csrfToken: string, input: BiostarInput): Promise<ApiResult<Biostar>> =>
+  request('/biostar', biostarSchema, write('PUT', csrfToken, input));
+
+const disconnectBiostar = (csrfToken: string): Promise<ApiResult<null>> =>
+  request('/biostar', z.null(), write('DELETE', csrfToken));
+
+const fetchBiostarDevices = (): Promise<ApiResult<BiostarDevice[]>> =>
+  request('/biostar/devices', z.array(biostarDeviceSchema));
+
+const fetchBiostarLogs = (): Promise<ApiResult<BiostarLog[]>> =>
+  request('/biostar/logs?limit=100', z.array(biostarLogSchema));
 
 const fetchConfig = (): Promise<ApiResult<Config>> => request('/config', configSchema);
 
@@ -354,9 +378,13 @@ export {
   deleteTicketType,
   deleteUser,
   deleteVisitorType,
+  disconnectBiostar,
   fetchAllTicketTypes,
   fetchAllUsers,
   fetchAllVisitorTypes,
+  fetchBiostar,
+  fetchBiostarDevices,
+  fetchBiostarLogs,
   fetchBranding,
   fetchConfig,
   fetchLicense,
@@ -377,6 +405,7 @@ export {
   revokeTicket,
   runCleanup,
   runSync,
+  saveBiostar,
   updateTicketType,
   updateTicketWindow,
   updateUser,

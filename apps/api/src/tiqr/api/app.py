@@ -12,6 +12,7 @@ from tiqr.api.config import ServerConfig
 from tiqr.api.deps import AppState
 from tiqr.api.endpoints import passage_record, router
 from tiqr.api.errors import install_error_handlers
+from tiqr.api.integration import router as biostar_router
 from tiqr.api.maintenance import Maintenance
 from tiqr.api.runtime import Runtime, open_runtime
 from tiqr.api.security import DOCS_PREFIX, LoginThrottle, install_guard, install_request_id
@@ -63,6 +64,7 @@ def create_app(
     install_guard(app, config)
     install_request_id(app)
     app.include_router(router)
+    app.include_router(biostar_router)
     # Last, so its catch-all path matches only what no API route does.
     install_web(app, web_root)
     return app

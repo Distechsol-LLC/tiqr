@@ -1,6 +1,7 @@
 import { type Hooks, type Navigation, type Path, createRouter } from 'sv-router';
 
 import Dashboard from '@/layouts/Dashboard.svelte';
+import Biostar from '@/pages/Biostar.svelte';
 import License from '@/pages/License.svelte';
 import Login from '@/pages/Login.svelte';
 import NotFound from '@/pages/NotFound.svelte';
@@ -53,6 +54,7 @@ const routes = {
   },
   '/admin': {
     '/': Tickets,
+    '/biostar': Biostar,
     '/license': License,
     '/overview': Overview,
     '/ticket-types': TicketTypes,
