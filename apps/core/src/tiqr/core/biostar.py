@@ -160,7 +160,11 @@ def _rows(payload: JsonObject) -> list[JsonObject]:
         case [collection]:
             raise BioStarError(f"Malformed BioStar collection rows: {_shape(collection)}")
         case _:
-            raise BioStarError("Missing or ambiguous BioStar collection")
+            shapes = [_shape(collection) for collection in collections]
+            raise BioStarError(
+                f"Missing or ambiguous BioStar collection: keys={sorted(payload)} "
+                f"collections={shapes}"
+            )
 
 
 class BioStarClient:
