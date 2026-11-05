@@ -853,9 +853,7 @@ def ticket_pdf(ticket_id: UUID, me: Signed, server: Server) -> Response:
         ticket_id,
         output_dir=settings.output_dir,
         timezone=settings.default_tz,
-        renderer=partial(
-            render_pdf, title=settings.app_name, theme=settings.theme, logo_path=settings.logo_path
-        ),
+        renderer=partial(render_pdf, title=settings.app_name, theme=settings.theme),
     )
     return Response(
         path.read_bytes(),
@@ -884,12 +882,7 @@ def ticket_print(ticket_id: UUID, me: Signed, server: Server) -> TicketOut:
 
     def render_and_print(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
         path = render_pdf(
-            ticket,
-            output_dir,
-            timezone,
-            title=settings.app_name,
-            theme=settings.theme,
-            logo_path=settings.logo_path,
+            ticket, output_dir, timezone, title=settings.app_name, theme=settings.theme
         )
         server.runtime.printer(path)
         return path

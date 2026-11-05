@@ -101,6 +101,7 @@ def _palette(theme: str) -> _Palette:
 # Labels are English because visitors include foreigners.
 DEFAULT_TITLE = "TiQR"
 _TECH_LINE = "Distechsol · Suprema BioStar X"
+_LOGOS = ("distechsol.webp", "suprema.webp")
 # Geist ships one weight; bold adds a stroke of this many ems.
 _BOLD_STROKE = 0.035
 _TITLE_SIZES = (3.6, 3.0, 2.5)
@@ -333,9 +334,9 @@ def _draw_qr(canvas: Canvas, payload: str, x: float, y: float, size: float) -> N
 
 
 def _draw_header(
-    surface: _Surface, logo: ImageReader | None, title: str, palette: _Palette
+    surface: _Surface, logos: list[ImageReader], title: str, palette: _Palette
 ) -> float:
-    """Draw the event band, stripes and app logo; return how far down the header reaches."""
+    """Draw the event band, stripes and logos; return how far down the header reaches."""
     width, _ = _BADGE_MM
     left, right = _MARGIN, width - _MARGIN
     text_width = right - left
@@ -353,8 +354,10 @@ def _draw_header(
     top += stripe * 2 + 3.5
 
     logo_height = 8
-    if logo is not None:
-        surface.image(logo, left, top, logo_height)
+    distechsol, suprema = logos
+    surface.image(distechsol, left, top, logo_height)
+    suprema_width = _image_width(suprema, logo_height)
+    surface.image(suprema, right - suprema_width, top, logo_height, radius=1.2)
     return top + logo_height + 4
 
 
@@ -370,7 +373,7 @@ def _draw_detail(
 def _draw_face(
     surface: _Surface,
     ticket: Ticket,
-    logo: ImageReader | None,
+    logos: list[ImageReader],
     window: str,
     title: str,
     palette: _Palette,
@@ -390,7 +393,7 @@ def _draw_face(
         for x in (width / 2 - _HOLE_SPACING / 2, width / 2 + _HOLE_SPACING / 2):
             surface.circle(x, _HOLE_OFFSET, _HOLE_RADIUS, _GUIDE, 0.25)
 
-    header_bottom = _draw_header(surface, logo, title, palette)
+    header_bottom = _draw_header(surface, logos, title, palette)
 
     bar_height = 7
     bar_top = height - _FOLD_MARGIN - bar_height
@@ -485,7 +488,7 @@ def _draw_code(
 def _draw_sheet(
     canvas: Canvas,
     ticket: Ticket,
-    logo: ImageReader | None,
+    logos: list[ImageReader],
     zone: ZoneInfo,
     title: str,
     palette: _Palette,
@@ -496,12 +499,12 @@ def _draw_sheet(
 
     canvas.saveState()
     canvas.translate(0, badge_height * mm)
-    _draw_face(face, ticket, logo, window, title, palette, back=False)
+    _draw_face(face, ticket, logos, window, title, palette, back=False)
     canvas.restoreState()
     canvas.saveState()
     canvas.translate(badge_width * mm, badge_height * mm)
     canvas.rotate(180)
-    _draw_face(face, ticket, logo, window, title, palette, back=True)
+    _draw_face(face, ticket, logos, window, title, palette, back=True)
     canvas.restoreState()
 
     page = _Surface(canvas, _PAGE_MM[1])
@@ -529,17 +532,13 @@ def render_pdf(
     timezone: str,
     title: str = DEFAULT_TITLE,
     theme: str = "default",
-    logo_path: Path | None = None,
 ) -> Path:
     """Render the badge; `title` is the name in its header band (TIQR_APP_NAME).
 
-    `theme` sets the colours and `logo_path` is printed top left; SVG logos are skipped,
-    as ReportLab cannot draw them.
+    `theme` sets the colours. The partner logos are printed in the header; the app logo is not.
     """
     zone = ZoneInfo(timezone)
-    logo = None
-    if logo_path is not None and logo_path.suffix.lower() != ".svg":
-        logo = ImageReader(str(logo_path))
+    logos = [ImageReader(BytesIO(_asset("images", name))) for name in _LOGOS]
     # Validate before creating any file, so a failure leaves no debris.
     _require_glyphs(ticket.visitor_name + ticket.visitor_type + (ticket.ticket_type or "") + title)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -552,7 +551,7 @@ def render_pdf(
     try:
         canvas = Canvas(str(temporary), pagesize=A4, pageCompression=0)
         canvas.setTitle(ticket.readable_serial)
-        _draw_sheet(canvas, ticket, logo, zone, title, _palette(theme))
+        _draw_sheet(canvas, ticket, logos, zone, title, _palette(theme))
         canvas.save()
         temporary.replace(destination)
     finally:

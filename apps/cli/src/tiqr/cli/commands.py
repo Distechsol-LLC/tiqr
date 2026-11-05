@@ -725,10 +725,7 @@ def ticket_save(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> N
             output_dir=runtime.settings.output_dir,
             timezone=runtime.settings.default_tz,
             renderer=partial(
-                render_pdf,
-                title=runtime.settings.app_name,
-                theme=runtime.settings.theme,
-                logo_path=runtime.settings.logo_path,
+                render_pdf, title=runtime.settings.app_name, theme=runtime.settings.theme
             ),
         )
         typer.echo(str(path))
@@ -744,12 +741,7 @@ def ticket_print(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> 
 
         def render_and_print(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
             path = render_pdf(
-                ticket,
-                output_dir,
-                timezone,
-                title=settings.app_name,
-                theme=settings.theme,
-                logo_path=settings.logo_path,
+                ticket, output_dir, timezone, title=settings.app_name, theme=settings.theme
             )
             send_to_printer(path)
             return path
