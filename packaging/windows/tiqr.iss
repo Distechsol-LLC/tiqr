@@ -124,21 +124,20 @@ type
   end;
 
 var
-  { The wizard pages, in the order the user sees them. }
-  AppNamePage: TInputQueryWizardPage;
-  LogoPage: TInputFileWizardPage;
-  ThemePage: TWizardPage;
+  { The wizard pages, in the order the user sees them. Each page groups related settings. }
+  AppPage: TWizardPage;
+  AppNameEdit: TNewEdit;
+  LogoEdit: TNewEdit;
+  PrefixEdit: TNewEdit;
   ThemeCombo: TNewComboBox;
-  LanguagesPage: TInputOptionWizardPage;
-  CurrenciesPage: TInputOptionWizardPage;
-  PrefixPage: TInputQueryWizardPage;
-  TimeZonePage: TInputQueryWizardPage;
-  HostPage: TInputQueryWizardPage;
-  PortPage: TInputQueryWizardPage;
+  RegionPage: TWizardPage;
+  TimeZoneEdit: TNewEdit;
+  LanguageList: TNewCheckListBox;
+  CurrencyList: TNewCheckListBox;
+  NetworkPage: TInputQueryWizardPage;
   PassWebhookPage: TInputQueryWizardPage;
-  TlsPage: TInputOptionWizardPage;
+  SecurityPage: TInputOptionWizardPage;
   TlsFilesPage: TInputFileWizardPage;
-  PrintingPage: TInputOptionWizardPage;
 
   KnownTimeZones: String;
   Reinstalling: Boolean;
@@ -341,13 +340,6 @@ begin
     Result := ValidatePem(B.TlsKey, 'TLS private key');
 end;
 
-function ValidateServerPrinting(const B: TBrand): String;
-begin
-  Result := '';
-end;
-
-
-
 { ---------------------------------------------------------------------------------------------
   The generator: the one place tiqr_brand.jsonc is written. Values reach it only through TBrand.
   The output is pure ASCII (other characters become \uXXXX escapes), so the file is valid JSONC in
@@ -514,8 +506,8 @@ var
   I: Integer;
   Cert, Key: String;
 begin
-  Result.AppName := Trim(AppNamePage.Values[0]);
-  Result.LogoSource := Trim(LogoPage.Values[0]);
+  Result.AppName := Trim(AppNameEdit.Text);
+  Result.LogoSource := Trim(LogoEdit.Text);
   Result.LogoFile := '';
   if Result.LogoSource <> '' then
     Result.LogoFile := 'logo' + ExtractFileExt(Result.LogoSource);
@@ -526,7 +518,7 @@ begin
   Result.Languages := '';
   Codes := SplitText(LanguageCodes, '|');
   for I := 0 to GetArrayLength(Codes) - 1 do
-    if LanguagesPage.Values[I] then
+    if LanguageList.Checked[I] then
     begin
       if Result.Languages <> '' then
         Result.Languages := Result.Languages + '|';
@@ -535,17 +527,17 @@ begin
   Result.Currencies := '';
   Codes := SplitText(CurrencyCodes, '|');
   for I := 0 to GetArrayLength(Codes) - 1 do
-    if CurrenciesPage.Values[I] then
+    if CurrencyList.Checked[I] then
     begin
       if Result.Currencies <> '' then
         Result.Currencies := Result.Currencies + '|';
       Result.Currencies := Result.Currencies + Codes[I];
     end;
-  Result.Prefix := Trim(PrefixPage.Values[0]);
-  Result.TimeZone := Trim(TimeZonePage.Values[0]);
-  Result.Host := Trim(HostPage.Values[0]);
-  Result.Port := Trim(PortPage.Values[0]);
-  Result.TlsOn := TlsPage.Values[1];
+  Result.Prefix := Trim(PrefixEdit.Text);
+  Result.TimeZone := Trim(TimeZoneEdit.Text);
+  Result.Host := Trim(NetworkPage.Values[0]);
+  Result.Port := Trim(NetworkPage.Values[1]);
+  Result.TlsOn := SecurityPage.Values[0];
   Result.TlsCert := '';
   Result.TlsKey := '';
   if Result.TlsOn then
@@ -558,35 +550,33 @@ begin
     Result.TlsCert := Cert;
     Result.TlsKey := Key;
   end;
-  Result.ServerPrinting := PrintingPage.Values[1];
+  Result.ServerPrinting := SecurityPage.Values[1];
 end;
 
 { The error for one page, or '' when it is fine (or is not a page with input). }
 function ValidatePage(PageID: Integer; const B: TBrand): String;
 begin
   Result := '';
-  if PageID = AppNamePage.ID then
-    Result := ValidateAppName(B)
-  else if PageID = LogoPage.ID then
-    Result := ValidateLogo(B)
-  else if PageID = ThemePage.ID then
-    Result := ValidateTheme(B)
-  else if PageID = LanguagesPage.ID then
-    Result := ValidateLanguages(B)
-  else if PageID = CurrenciesPage.ID then
-    Result := ValidateCurrencies(B)
-  else if PageID = PrefixPage.ID then
-    Result := ValidatePrefix(B)
-  else if PageID = TimeZonePage.ID then
-    Result := ValidateTimeZone(B)
-  else if PageID = HostPage.ID then
-    Result := ValidateHost(B)
-  else if PageID = PortPage.ID then
-    Result := ValidatePort(B)
+  if PageID = AppPage.ID then
+  begin
+    Result := ValidateAppName(B);
+    if Result = '' then Result := ValidateLogo(B);
+    if Result = '' then Result := ValidateTheme(B);
+    if Result = '' then Result := ValidatePrefix(B);
+  end
+  else if PageID = RegionPage.ID then
+  begin
+    Result := ValidateTimeZone(B);
+    if Result = '' then Result := ValidateLanguages(B);
+    if Result = '' then Result := ValidateCurrencies(B);
+  end
+  else if PageID = NetworkPage.ID then
+  begin
+    Result := ValidateHost(B);
+    if Result = '' then Result := ValidatePort(B);
+  end
   else if PageID = TlsFilesPage.ID then
-    Result := ValidateTls(B)
-  else if PageID = PrintingPage.ID then
-    Result := ValidateServerPrinting(B);
+    Result := ValidateTls(B);
 end;
 
 { Both or neither. A URL must be http or https; neither value may hold a double quote or a percent sign,
@@ -632,39 +622,86 @@ begin
     MsgBox('Open this address in a browser to preview the themes:' + NL + SkeletonThemesUrl, mbInformation, MB_OK);
 end;
 
-procedure CreateThemePage(AfterID: Integer);
+function AddCaption(Page: TWizardPage; Left, Top, Width: Integer; const Text: String): TNewStaticText;
+begin
+  Result := TNewStaticText.Create(Page);
+  Result.Parent := Page.Surface;
+  Result.Left := Left;
+  Result.Top := Top;
+  Result.Width := Width;
+  Result.AutoSize := False;
+  Result.Height := ScaleY(16);
+  Result.Caption := Text;
+end;
+
+function AddEdit(Page: TWizardPage; Left, Top, Width: Integer): TNewEdit;
+begin
+  Result := TNewEdit.Create(Page);
+  Result.Parent := Page.Surface;
+  Result.Left := Left;
+  Result.Top := Top;
+  Result.Width := Width;
+end;
+
+procedure LogoBrowseClick(Sender: TObject);
+var
+  FileName: String;
+begin
+  FileName := Trim(LogoEdit.Text);
+  if GetOpenFileName('Choose a logo', FileName, '', 'Images (*.png;*.svg;*.jpg;*.jpeg)|*.png;*.svg;*.jpg;*.jpeg|All files (*.*)|*.*', '.png') then
+    LogoEdit.Text := FileName;
+end;
+
+procedure CreateAppPage;
 var
   Names: TArrayOfString;
-  Intro, Link: TNewStaticText;
-  I: Integer;
+  Link: TNewStaticText;
+  Browse: TNewButton;
+  I, Y: Integer;
 begin
-  ThemePage := CreateCustomPage(AfterID, 'Theme', 'Choose how TiQR looks.');
+  AppPage := CreateCustomPage(wpSelectDir, 'App', 'Name the app, choose its logo and theme, and set the ticket prefix.');
+  Y := 0;
 
-  Intro := TNewStaticText.Create(ThemePage);
-  Intro.Parent := ThemePage.Surface;
-  Intro.Left := 0;
-  Intro.Top := 0;
-  Intro.Width := ThemePage.SurfaceWidth;
-  Intro.AutoSize := False;
-  Intro.WordWrap := True;
-  Intro.Height := ScaleY(32);
-  Intro.Caption := 'Pick one of the 24 Skeleton UI themes. "vintage" is the default look. Preview every theme here:';
+  AddCaption(AppPage, 0, Y, AppPage.SurfaceWidth, 'App name (required):');
+  AppNameEdit := AddEdit(AppPage, 0, Y + ScaleY(18), AppPage.SurfaceWidth);
+  AppNameEdit.Text := 'TiQR';
+  Y := Y + ScaleY(46);
 
-  Link := TNewStaticText.Create(ThemePage);
-  Link.Parent := ThemePage.Surface;
+  AddCaption(AppPage, 0, Y, AppPage.SurfaceWidth, 'Logo (optional): PNG, SVG or JPG. Blank keeps the built-in logo.');
+  LogoEdit := AddEdit(AppPage, 0, Y + ScaleY(18), AppPage.SurfaceWidth - ScaleX(88));
+  Browse := TNewButton.Create(AppPage);
+  Browse.Parent := AppPage.Surface;
+  Browse.Caption := 'Browse...';
+  Browse.Left := AppPage.SurfaceWidth - ScaleX(80);
+  Browse.Top := Y + ScaleY(17);
+  Browse.Width := ScaleX(80);
+  Browse.Height := ScaleY(23);
+  Browse.OnClick := @LogoBrowseClick;
+  Y := Y + ScaleY(46);
+
+  AddCaption(AppPage, 0, Y, AppPage.SurfaceWidth, 'Ticket prefix: exactly 3 printable ASCII characters. Blank keeps TQR.');
+  PrefixEdit := AddEdit(AppPage, 0, Y + ScaleY(18), AppPage.SurfaceWidth);
+  PrefixEdit.Text := DefaultPrefix;
+  Y := Y + ScaleY(46);
+
+  AddCaption(AppPage, 0, Y, AppPage.SurfaceWidth, '"vintage" is the default theme. Preview the 24 Skeleton themes at:');
+  Y := Y + ScaleY(18);
+  Link := TNewStaticText.Create(AppPage);
+  Link.Parent := AppPage.Surface;
   Link.Left := 0;
-  Link.Top := Intro.Top + Intro.Height;
+  Link.Top := Y;
   Link.Caption := SkeletonThemesUrl;
   Link.Cursor := crHand;
   Link.Font.Style := Link.Font.Style + [fsUnderline];
   Link.Font.Color := clBlue;
   Link.OnClick := @ThemeLinkClick;
+  Y := Y + ScaleY(20);
 
-  ThemeCombo := TNewComboBox.Create(ThemePage);
-  ThemeCombo.Parent := ThemePage.Surface;
+  ThemeCombo := TNewComboBox.Create(AppPage);
+  ThemeCombo.Parent := AppPage.Surface;
   ThemeCombo.Left := 0;
-  ThemeCombo.Top := Link.Top + Link.Height + ScaleY(16);
-  ThemeCombo.Width := ThemePage.SurfaceWidth;
+  ThemeCombo.Top := Y;
+  ThemeCombo.Width := AppPage.SurfaceWidth;
   ThemeCombo.Style := csDropDownList;
   Names := SplitText(ThemeNames, '|');
   for I := 0 to GetArrayLength(Names) - 1 do
@@ -679,96 +716,81 @@ begin
   end;
 end;
 
-procedure CreateWizardPages;
+procedure CreateRegionPage;
 var
-  After: Integer;
   Labels, Codes: TArrayOfString;
-  I: Integer;
+  Half, I, Y: Integer;
 begin
-  { 1. App name }
-  AppNamePage := CreateInputQueryPage(wpSelectDir, 'App name', 'What should the application be called?', 'Shown in the browser and on badges. Required.');
-  AppNamePage.Add('App name:', False);
-  AppNamePage.Values[0] := 'TiQR';
-  After := AppNamePage.ID;
+  RegionPage := CreateCustomPage(AppPage.ID, 'Region', 'Choose the time zone, the languages and the currencies.');
+  Y := 0;
+  Half := (RegionPage.SurfaceWidth - ScaleX(16)) div 2;
 
-  { 2. Logo }
-  LogoPage := CreateInputFilePage(After, 'Logo', 'Choose a logo (optional).', 'PNG, SVG or JPG. The image is copied into the install folder, so the original can be moved or deleted later. Leave blank for the built-in logo.');
-  LogoPage.Add('Logo image:', 'Images (*.png;*.svg;*.jpg;*.jpeg)|*.png;*.svg;*.jpg;*.jpeg', '.png');
-  After := LogoPage.ID;
+  AddCaption(RegionPage, 0, Y, RegionPage.SurfaceWidth, 'Time zone (IANA name, such as Asia/Baku). Blank uses this machine''s time zone.');
+  TimeZoneEdit := AddEdit(RegionPage, 0, Y + ScaleY(18), RegionPage.SurfaceWidth);
+  Y := Y + ScaleY(46);
 
-  { 3. Theme }
-  CreateThemePage(After);
-  After := ThemePage.ID;
+  AddCaption(RegionPage, 0, Y, Half, 'Languages (tick at least one):');
+  AddCaption(RegionPage, Half + ScaleX(16), Y, Half, 'Currencies (tick at least one):');
+  Y := Y + ScaleY(18);
 
-  { 4. Languages }
-  LanguagesPage := CreateInputOptionPage(After, 'Languages', 'Which languages should TiQR offer?', 'The browser''s language is used when offered; otherwise the first ticked language is the default. Tick at least one.', False, False);
+  LanguageList := TNewCheckListBox.Create(RegionPage);
+  LanguageList.Parent := RegionPage.Surface;
+  LanguageList.Left := 0;
+  LanguageList.Top := Y;
+  LanguageList.Width := Half;
+  LanguageList.Height := ScaleY(96);
   Labels := SplitText(LanguageLabels, '|');
   Codes := SplitText(LanguageCodes, '|');
   for I := 0 to GetArrayLength(Labels) - 1 do
   begin
-    LanguagesPage.Add(Labels[I]);
-    LanguagesPage.Values[I] := Pos('|' + Codes[I] + '|', '|' + DefaultLanguages + '|') > 0;
+    LanguageList.Items.Add(Labels[I]);
+    LanguageList.Checked[I] := Pos('|' + Codes[I] + '|', '|' + DefaultLanguages + '|') > 0;
   end;
-  After := LanguagesPage.ID;
 
-  { 4b. Currencies, apart from the languages }
-  CurrenciesPage := CreateInputOptionPage(After, 'Currencies', 'Which currencies may ticket prices use?', 'Chosen apart from the languages. Tick at least one.', False, False);
+  CurrencyList := TNewCheckListBox.Create(RegionPage);
+  CurrencyList.Parent := RegionPage.Surface;
+  CurrencyList.Left := Half + ScaleX(16);
+  CurrencyList.Top := Y;
+  CurrencyList.Width := Half;
+  CurrencyList.Height := ScaleY(96);
   Labels := SplitText(CurrencyLabels, '|');
   Codes := SplitText(CurrencyCodes, '|');
   for I := 0 to GetArrayLength(Labels) - 1 do
   begin
-    CurrenciesPage.Add(Labels[I]);
-    CurrenciesPage.Values[I] := Pos('|' + Codes[I] + '|', '|' + DefaultCurrencies + '|') > 0;
+    CurrencyList.Items.Add(Labels[I]);
+    CurrencyList.Checked[I] := Pos('|' + Codes[I] + '|', '|' + DefaultCurrencies + '|') > 0;
   end;
-  After := CurrenciesPage.ID;
+end;
 
-  { 5. Prefix }
-  PrefixPage := CreateInputQueryPage(After, 'Ticket prefix', 'How should ticket numbers begin?', 'Exactly 3 printable ASCII characters, without ":" or "-". Blank keeps TQR.');
-  PrefixPage.Add('Prefix:', False);
-  PrefixPage.Values[0] := DefaultPrefix;
-  After := PrefixPage.ID;
+procedure CreateWizardPages;
+begin
+  { 1. App: name, logo, prefix and theme }
+  CreateAppPage;
 
-  { 6. Timezone }
-  TimeZonePage := CreateInputQueryPage(After, 'Time zone', 'Which time zone do tickets use?', 'An IANA identifier such as Asia/Baku, Europe/Moscow or UTC. Blank uses this machine''s time zone.');
-  TimeZonePage.Add('Time zone:', False);
-  After := TimeZonePage.ID;
+  { 2. Region: time zone, languages and currencies }
+  CreateRegionPage;
 
-  { 7. Host }
-  HostPage := CreateInputQueryPage(After, 'Host', 'Which address should the server listen on?', 'Use the server''s LAN address, not 0.0.0.0. Blank keeps 127.0.0.1.');
-  HostPage.Add('Host:', False);
-  HostPage.Values[0] := DefaultHost;
-  After := HostPage.ID;
+  { 3. Network: host and port }
+  NetworkPage := CreateInputQueryPage(RegionPage.ID, 'Network', 'Where should the server listen?', 'Use the server''s LAN address, not 0.0.0.0. Blank keeps 127.0.0.1. The port is a whole number from 1 to 65535; blank keeps 7102.');
+  NetworkPage.Add('Host:', False);
+  NetworkPage.Values[0] := DefaultHost;
+  NetworkPage.Add('Port:', False);
+  NetworkPage.Values[1] := DefaultPort;
 
-  { 8. Port }
-  PortPage := CreateInputQueryPage(After, 'Port', 'Which TCP port should the server use?', 'A whole number from 1 to 65535. Blank keeps 7102.');
-  PortPage.Add('Port:', False);
-  PortPage.Values[0] := DefaultPort;
-  After := PortPage.ID;
-
-  { 9. Pass webhook: optional, and both or neither. The secret is masked on the page. }
-  PassWebhookPage := CreateInputQueryPage(After, 'Pass webhook', 'Where should each new pass be posted? (optional)', 'Leave both blank for none. TiQR POSTs each new passage to the URL, signed with the secret.');
+  { 4. Pass webhook: optional, and both or neither. The secret is masked on the page. }
+  PassWebhookPage := CreateInputQueryPage(NetworkPage.ID, 'Pass webhook', 'Where should each new pass be posted? (optional)', 'Leave both blank for none. TiQR POSTs each new passage to the URL, signed with the secret.');
   PassWebhookPage.Add('Webhook URL (https://...):', False);
   PassWebhookPage.Add('Webhook secret:', True);
-  After := PassWebhookPage.ID;
 
-  { 10. TLS: on or off, then the certificate files when on (tls_cert and tls_key are the schema's TLS keys). }
-  TlsPage := CreateInputOptionPage(After, 'TLS', 'Should the server use HTTPS?', 'HTTPS needs a certificate and its private key; the next page asks for them. Off serves plain HTTP.', True, False);
-  TlsPage.Add('Off (plain HTTP)');
-  TlsPage.Add('On (HTTPS)');
-  TlsPage.Values[0] := True;
-  After := TlsPage.ID;
-  TlsFilesPage := CreateInputFilePage(After, 'TLS certificate', 'Choose the certificate and key for HTTPS.', 'Both PEM files are used from where they are; keep them in place. Set them up so the TiQR service account can read the key.');
+  { 5. Security and printing: HTTPS on or off, and server printing on or off }
+  SecurityPage := CreateInputOptionPage(PassWebhookPage.ID, 'Security and printing', 'Should the server use HTTPS, and print on its own printer?', 'HTTPS needs a certificate and its private key; the next page asks for them. Server printing lets operators print badges on the server''s default printer from the web UI.', False, False);
+  SecurityPage.Add('Use HTTPS (plain HTTP when off)');
+  SecurityPage.Add('Server printing');
+
+  { 6. TLS certificate files, shown only when HTTPS is ticked (tls_cert and tls_key are the schema's TLS keys). }
+  TlsFilesPage := CreateInputFilePage(SecurityPage.ID, 'TLS certificate', 'Choose the certificate and key for HTTPS.', 'Both PEM files are used from where they are; keep them in place. Set them up so the TiQR service account can read the key.');
   TlsFilesPage.Add('Certificate (PEM):', 'PEM files (*.pem;*.crt;*.cer)|*.pem;*.crt;*.cer|All files (*.*)|*.*', '.pem');
   TlsFilesPage.Add('Private key (PEM):', 'PEM files (*.pem;*.key)|*.pem;*.key|All files (*.*)|*.*', '.key');
-  After := TlsFilesPage.ID;
-
-  { 11. Server printing }
-  PrintingPage := CreateInputOptionPage(After, 'Server printing', 'Print on the server''s own printer?', 'On lets operators print badges on the server''s default printer from the web UI. Off keeps download and browser printing only.', True, False);
-  PrintingPage.Add('Off');
-  PrintingPage.Add('On');
-  PrintingPage.Values[0] := True;
-  After := PrintingPage.ID;
-
 end;
 
 { ---------------------------------------------------------------------------------------------
@@ -803,7 +825,7 @@ function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
   if PageID = TlsFilesPage.ID then
-    Result := not TlsPage.Values[1];
+    Result := not SecurityPage.Values[0];
 end;
 
 { Nothing moves forward until the page's values pass; the message says what to fix. }
