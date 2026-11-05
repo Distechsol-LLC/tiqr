@@ -311,7 +311,6 @@
                 <tr>
                   <th>{text.logTime}</th>
                   <th>{text.logReader}</th>
-                  <th>{text.logDirection}</th>
                   <th>{text.logResult}</th>
                 </tr>
               </thead>
@@ -320,7 +319,6 @@
                   <tr>
                     <td>{formatDatetime(log.event_time, timezone)}</td>
                     <td>{log.point_name ?? log.point_id ?? ''}</td>
-                    <td>{log.direction ?? ''}</td>
                     <td>{log.granted ? text.granted : text.denied}</td>
                   </tr>
                 {/each}

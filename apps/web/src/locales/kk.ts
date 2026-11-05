@@ -28,7 +28,6 @@ const kk: Messages = {
     disconnected: 'BioStar ажыратылды',
     granted: 'Рұқсат етілді',
     loadFailed: 'BioStar параметрлерін жүктеу мүмкін болмады',
-    logDirection: 'Бағыты',
     logReader: 'Оқырман',
     logResult: 'Нәтиже',
     logs: 'Сканерлеу журналы',

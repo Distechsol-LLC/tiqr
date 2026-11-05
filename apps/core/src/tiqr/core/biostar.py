@@ -582,7 +582,7 @@ class BioStarXRegistrar(Registrar):
         self.repository = repository
 
     def register(self, ticket: Ticket) -> str:
-        external_id = str(self.repository.allocate("biostar_user_id", USER_ID_BASE))
+        external_id = self._free_user_id()
         self.client.create_user(external_id, ticket)
         registration = Registration(external_id, "", card_removed=True)
         try:
@@ -625,12 +625,22 @@ class BioStarXRegistrar(Registrar):
     def activate(self, external_id: str) -> None:
         self.client.update_user(external_id, {"disabled": "false"})
 
-    def _user_exists(self, external_id: str) -> bool:
-        ids = {
+    def _user_ids(self) -> set[str]:
+        return {
             _required_identifier(row.get("user_id"), "User search returned a row without user_id")
             for row in self.client.search_users()
         }
-        return external_id in ids
+
+    def _user_exists(self, external_id: str) -> bool:
+        return external_id in self._user_ids()
+
+    def _free_user_id(self) -> str:
+        # BioStar may hold users TiQR never created, so the sequence can point at a taken ID.
+        taken = self._user_ids()
+        while True:
+            external_id = str(self.repository.allocate("biostar_user_id", USER_ID_BASE))
+            if external_id not in taken:
+                return external_id
 
     def _card_exists(self, internal_id: str) -> bool:
         offset, seen = 0, set[str]()
@@ -762,7 +772,9 @@ class BioStarXEventSource(EventSource):
         )
 
     def _since(self, cursor: SyncCursor | None, upper: datetime) -> datetime:
-        if cursor is not None:
+        # A bare number is the in-memory source's cursor, left by running without BioStar; it
+        # holds no BioStar position, so the sync starts over from the oldest ticket.
+        if cursor is not None and not cursor.token.isdigit():
             try:
                 previous = _datetime(json.loads(cursor.token)["until"])
             except (ValueError, TypeError, KeyError) as exc:

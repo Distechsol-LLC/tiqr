@@ -300,6 +300,18 @@ Admins and managers.
 
 Sync and cleanup share a lock with the scheduled jobs, so runs never overlap.
 
+### BioStar connection
+
+Admins only, signed in with a session. These calls manage the BioStar connection from the web app.
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/biostar` | session + license | The saved connection: `configured`, `base_url`, `username`, `has_password`, `device_ids`, `access_group_id`, `verify_tls`, `door_open_duration` and `door_open_timeout`. The password is never returned. |
+| PUT | `/biostar` | session + CSRF + license | Body `{base_url, username, password?, device_ids, access_group_id?, verify_tls?, door_open_duration?, door_open_timeout?}`. Checks the login, saves the connection and uses it at once. A blank `password` keeps the saved one. `502` if BioStar refuses; nothing is saved. |
+| DELETE | `/biostar` | session + CSRF + license | Forget the connection and return to local mode. Returns `204`. |
+| GET | `/biostar/devices` | session + license | The readers BioStar knows: `id`, `name`, `address`, `status` and `selected` (whether TiQR uses it). `409` if BioStar is not connected. |
+| GET | `/biostar/logs` | session + license | The newest scans the readers reported, newest first. `?limit=` (1 to 500, default 100). Each entry gives `event_id`, `event_time`, `point_id`, `point_name`, `direction`, `granted` and `outcome`. |
+
 ## Roles
 
 | Role | Can |

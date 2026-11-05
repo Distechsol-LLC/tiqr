@@ -28,7 +28,6 @@ const ru: Messages = {
     disconnected: 'BioStar отключён',
     granted: 'Разрешено',
     loadFailed: 'Не удалось загрузить настройки BioStar',
-    logDirection: 'Направление',
     logReader: 'Считыватель',
     logResult: 'Результат',
     logs: 'Журнал проходов',

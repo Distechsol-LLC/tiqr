@@ -485,6 +485,15 @@ def test_failed_user_creation_consumes_id_without_deleting_other_users(config, r
     assert not any(r.method == "DELETE" for r in server.requests)
 
 
+def test_id_already_held_in_biostar_is_skipped(config, repository, ticket):
+    server = Server()
+    server.users["1000000"] = {"user_id": "1000000", "name": "Existing"}
+    with client(config, server) as api:
+        assert BioStarXRegistrar(api, repository).register(ticket) == "1000001"
+    assert server.users["1000001"]["name"] == ticket.visitor_name
+    assert server.users["1000000"]["name"] == "Existing"
+
+
 @pytest.mark.parametrize("resource", ["users", "cards"])
 def test_silent_delete_does_not_mark_cleanup_complete(config, repository, ticket, resource):
     server = Server()
@@ -732,6 +741,22 @@ def test_adaptive_ranges_are_complete_sorted_and_deduplicated(config):
     assert len(server.queries) > 1
     assert [event.event_id for event in events] == ["5", "4", "3", "2", "1", "0"]
     assert len({event.event_id for event in events}) == 6
+    assert json.loads(cursor.token)["until"] == NOW.isoformat()
+
+
+def test_cursor_left_by_in_memory_source_starts_biostar_sync_from_earliest_ticket(
+    config, repository, ticket
+):
+    ticket = replace(ticket, created_at=NOW - timedelta(days=1))
+    persist_ticket(repository, ticket)
+    repository.save_cursor(SyncCursor("0"))
+    server = EventServer([scan("old", when=NOW - timedelta(hours=2))])
+    with client(config, server) as api:
+        events, cursor = BioStarXEventSource(api, repository, clock=lambda: NOW).fetch_events(
+            repository.get_cursor()
+        )
+    assert [event.event_id for event in events] == ["old"]
+    assert server.queries[0]["conditions"][0]["values"][0] == to_biostar_datetime(ticket.created_at)
     assert json.loads(cursor.token)["until"] == NOW.isoformat()
 
 

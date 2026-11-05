@@ -13,6 +13,7 @@ from tiqr.api.deps import AppState
 from tiqr.api.endpoints import passage_record, router
 from tiqr.api.errors import install_error_handlers
 from tiqr.api.integration import router as biostar_router
+from tiqr.api.live import LiveEvents
 from tiqr.api.maintenance import Maintenance
 from tiqr.api.runtime import Runtime, open_runtime
 from tiqr.api.security import DOCS_PREFIX, LoginThrottle, install_guard, install_request_id
@@ -41,9 +42,12 @@ def create_app(
             maintenance = scheduler(opened.service)
             app.state.tiqr = AppState(config, opened, LoginThrottle(), maintenance)
             maintenance.start()
+            live = LiveEvents(opened.service, maintenance.sync_soon)
+            live.start()
             try:
                 yield
             finally:
+                await run_in_threadpool(live.stop)
                 # Waits for a run in progress, off the event loop, before the database closes.
                 await run_in_threadpool(maintenance.stop)
                 if webhook is not None:

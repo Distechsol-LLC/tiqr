@@ -28,7 +28,6 @@ const az: Messages = {
     disconnected: 'BioStar ilə bağlantı kəsildi',
     granted: 'İcazə verildi',
     loadFailed: 'BioStar ayarlarını yükləmək olmadı',
-    logDirection: 'İstiqamət',
     logReader: 'Oxuyucu',
     logResult: 'Nəticə',
     logs: 'Skan jurnalı',

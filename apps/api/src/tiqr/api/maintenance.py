@@ -44,6 +44,7 @@ class Maintenance:
             _Job("sync", service.scheduled_sync, sync_interval, now),
             _Job("cleanup", service.scheduled_cleanup, cleanup_interval, now),
         )
+        self._service = service
         self._jobs = [job for job in candidates if job.interval > 0]
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -65,6 +66,28 @@ class Maintenance:
         if not self._jobs:
             return None
         return max(0.0, min(job.due for job in self._jobs) - self._clock())
+
+    def sync_soon(self, *delays: float) -> None:
+        """Run a sync after each delay in seconds, on top of the scheduled ones.
+
+        BioStar announces a scan a few seconds before it is searchable, so callers pass delays.
+        """
+        for delay in delays:
+            timer = threading.Timer(delay, self._sync_now)
+            timer.daemon = True
+            timer.start()
+
+    def _sync_now(self) -> None:
+        if self._stop.is_set():
+            return
+        with self.lock:
+            try:
+                count = self._service.scheduled_sync()
+            except Exception:  # The scheduled run retries.
+                logger.exception("Live sync failed")
+            else:
+                if count:
+                    logger.info("Live sync processed %d", count)
 
     def _loop(self) -> None:
         # The startup run happens even if stop() came first, so it is never silently skipped.

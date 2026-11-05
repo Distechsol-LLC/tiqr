@@ -16,6 +16,7 @@ The back is drawn rotated by 180°, because folding it flips the text.
 
 import os
 import tempfile
+from dataclasses import dataclass
 from importlib.resources import files
 from io import BytesIO
 from pathlib import Path
@@ -35,7 +36,6 @@ from reportlab.pdfgen.canvas import Canvas
 from tiqr.core.models import Ticket
 
 _FONT = "TiQR-Geist"
-_LOGOS = ("distechsol.webp", "suprema.webp")
 _PAGE_WIDTH, _PAGE_HEIGHT = A4
 
 # Geometry is in millimetres, measured from the top of the surface being drawn on.
@@ -49,17 +49,58 @@ _HOLE_OFFSET = 8
 _HOLE_SPACING = 60
 _HOLE_RADIUS = 2.5
 
-# Sampled from the logos.
-_NAVY = colors.HexColor("#092a54")
-_TURQUOISE = colors.HexColor("#099ba0")
-_CRIMSON = colors.HexColor("#a71e48")
 _MUTED = colors.HexColor("#71757b")
 _PANEL = colors.HexColor("#e8e9ea")
 _GUIDE = colors.HexColor("#babcbf")
 
+# Band, accent and stripe for each Skeleton theme: primary-800, primary-500 and secondary-500.
+_THEME_COLORS: dict[str, tuple[str, str, str]] = {
+    "catppuccin": ("#6476d1", "#7186ff", "#e977ca"),
+    "cerberus": ("#064491", "#0770ef", "#7926cb"),
+    "concord": ("#3b44cf", "#5865f2", "#ec439e"),
+    "crimson": ("#8d0825", "#d21d3d", "#4785ae"),
+    "dracula": ("#7452ad", "#bd92f9", "#fc79c4"),
+    "fennec": ("#a9311b", "#f6530d", "#fecd8a"),
+    "hamlindigo": ("#6e7ea3", "#a7bef3", "#a38e5e"),
+    "legacy": ("#007752", "#11ba81", "#4f46e5"),
+    "mint": ("#46a55c", "#66e985", "#7262f4"),
+    "modern": ("#9d1b58", "#eb4999", "#00b7d6"),
+    "mona": ("#5c349b", "#824fe1", "#2fa44f"),
+    "nosh": ("#aa0019", "#dc0024", "#f5d2d2"),
+    "nouveau": ("#998417", "#e6c830", "#0f72e3"),
+    "pine": ("#6c5933", "#a0814d", "#57123c"),
+    "reign": ("#e6e950", "#f4f861", "#f4f861"),
+    "rocket": ("#017386", "#00b7d6", "#3a82f7"),
+    "rose": ("#85516f", "#d87bac", "#383fd2"),
+    "rosepine": ("#1d576e", "#317590", "#c5a9e6"),
+    "sahara": ("#c0821f", "#eda92f", "#3ecbba"),
+    "seafoam": ("#478d90", "#8acfca", "#203357"),
+    "terminus": ("#3a00b6", "#5200ff", "#42fecf"),
+    "vintage": ("#99430e", "#ea861d", "#98cea5"),
+    "vox": ("#a68471", "#fbb48a", "#d0f96f"),
+    "wintry": ("#1846ab", "#3a82f7", "#01a5ea"),
+}
+_BUILT_IN_THEME = "vintage"
+
+
+@dataclass(frozen=True)
+class _Palette:
+    band: colors.Color
+    accent: colors.Color
+    stripe: colors.Color
+
+
+def _palette(theme: str) -> _Palette:
+    """The web app's colours for the theme; default, light and dark use the built-in vintage."""
+    if theme not in _THEME_COLORS:
+        theme = _BUILT_IN_THEME
+    band, accent, stripe = _THEME_COLORS[theme]
+    return _Palette(colors.HexColor(band), colors.HexColor(accent), colors.HexColor(stripe))
+
+
 # Labels are English because visitors include foreigners.
 DEFAULT_TITLE = "TiQR"
-_TECH_LINE = "Suprema BioStar X"
+_TECH_LINE = "Distechsol · Suprema BioStar X"
 # Geist ships one weight; bold adds a stroke of this many ems.
 _BOLD_STROKE = 0.035
 _TITLE_SIZES = (3.6, 3.0, 2.5)
@@ -291,29 +332,29 @@ def _draw_qr(canvas: Canvas, payload: str, x: float, y: float, size: float) -> N
                 canvas.rect(x + column * cell, bottom, cell, cell, stroke=0, fill=1)
 
 
-def _draw_header(surface: _Surface, logos: list[ImageReader], title: str) -> float:
-    """Draw the event band, stripes and logos; return how far down the header reaches."""
+def _draw_header(
+    surface: _Surface, logo: ImageReader | None, title: str, palette: _Palette
+) -> float:
+    """Draw the event band, stripes and app logo; return how far down the header reaches."""
     width, _ = _BADGE_MM
     left, right = _MARGIN, width - _MARGIN
     text_width = right - left
 
     band_height = 10
-    surface.rect(left, _EDGE_MARGIN, text_width, band_height, _NAVY)
+    surface.rect(left, _EDGE_MARGIN, text_width, band_height, palette.band)
     size, label = _fit_line(title, _TITLE_SIZES, text_width - 2, 1.1)
     surface.centered(
         width / 2, _EDGE_MARGIN + 2.3, label, size, colors.white, bold=True, tracking=1.1
     )
     stripe = 1.5
     top = _EDGE_MARGIN + band_height
-    surface.rect(left, top, text_width, stripe, _TURQUOISE)
-    surface.rect(left, top + stripe, text_width, stripe, _CRIMSON)
+    surface.rect(left, top, text_width, stripe, palette.stripe)
+    surface.rect(left, top + stripe, text_width, stripe, palette.accent)
     top += stripe * 2 + 3.5
 
     logo_height = 8
-    distechsol, suprema = logos
-    surface.image(distechsol, left, top, logo_height)
-    suprema_width = _image_width(suprema, logo_height)
-    surface.image(suprema, right - suprema_width, top, logo_height, radius=1.2)
+    if logo is not None:
+        surface.image(logo, left, top, logo_height)
     return top + logo_height + 4
 
 
@@ -329,9 +370,10 @@ def _draw_detail(
 def _draw_face(
     surface: _Surface,
     ticket: Ticket,
-    logos: list[ImageReader],
+    logo: ImageReader | None,
     window: str,
     title: str,
+    palette: _Palette,
     *,
     back: bool,
 ) -> None:
@@ -348,12 +390,13 @@ def _draw_face(
         for x in (width / 2 - _HOLE_SPACING / 2, width / 2 + _HOLE_SPACING / 2):
             surface.circle(x, _HOLE_OFFSET, _HOLE_RADIUS, _GUIDE, 0.25)
 
-    header_bottom = _draw_header(surface, logos, title)
+    header_bottom = _draw_header(surface, logo, title, palette)
 
     bar_height = 7
     bar_top = height - _FOLD_MARGIN - bar_height
-    surface.rect(left, bar_top, text_width, bar_height, _NAVY, radius=1.2)
-    surface.centered(width / 2, bar_top + 1.3, _TECH_LINE, 3.2, colors.white)
+    surface.rect(left, bar_top, text_width, bar_height, palette.band, radius=1.2)
+    if title == DEFAULT_TITLE:
+        surface.centered(width / 2, bar_top + 1.3, _TECH_LINE, 3.2, colors.white)
     rule = bar_top - 2.5
 
     tracking = 0.6
@@ -384,7 +427,7 @@ def _draw_face(
         # No QR code below, so center the block instead of leaving a gap under it.
         top += max(0, (rule - header_bottom - block_height) / 2)
         lift = 2
-    surface.rect(left, top - lift, chip_width, chip_height, _CRIMSON, radius=1.2)
+    surface.rect(left, top - lift, chip_width, chip_height, palette.accent, radius=1.2)
     surface.text(
         left + 3,
         top - lift + 1.3,
@@ -396,12 +439,27 @@ def _draw_face(
     )
     top += label_step
     for line in name_lines:
-        surface.text(left, top - lift, line, name_size, _NAVY, bold=True)
+        surface.text(left, top - lift, line, name_size, palette.band, bold=True)
         top += name_step
     if back:
         _draw_detail(surface, left, top + detail_gap, detail_lines, detail_size, detail_step)
         return
 
+    _draw_code(surface, ticket, window, left, top, rule, palette)
+
+
+def _draw_code(
+    surface: _Surface,
+    ticket: Ticket,
+    window: str,
+    left: float,
+    top: float,
+    rule: float,
+    palette: _Palette,
+) -> None:
+    """Draw the visit window, then the QR code panel and serial, which only the front carries."""
+    width, _ = _BADGE_MM
+    text_width = width - _MARGIN * 2
     window_top = rule - 2.5 - 4.4
     surface.text(left, window_top, window, 3.2, _MUTED)
 
@@ -415,12 +473,22 @@ def _draw_face(
     surface.rect(left, panel_top, text_width, panel_height, _PANEL, radius=2)
     surface.qr(ticket.qr_payload, (width - qr_size) / 2, panel_top + pad, qr_size)
     surface.centered(
-        width / 2, panel_top + pad + qr_size + 1, ticket.readable_serial, 4.4, _NAVY, bold=True
+        width / 2,
+        panel_top + pad + qr_size + 1,
+        ticket.readable_serial,
+        4.4,
+        palette.band,
+        bold=True,
     )
 
 
 def _draw_sheet(
-    canvas: Canvas, ticket: Ticket, logos: list[ImageReader], zone: ZoneInfo, title: str
+    canvas: Canvas,
+    ticket: Ticket,
+    logo: ImageReader | None,
+    zone: ZoneInfo,
+    title: str,
+    palette: _Palette,
 ) -> None:
     badge_width, badge_height = _BADGE_MM
     window = _window(ticket, zone)
@@ -428,17 +496,17 @@ def _draw_sheet(
 
     canvas.saveState()
     canvas.translate(0, badge_height * mm)
-    _draw_face(face, ticket, logos, window, title, back=False)
+    _draw_face(face, ticket, logo, window, title, palette, back=False)
     canvas.restoreState()
     canvas.saveState()
     canvas.translate(badge_width * mm, badge_height * mm)
     canvas.rotate(180)
-    _draw_face(face, ticket, logos, window, title, back=True)
+    _draw_face(face, ticket, logo, window, title, palette, back=True)
     canvas.restoreState()
 
     page = _Surface(canvas, _PAGE_MM[1])
     page.line((badge_width, 0), (badge_width, _PAGE_MM[1]), _GUIDE, 0.3, dash=(4, 2.5))
-    page.line((0, badge_height), (badge_width, badge_height), _NAVY, 0.3, dash=(8, 3))
+    page.line((0, badge_height), (badge_width, badge_height), palette.band, 0.3, dash=(8, 3))
 
     # Instructions go in the scrap half.
     hint_x = badge_width + 6
@@ -455,10 +523,23 @@ def _draw_sheet(
         page.text(hint_x, top, hint, 3.4, _MUTED)
 
 
-def render_pdf(ticket: Ticket, output_dir: Path, timezone: str, title: str = DEFAULT_TITLE) -> Path:
-    """Render the badge; `title` is the name in its header band (TIQR_APP_NAME)."""
+def render_pdf(
+    ticket: Ticket,
+    output_dir: Path,
+    timezone: str,
+    title: str = DEFAULT_TITLE,
+    theme: str = "default",
+    logo_path: Path | None = None,
+) -> Path:
+    """Render the badge; `title` is the name in its header band (TIQR_APP_NAME).
+
+    `theme` sets the colours and `logo_path` is printed top left; SVG logos are skipped,
+    as ReportLab cannot draw them.
+    """
     zone = ZoneInfo(timezone)
-    logos = [ImageReader(BytesIO(_asset("images", name))) for name in _LOGOS]
+    logo = None
+    if logo_path is not None and logo_path.suffix.lower() != ".svg":
+        logo = ImageReader(str(logo_path))
     # Validate before creating any file, so a failure leaves no debris.
     _require_glyphs(ticket.visitor_name + ticket.visitor_type + (ticket.ticket_type or "") + title)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -471,7 +552,7 @@ def render_pdf(ticket: Ticket, output_dir: Path, timezone: str, title: str = DEF
     try:
         canvas = Canvas(str(temporary), pagesize=A4, pageCompression=0)
         canvas.setTitle(ticket.readable_serial)
-        _draw_sheet(canvas, ticket, logos, zone, title)
+        _draw_sheet(canvas, ticket, logo, zone, title, _palette(theme))
         canvas.save()
         temporary.replace(destination)
     finally:

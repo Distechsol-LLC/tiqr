@@ -106,7 +106,7 @@
     visitor: (ticket) => ticket.visitor_name,
   };
 
-  const sorting = createSortParams(sortValues, { direction: 'asc', key: 'valid' });
+  const sorting = createSortParams(sortValues, { direction: 'desc', key: 'valid' });
 
   // The server filters and pages; sorting only reorders the page showing.
   const rows = $derived(sortRows(tickets, sorting.sort, sortValues));

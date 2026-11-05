@@ -26,7 +26,6 @@ const en = {
     disconnected: 'BioStar disconnected',
     granted: 'Granted',
     loadFailed: 'Could not load BioStar settings',
-    logDirection: 'Direction',
     logReader: 'Reader',
     logResult: 'Result',
     logs: 'Scan log',
