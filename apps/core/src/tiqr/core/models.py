@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 from enum import StrEnum
 from uuid import UUID
 
@@ -95,6 +95,25 @@ class VisitorType:
             raise ValueError("A name is required")
         if not 0 <= self.discount_percent <= MAX_DISCOUNT:
             raise ValueError("Discount must be between 0 and 100 per cent")
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveHours:
+    """The local times of day tickets may be created: from `start` up to `end`. An `end` before
+    the `start` runs past midnight, so 22:00 to 06:00 covers the night."""
+
+    start: time
+    end: time
+
+    def __post_init__(self) -> None:
+        if self.start == self.end:
+            raise ValueError("Active hours must start and end at different times")
+
+    def allows(self, moment: time) -> bool:
+        """Whether the wall-clock time `moment` falls inside the hours; `end` itself does not."""
+        if self.start < self.end:
+            return self.start <= moment < self.end
+        return moment >= self.start or moment < self.end
 
 
 @dataclass(frozen=True, slots=True)

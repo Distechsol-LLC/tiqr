@@ -16,18 +16,25 @@ fi
 exe="$here/tiqr"
 [ -f "$exe" ] || { echo "No tiqr executable in $here" >&2; exit 1; }
 
-# An existing installation (units, program or data) is asked about before anything is stopped or copied;
-# a no changes nothing. A yes deletes it all, database included, and installs from scratch.
+# An existing installation (units, program or data) is asked about before anything is stopped or copied.
+# The first question is reinstall or update. An update keeps the database, settings and license and
+# replaces only the program; a reinstall deletes it all, database included, and starts from scratch.
 data=/var/lib/tiqr
 if [ -e /etc/systemd/system/tiqr.service ] || [ -e /etc/systemd/system/tiqr-health.service ] || [ -e /etc/systemd/system/tiqr-health.timer ] || [ -e "$target/tiqr" ] || [ -e "$data" ]; then
     [ -t 0 ] || { echo "TiQR is already installed. Run this from a terminal to confirm a reinstall; nothing was changed." >&2; exit 1; }
-    printf 'TiQR is already installed. Reinstalling deletes the program and all its data, including the database and users, and starts from scratch. Reinstall it? [y/N] ' >&2
+    printf 'TiQR is already installed. Is this a reinstall or an update?\n  update    keeps the database, users, settings and license; only the program is replaced\n  reinstall deletes the program and all its data, including the database and users\nType update, reinstall, or anything else to cancel [update/reinstall/N] ' >&2
     read -r answer || answer=
     case "$answer" in
-        y|Y|yes|YES|Yes) ;;
+        update|Update|UPDATE|u|U) export TIQR_UPDATE_CONFIRMED=1 ;;
+        reinstall|Reinstall|REINSTALL|r|R)
+            printf 'This deletes all data, including the database and users. Continue? [y/N] ' >&2
+            read -r sure || sure=
+            case "$sure" in
+                y|Y|yes|YES|Yes) export TIQR_REINSTALL_CONFIRMED=1 ;;
+                *) echo "Install cancelled; nothing was changed." >&2; exit 1 ;;
+            esac ;;
         *) echo "Install cancelled; nothing was changed." >&2; exit 1 ;;
     esac
-    export TIQR_REINSTALL_CONFIRMED=1
 fi
 
 # An upgrade replaces the program under a running service; stop it first.
@@ -45,7 +52,7 @@ for file in THIRD-PARTY-NOTICES.txt INSTALL.txt; do
 done
 cp "$here/tiqr-health.sh" "$target/tiqr-health.sh"
 chmod 755 "$target/tiqr-health.sh"
-# The bundle's branding is only the default for a first install; the data folder keeps its own.
+# The bundle's branding is copied to the program folder; `tiqr install` then applies it to the data folder.
 [ -f "$here/tiqr_brand.jsonc" ] || { echo "tiqr_brand.jsonc is missing" >&2; exit 1; }
 cp "$here/tiqr_brand.jsonc" "$target/tiqr_brand.jsonc"
 

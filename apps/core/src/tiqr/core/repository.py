@@ -3,7 +3,7 @@ import threading
 from collections.abc import Callable, Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import fields
-from datetime import datetime
+from datetime import datetime, time
 from pathlib import Path
 from types import TracebackType
 from typing import Self
@@ -11,6 +11,7 @@ from uuid import UUID
 
 from tiqr.core.models import (
     AccessEvent,
+    ActiveHours,
     ApiKey,
     AuditEntry,
     Currency,
@@ -236,6 +237,36 @@ DROP TABLE api_keys;
 DROP TABLE idempotency_keys;
 DROP TABLE audit_log
 """
+# One row at most: the hours tickets may be created in, as HH:MM local times.
+_ACTIVE_HOURS = """
+CREATE TABLE active_hours (
+    id INTEGER PRIMARY KEY CHECK(id=1), starts TEXT NOT NULL, ends TEXT NOT NULL
+)
+"""
+_ACTIVE_HOURS_DOWN = """
+DROP TABLE active_hours
+"""
+# Empty times in the row mean any time. A new database, or one never set, starts on a working day.
+_ACTIVE_HOURS_DEFAULT = """
+CREATE TABLE active_hours_rebuilt (
+    id INTEGER PRIMARY KEY CHECK(id=1), starts TEXT, ends TEXT
+);
+INSERT INTO active_hours_rebuilt (id, starts, ends) SELECT id, starts, ends FROM active_hours;
+DROP TABLE active_hours;
+ALTER TABLE active_hours_rebuilt RENAME TO active_hours;
+INSERT INTO active_hours (id, starts, ends)
+    SELECT 1, '09:00', '17:00' WHERE NOT EXISTS (SELECT 1 FROM active_hours)
+"""
+# Any-time rows cannot be kept in the older table, so they go and the older schema means any time.
+_ACTIVE_HOURS_DEFAULT_DOWN = """
+DELETE FROM active_hours WHERE starts IS NULL;
+CREATE TABLE active_hours_rebuilt (
+    id INTEGER PRIMARY KEY CHECK(id=1), starts TEXT NOT NULL, ends TEXT NOT NULL
+);
+INSERT INTO active_hours_rebuilt (id, starts, ends) SELECT id, starts, ends FROM active_hours;
+DROP TABLE active_hours;
+ALTER TABLE active_hours_rebuilt RENAME TO active_hours
+"""
 
 
 def _statements(script: str) -> tuple[str, ...]:
@@ -258,6 +289,8 @@ _MIGRATIONS = tuple(
         _REVOCATION,
         _SERVICE_TABLES,
         _PASSAGES,
+        _ACTIVE_HOURS,
+        _ACTIVE_HOURS_DEFAULT,
     )
 )
 # Reversal N undoes step N, taking version N to N - 1. Steps 1 to 7 predate reversals and are not
@@ -266,6 +299,8 @@ _REVERSALS = {
     8: _statements(_REVOCATION_DOWN),
     9: _statements(_SERVICE_TABLES_DOWN),
     10: _statements(_PASSAGES_DOWN),
+    11: _statements(_ACTIVE_HOURS_DOWN),
+    12: _statements(_ACTIVE_HOURS_DEFAULT_DOWN),
 }
 OLDEST_REVERSIBLE = min(_REVERSALS) - 1
 SCHEMA_VERSION = len(_MIGRATIONS)
@@ -388,6 +423,12 @@ def _ticket_type(row: sqlite3.Row) -> TicketType:
 
 def _visitor_type(row: sqlite3.Row) -> VisitorType:
     return VisitorType(UUID(row["id"]), row["name"], row["discount_percent"])
+
+
+def _active_hours(row: sqlite3.Row) -> ActiveHours | None:
+    if row["starts"] is None:
+        return None
+    return ActiveHours(time.fromisoformat(row["starts"]), time.fromisoformat(row["ends"]))
 
 
 def _event(row: sqlite3.Row) -> AccessEvent:
@@ -618,6 +659,17 @@ class SQLiteRepository(Repository):
 
     def delete_ticket_type(self, type_id: UUID) -> None:
         self._execute("DELETE FROM ticket_types WHERE id=?", (str(type_id),))
+
+    def active_hours(self) -> ActiveHours | None:
+        return self._fetch_one(_active_hours, "SELECT * FROM active_hours WHERE id=1")
+
+    def save_active_hours(self, hours: ActiveHours | None) -> None:
+        # None stores any time: the row stays, with empty times, so the default does not come back
+        starts = None if hours is None else hours.start.isoformat(timespec="minutes")
+        ends = None if hours is None else hours.end.isoformat(timespec="minutes")
+        self._execute(
+            "INSERT OR REPLACE INTO active_hours (id, starts, ends) VALUES (1,?,?)", (starts, ends)
+        )
 
     def add_visitor_type(self, visitor_type: VisitorType) -> None:
         self._execute(

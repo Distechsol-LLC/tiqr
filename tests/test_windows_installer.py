@@ -9,7 +9,13 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from tiqr.core import settings
-from tiqr.core.languages import DEFAULT_LANGUAGES, SUPPORTED_LANGUAGES, parse_language
+from tiqr.core.languages import (
+    DEFAULT_CURRENCIES,
+    DEFAULT_LANGUAGES,
+    SUPPORTED_LANGUAGES,
+    parse_language,
+)
+from tiqr.core.models import Currency
 from tiqr.core.qr import DEFAULT_PREFIX
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -52,6 +58,13 @@ def test_defaults_are_the_constructors() -> None:
     assert {*_constant("LogoExtensions").split("|")} == settings.LOGO_SUFFIXES
 
 
+def test_currencies_are_the_apps() -> None:
+    codes = _constant("CurrencyCodes").split("|")
+    assert codes == [currency.value for currency in Currency]
+    assert tuple(_constant("DefaultCurrencies").split("|")) == DEFAULT_CURRENCIES
+    assert len(_constant("CurrencyLabels").split("|")) == len(codes)
+
+
 def test_generator_writes_the_schemas_keys_in_order() -> None:
     template = settings._jsonc_loads((PROJECT / "tiqr_brand.jsonc").read_text(encoding="utf-8"))
     assert isinstance(template, dict)
@@ -85,8 +98,15 @@ def test_a_reinstall_asks_then_starts_from_scratch() -> None:
     assert "DirExists(ExpandConstant('{commonappdata}\\TiQR'))" in SCRIPT
     assert "procedure RemoveExistingInstall;" in SCRIPT
     assert "DelTree(DataFolder, True, True, True);" in SCRIPT
-    assert "else if Reinstalling then\n    RemoveExistingInstall;" in SCRIPT
+    assert "else if Reinstalling then\n    RemoveExistingInstall" in SCRIPT
     assert "set TIQR_REINSTALL_CONFIRMED=1" in SCRIPT
+
+
+def test_an_update_keeps_the_data_and_sets_the_update_flag() -> None:
+    assert "Is this a reinstall or an update?" in SCRIPT
+    assert "MB_YESNOCANCEL" in SCRIPT
+    assert "set TIQR_UPDATE_CONFIRMED=1" in SCRIPT
+    assert "Updating and FileExists(Existing)" in SCRIPT
 
 
 def test_install_and_uninstall_cover_only_generated_files() -> None:

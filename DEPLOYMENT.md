@@ -201,8 +201,9 @@ environment variables override both.
 With `TIQR_HOME` set, data and config stay in the data folder when the program is replaced.
 
 The server reads `tiqr_brand.jsonc` from the data folder at every start and refuses to run without
-it. `tiqr install` checks the bundle's file, copies it there the first time, and keeps the copy
-already there on later runs. The Windows installer (`tiqr_setup.exe`) is the exception: it writes the
+it. `tiqr install` checks the bundle's file, copies it there the first time, and on reinstalls and
+updates replaces the copy with the one just chosen, saving the file it replaces as `tiqr_brand.jsonc.bak`.
+The Windows installer (`tiqr_setup.exe`) works the same way: it writes the
 file from its wizard, saves the file it replaces as `tiqr_brand.jsonc.bak`, and copies the chosen
 logo beside it. Branding changes take effect on restart: edit the file in the data folder and
 restart the service.

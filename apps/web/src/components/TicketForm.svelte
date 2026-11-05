@@ -8,7 +8,12 @@
   import FloatingInput from '@/components/FloatingInput.svelte';
   import FloatingSelect from '@/components/FloatingSelect.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
-  import { createTicket, fetchAllTicketTypes, fetchAllVisitorTypes } from '%/api.ts';
+  import {
+    createTicket,
+    fetchActiveHours,
+    fetchAllTicketTypes,
+    fetchAllVisitorTypes,
+  } from '%/api.ts';
   import { nextMinute, toLocalInput } from '%/formatters.ts';
   import { discountedMinor, formatMinor } from '%/money.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
@@ -17,6 +22,7 @@
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import type { TicketType, VisitorType } from '$/catalog.ts';
+  import { type ActiveHours, isWithinHours } from '$/operations.ts';
   import { type Ticket, type UsageType, ticketInputSchema, usageTypeSchema } from '$/tickets.ts';
 
   type TicketFormProps = {
@@ -43,6 +49,7 @@
   let ticketType = $state('');
   let ticketTypes = $state<TicketType[]>([]);
   let visitorTypes = $state<VisitorType[]>([]);
+  let activeHours = $state<ActiveHours | null>(null);
   let validFrom = $state('');
   let validUntil = $state('');
   let usageType = $state<UsageType>('one_time');
@@ -75,11 +82,22 @@
   const discount = $derived(
     visitorTypes.find((type) => type.name === visitorType)?.discount_percent ?? 0
   );
+  // The hours tickets may be made in, when a limit is set; the server enforces them on submit
+  const limit = $derived(
+    activeHours?.start && activeHours.end
+      ? { end: activeHours.end, start: activeHours.start }
+      : null
+  );
+  // The time pickers grey out the times outside those hours
+  const allowsTime = $derived(
+    limit ? (clock: string): boolean => isWithinHours(limit, clock) : undefined
+  );
 
   const loadCatalog = async (): Promise<void> => {
-    const [ticketResult, visitorResult] = await Promise.all([
+    const [ticketResult, visitorResult, hoursResult] = await Promise.all([
       fetchAllTicketTypes(),
       fetchAllVisitorTypes(),
+      fetchActiveHours(),
     ]);
 
     if (ticketResult.ok) ticketTypes = ticketResult.data;
@@ -87,6 +105,9 @@
 
     if (visitorResult.ok) visitorTypes = visitorResult.data;
     else await notifyFailure(i18n.t.ticketForm.catalogNotLoaded, visitorResult.error);
+
+    if (hoursResult.ok) activeHours = hoursResult.data;
+    else await notifyFailure(i18n.t.activeHours.notLoaded, hoursResult.error);
   };
 
   // Each opening starts fresh: from the next minute until the end of that day, on the server's clock
@@ -207,6 +228,7 @@
 
   <div class="grid gap-4">
     <DateTimeField
+      allows={allowsTime}
       error={fieldErrors.valid_from?.[0]}
       id="valid-from"
       label={i18n.t.ticketForm.validFrom}
@@ -215,6 +237,7 @@
     />
 
     <DateTimeField
+      allows={allowsTime}
       error={fieldErrors.valid_until?.[0]}
       id="valid-until"
       label={i18n.t.ticketForm.validUntil}

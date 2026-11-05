@@ -53,6 +53,8 @@ def cli_env(tmp_path, monkeypatch, license_pair, project_root):
             repository.activate_license(
                 LicenseRecord(vendor_key(license_pair), NOW, NOW + timedelta(days=365), "Acme")
             )
+        # A new database is limited to working hours; the suite's tickets are made at any time
+        repository.save_active_hours(None)
         # Tickets must name a catalog visitor type, so the suite's usual types are registered.
         for name in ("Visitor", "Guest", "V"):
             if repository.visitor_type_by_name(name) is None:
@@ -593,7 +595,12 @@ def test_biostar_adapters_selected_and_resources_closed(cli_env, monkeypatch, fa
         return cli_env[2]
 
     def service(repository, secret_key, **kwargs):
-        assert kwargs == {"registrar": cli_env[1], "event_source": cli_env[2], "prefix": "TQR"}
+        assert kwargs == {
+            "registrar": cli_env[1],
+            "event_source": cli_env[2],
+            "prefix": "TQR",
+            "timezone": "Asia/Baku",
+        }
         if fail_construction:
             raise RuntimeError("adapter startup failure")
         return TicketService(repository, secret_key, **kwargs, clock=lambda: NOW)

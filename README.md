@@ -37,7 +37,7 @@ environment variables win over both. `.env` is committed and lists every key wit
 placeholders; a blank value counts as unset, so local mode works and CI can fill the
 BioStar block in. `.env.local` is git-ignored and holds private values such as
 `TIQR_SECRET_KEY` and `TIQR_BIOSTAR_PASSWORD`. `tiqr_brand.jsonc` (comments allowed) sits in the same folder and is required: the program
-does not run without it. It holds the name, logo, theme and languages (the web app reads them from
+does not run without it. It holds the name, logo, theme, languages and currencies, the last two chosen apart (the web app reads them from
 the server at load, so one build serves any of them) and may also set the other non-secret keys:
 `prefix`, `default_tz`, the server's `host`, `port`, `tls_cert`, `tls_key`,
 `server_printing`, and a `biostar` block. Each is the

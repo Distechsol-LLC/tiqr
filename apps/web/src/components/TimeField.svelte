@@ -11,9 +11,17 @@
     value: string;
     describedBy?: string;
     isInvalid?: boolean;
+    // Whether a whole HH:MM time may be picked; the picker greys out the times that may not
+    allows?: (time: string) => boolean;
   };
 
-  let { label, value = $bindable(''), describedBy, isInvalid = false }: TimeFieldProps = $props();
+  let {
+    label,
+    value = $bindable(''),
+    describedBy,
+    isInvalid = false,
+    allows = (): boolean => true,
+  }: TimeFieldProps = $props();
 
   const ICON_SIZE = 16;
   const HOURS_IN_DAY = 24;
@@ -50,13 +58,27 @@
 
   const [selectedHour = '', selectedMinute = ''] = $derived(value ? value.split(':') : []);
 
+  // An hour is off when none of its minutes may be picked
+  const isHourOff = (hour: string): boolean =>
+    MINUTES.every((minute) => !allows(`${hour}:${minute}`));
+  // Minutes belong to the hour picked, or to the first hour on when none is picked yet
+  const firstHourOn = $derived(HOURS.find((hour) => !isHourOff(hour)) ?? '00');
+  const isMinuteOff = (minute: string): boolean =>
+    !allows(`${selectedHour || firstHourOn}:${minute}`);
+
+  // Keeps the minute picked when this hour allows it, else takes the first minute it allows
   const pickHour = (hour: string): void => {
-    value = `${hour}:${selectedMinute || '00'}`;
+    const minute =
+      selectedMinute && allows(`${hour}:${selectedMinute}`)
+        ? selectedMinute
+        : (MINUTES.find((option) => allows(`${hour}:${option}`)) ?? '00');
+
+    value = `${hour}:${minute}`;
   };
 
   // The minute finishes a pick, so it closes the list
   const pickMinute = (minute: string): void => {
-    value = `${selectedHour || '00'}:${minute}`;
+    value = `${selectedHour || firstHourOn}:${minute}`;
     isOpen = false;
   };
 
@@ -79,7 +101,8 @@
   legend: string,
   options: string[],
   selected: string,
-  onPick: (option: string) => void
+  onPick: (option: string) => void,
+  isOff: (option: string) => boolean
 )}
   <fieldset class="flex flex-col items-center gap-1">
     <legend class="text-surface-600-400 mb-1 w-full text-center text-xs font-medium">
@@ -93,9 +116,10 @@
         <button
           aria-pressed={option === selected}
           class={[
-            'rounded-base shrink-0 py-1.5 text-sm tabular-nums',
-            option === selected ? 'preset-filled-primary-500' : 'hover:preset-tint-primary',
+            'rounded-base shrink-0 py-1.5 text-sm tabular-nums disabled:opacity-35',
+            option === selected ? 'preset-filled-primary-500' : 'enabled:hover:preset-tint-primary',
           ]}
+          disabled={isOff(option)}
           onclick={(): void => {
             onPick(option);
           }}
@@ -151,8 +175,8 @@
     <Popover.Content
       class="card border-surface-200-800 bg-surface-50-950 z-30 flex gap-2 border p-2 shadow-xl"
     >
-      {@render column(i18n.t.dateField.hours, HOURS, selectedHour, pickHour)}
-      {@render column(i18n.t.dateField.minutes, MINUTES, selectedMinute, pickMinute)}
+      {@render column(i18n.t.dateField.hours, HOURS, selectedHour, pickHour, isHourOff)}
+      {@render column(i18n.t.dateField.minutes, MINUTES, selectedMinute, pickMinute, isMinuteOff)}
     </Popover.Content>
   </Popover.Positioner>
 </Popover>

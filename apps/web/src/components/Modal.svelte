@@ -7,6 +7,8 @@
     children?: Snippet;
     isOpen?: boolean;
     isClosable?: boolean;
+    // A smaller dialog, for a form with little in it
+    isNarrow?: boolean;
     ariaLabel?: string;
     onClose?: () => void;
     onSubmit?: (event: SubmitEvent) => void | Promise<void>;
@@ -16,6 +18,7 @@
     children,
     isOpen = true,
     isClosable = true,
+    isNarrow = false,
     ariaLabel,
     onClose,
     onSubmit,
@@ -88,7 +91,7 @@
     <div
       aria-label={ariaLabel}
       aria-modal="true"
-      class="w-11/12 max-w-lg p-4"
+      class={['w-11/12 p-4', isNarrow ? 'max-w-sm' : 'max-w-lg']}
       onsubmit={handleSubmit}
       role="dialog"
       tabindex="-1"

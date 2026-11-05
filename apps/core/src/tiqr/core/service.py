@@ -9,7 +9,7 @@ from collections.abc import Callable, Collection, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import replace
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from functools import partial
 from pathlib import Path
 from typing import TypedDict
@@ -48,10 +48,11 @@ from tiqr.core.license import (
     machine_id,
     verify_license_key,
 )
-from tiqr.core.localtime import day_start
+from tiqr.core.localtime import day_start, zone
 from tiqr.core.models import (
     DEFAULT_TENANT,
     AccessEvent,
+    ActiveHours,
     ApiKey,
     AuditEntry,
     Currency,
@@ -163,6 +164,10 @@ class InvalidStateError(StateError):
     code = "invalid_state"
 
 
+class OutsideActiveHoursError(StateError):
+    code = "outside_active_hours"
+
+
 class CredentialFormatError(ValueError):
     """An external code the venue's readers cannot read, refused before anything is written."""
 
@@ -237,9 +242,11 @@ class TicketService:
         prefix: str = DEFAULT_PREFIX,
         license_public_key: str = PUBLIC_KEY,
         tenant: str = DEFAULT_TENANT,
+        timezone: str = "UTC",
     ) -> None:
         validate_secret(secret_key)
         validate_prefix(prefix)
+        zone(timezone)
         self.repository = repository
         self.secret_key = secret_key
         self.prefix = prefix
@@ -248,6 +255,8 @@ class TicketService:
         self.event_source: EventSource = event_source or InMemoryEventSource()
         self._clock: Clock = clock or partial(datetime.now, UTC)
         self.tenant = tenant
+        # The zone the active hours are read in: the server's own, as its clock shows it
+        self.timezone = timezone
         # Held across a keyed request's lookup, work and save, so a retry cannot run it twice.
         self.idempotency_lock = threading.RLock()
         # Told each passage a sync has committed; set by the server when a webhook is configured.
@@ -661,6 +670,31 @@ class TicketService:
         with self.repository.transaction():
             return [self._expire(ticket) for ticket in self.repository.list_tickets()]
 
+    def active_hours(self, actor: User) -> ActiveHours | None:
+        """When tickets may be created, or None for any time. Every signed-in role may read them."""
+        self._actor(actor)
+        return self.repository.active_hours()
+
+    def set_active_hours(
+        self, actor: User, start: time | None, end: time | None
+    ) -> ActiveHours | None:
+        """Limit ticket creation to the local times from `start` to `end`, in the server's zone.
+        Both None lifts the limit. Admins and managers.
+        """
+        actor = self._actor(actor)
+        self._require(actor, _STAFF)
+        if (start is None) != (end is None):
+            raise ValueError("Give both a start and an end, or neither")
+        hours = ActiveHours(start, end) if start is not None and end is not None else None
+        with self.repository.transaction():
+            self.repository.save_active_hours(hours)
+            self._record(
+                actor,
+                "active_hours.set",
+                detail="any time" if hours is None else f"{start:%H:%M} to {end:%H:%M}",
+            )
+        return hours
+
     def list_ticket_types(self, actor: User) -> list[TicketType]:
         """Every ticket type; operators read them too, to see what a ticket costs."""
         self._actor(actor)
@@ -797,6 +831,12 @@ class TicketService:
             raise ValueError("Access window is reversed or already expired")
         if start.microsecond or end.microsecond:
             raise ValueError("Access windows require whole-second precision for BioStar alignment")
+        hours = self.repository.active_hours()
+        if hours is not None and not hours.allows(now.astimezone(zone(self.timezone)).time()):
+            raise OutsideActiveHoursError(
+                f"Tickets can only be created from {hours.start:%H:%M} to {hours.end:%H:%M}"
+                f" ({self.timezone})"
+            )
         code = _clean_code(external_code)
         if code and self.repository.ticket_by_external_code(self.tenant, code):
             raise ExternalCodeTakenError("A ticket with this external code already exists")

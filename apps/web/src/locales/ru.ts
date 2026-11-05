@@ -3,6 +3,17 @@ import type { Messages } from '@/locales/en.ts';
 import { plural } from '%/plural.ts';
 
 const ru: Messages = {
+  activeHours: {
+    anyTime: 'В любое время',
+    button: 'Часы работы',
+    from: 'С',
+    notLoaded: 'Часы работы не загружены',
+    notSaved: 'Часы работы не сохранены',
+    range: (start: string, end: string): string => `${start} – ${end}`,
+    saved: 'Часы работы сохранены',
+    title: 'Часы работы',
+    to: 'До',
+  },
   assign: {
     assigned: 'Билет назначен',
     assignee: 'Исполнитель',
@@ -87,11 +98,13 @@ const ru: Messages = {
     rateLimited: 'Слишком много неудачных попыток входа. Повторите попытку позже.',
     rateLimitedFor: (wait: string): string =>
       `Слишком много неудачных попыток входа. Повторите попытку через ${wait}.`,
+    sameTime: 'Время начала и окончания должно отличаться.',
     seconds: (count: number): string =>
       `${count} ${plural('ru', count, { few: 'секунды', many: 'секунд', one: 'секунду', other: 'секунды' })}`,
     server: 'На сервере что-то пошло не так. Повторите попытку.',
     sessionEnded: 'Сеанс завершён. Войдите снова.',
     ticketTypeRequired: 'Выберите тип билета.',
+    timeRequired: 'Выберите время.',
     usernameLong: 'Имя пользователя слишком длинное.',
     usernameRequired: 'Введите имя пользователя.',
     validFromRequired: 'Укажите, когда билет начинает действовать.',

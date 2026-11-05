@@ -3,6 +3,17 @@ import type { Messages } from '@/locales/en.ts';
 
 // Kazakh nouns stay singular after a number, so counts need no plural forms
 const kk: Messages = {
+  activeHours: {
+    anyTime: 'Кез келген уақыт',
+    button: 'Белсенді уақыт',
+    from: 'Басталуы',
+    notLoaded: 'Белсенді уақыт жүктелмеді',
+    notSaved: 'Белсенді уақыт сақталмады',
+    range: (start: string, end: string): string => `${start} – ${end}`,
+    saved: 'Белсенді уақыт сақталды',
+    title: 'Белсенді уақыт',
+    to: 'Аяқталуы',
+  },
   assign: {
     assigned: 'Билет тағайындалды',
     assignee: 'Тағайындалған адам',
@@ -86,10 +97,12 @@ const kk: Messages = {
     rateLimited: 'Сәтсіз кіру әрекеттері тым көп. Кейінірек қайталап көріңіз.',
     rateLimitedFor: (wait: string): string =>
       `Сәтсіз кіру әрекеттері тым көп. ${wait} кейін қайталап көріңіз.`,
+    sameTime: 'Басталу және аяқталу уақыты бірдей болмауы керек.',
     seconds: (count: number): string => `${count} секунд`,
     server: 'Серверде бірдеңе дұрыс болмады. Қайтадан көріңіз.',
     sessionEnded: 'Сеанс аяқталды. Қайтадан кіріңіз.',
     ticketTypeRequired: 'Билет түрін таңдаңыз.',
+    timeRequired: 'Уақытты таңдаңыз.',
     usernameLong: 'Пайдаланушы аты тым ұзын.',
     usernameRequired: 'Пайдаланушы атын енгізіңіз.',
     validFromRequired: 'Билеттің басталу уақытын таңдаңыз.',

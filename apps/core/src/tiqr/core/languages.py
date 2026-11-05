@@ -1,4 +1,4 @@
-"""The languages an install offers, and the currencies that follow from them."""
+"""The languages and the currencies an install offers; each is chosen on its own."""
 
 import re
 from collections.abc import Iterable
@@ -7,9 +7,10 @@ from tiqr.core.models import Currency
 
 # The web app is translated into these; a language needs a translation there before it is listed.
 SUPPORTED_LANGUAGES = frozenset({"en", "ru", "az", "kk"})
-# The region of a language code names the currency its speakers pay in.
-REGION_CURRENCIES = {"US": Currency.USD, "RU": Currency.RUB, "AZ": Currency.AZN, "KZ": Currency.KZT}
+# The region of a language code picks its flag; it says nothing about currency.
+REGIONS = frozenset({"US", "RU", "AZ", "KZ"})
 DEFAULT_LANGUAGES = ("en-US", "ru-RU", "az-AZ")
+DEFAULT_CURRENCIES = (Currency.USD, Currency.RUB, Currency.AZN)
 
 _CODE = re.compile(r"(?P<language>[A-Za-z]{2})-(?P<region>[A-Za-z]{2})")
 
@@ -24,10 +25,8 @@ def parse_language(code: str) -> str:
         raise ValueError(
             f"Language {language!r} is not supported; use {', '.join(sorted(SUPPORTED_LANGUAGES))}"
         )
-    if region not in REGION_CURRENCIES:
-        raise ValueError(
-            f"Region {region!r} has no currency; use {', '.join(sorted(REGION_CURRENCIES))}"
-        )
+    if region not in REGIONS:
+        raise ValueError(f"Region {region!r} is not supported; use {', '.join(sorted(REGIONS))}")
     return f"{language}-{region}"
 
 
@@ -42,6 +41,15 @@ def parse_languages(codes: Iterable[str]) -> tuple[str, ...]:
     return parsed
 
 
-def currencies_for(languages: Iterable[str]) -> tuple[Currency, ...]:
-    """The currencies of the languages' regions, in language order, without repeats."""
-    return tuple(dict.fromkeys(REGION_CURRENCIES[code.partition("-")[2]] for code in languages))
+def parse_currencies(codes: Iterable[str]) -> tuple[Currency, ...]:
+    """Normalize codes such as usd to currencies, dropping repeats; at least one is required."""
+    parsed: list[Currency] = []
+    for code in codes:
+        try:
+            parsed.append(Currency(code.strip().upper()))
+        except ValueError:
+            names = ", ".join(currency.value for currency in Currency)
+            raise ValueError(f"Currency {code!r} is not supported; use {names}") from None
+    if not parsed:
+        raise ValueError("At least one currency is required")
+    return tuple(dict.fromkeys(parsed))

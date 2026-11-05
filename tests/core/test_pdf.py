@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 import qrcode
-from PIL import Image
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
@@ -48,8 +47,8 @@ def outputs(directory):
 
 @pytest.fixture
 def render(ticket, tmp_path):
-    def render(subject=ticket, zone=BAKU, into=tmp_path, logo_path=None):
-        return pdf.render_pdf(subject, into, zone, logo_path=logo_path)
+    def render(subject=ticket, zone=BAKU, into=tmp_path):
+        return pdf.render_pdf(subject, into, zone)
 
     return render
 
@@ -78,15 +77,13 @@ def strings(spy):
     return spy(Canvas, "drawString", lambda c, x, y, text, **_: (x, text, c._fontsize))
 
 
-def test_renders_one_a4_page_with_unicode_font_and_app_logo(ticket, render, tmp_path):
-    logo = tmp_path / "logo.png"
-    Image.new("RGB", (4, 2), "white").save(logo)
-    path = render(into=tmp_path / "nested", logo_path=logo)
+def test_renders_one_a4_page_with_unicode_font_and_partner_logos(ticket, render, tmp_path):
+    path = render(into=tmp_path / "nested")
     data = path.read_bytes()
     assert path == tmp_path / "nested" / f"{ticket.id}.pdf"
     assert data.startswith(b"%PDF-")
     assert data.count(b"/Type /Page\n") == 1
-    assert data.count(b"/Subtype /Image") == 1
+    assert data.count(b"/Subtype /Image") == 2
     assert b"/ToUnicode" in data
     assert ticket.readable_serial.encode() in data
     assert list(path.parent.iterdir()) == [path]

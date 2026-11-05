@@ -11,6 +11,7 @@
     isOpen: boolean;
     isPending: boolean;
     isDestructive?: boolean;
+    isNarrow?: boolean;
     onClose: () => void;
     onSubmit: (event: SubmitEvent) => void | Promise<void>;
     children: Snippet;
@@ -22,6 +23,7 @@
     isOpen,
     isPending,
     isDestructive = false,
+    isNarrow = false,
     onClose,
     onSubmit,
     children,
@@ -36,7 +38,7 @@
   };
 </script>
 
-<Modal ariaLabel={title} isClosable={!isPending} {isOpen} {onClose}>
+<Modal ariaLabel={title} isClosable={!isPending} {isNarrow} {isOpen} {onClose}>
   <form
     aria-busy={isPending}
     class="card border-surface-200-800 bg-surface-50-950 space-y-5 border p-6 shadow-xl [--floating-label-notch:var(--color-surface-50-950)]"

@@ -10,6 +10,8 @@
   "theme": "default", // default: default (vintage) https://skeleton.dev/docs/svelte/design/themes
   // The browser's language is used when offered; otherwise the first language is the default.
   "languages": ["en-US", "ru-RU", "az-AZ"], // default: en-US, ru-RU, az-AZ
+  // The currencies a ticket type's price may be in; chosen apart from the languages.
+  "currencies": ["USD", "RUB", "AZN"], // default: USD, RUB, AZN (also KZT)
 
   // Tickets
   "prefix": "TQR", // default: TQR

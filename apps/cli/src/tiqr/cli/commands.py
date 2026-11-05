@@ -75,6 +75,8 @@ _TICKET_FIELDS = (
 _DB_SUFFIXES = ("-journal", "-wal", "-shm")
 # Set by the install scripts once the user has agreed to a reinstall, so it is not asked twice.
 REINSTALL_CONFIRMED_ENV = "TIQR_REINSTALL_CONFIRMED"
+# Set by the install scripts when the user chose to update: data, settings and license are kept.
+UPDATE_CONFIRMED_ENV = "TIQR_UPDATE_CONFIRMED"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -304,7 +306,7 @@ def _reinstall_decision(*, service: bool) -> bool:
     """Whether an existing service is replaced; a terminal user who declines stops the install."""
     if not service or not is_installed():
         return False
-    if os.environ.get(REINSTALL_CONFIRMED_ENV):
+    if os.environ.get(REINSTALL_CONFIRMED_ENV) or os.environ.get(UPDATE_CONFIRMED_ENV):
         return True
     if _interactive() and not typer.confirm(
         "TiQR is already installed. Reinstall it?", default=False
@@ -322,7 +324,7 @@ def _register(*, reinstall: bool, source: Path) -> None:
 
 
 @app.command()
-def install(
+def install(  # noqa: C901, PLR0912
     *,
     source: Annotated[
         Path | None,
@@ -365,6 +367,9 @@ def install(
                 "Service registration needs the packaged executable; use --no-service"
             )
         reinstall = _reinstall_decision(service=service)
+        updating = bool(os.environ.get(UPDATE_CONFIRMED_ENV)) and not os.environ.get(
+            REINSTALL_CONFIRMED_ENV
+        )
         origin_folder = source or _executable_folder()
         origin = origin_folder / BRANDING_FILE
         target = branding_path()
@@ -374,22 +379,32 @@ def install(
         if origin.resolve() == target.resolve():
             typer.echo(f"{target} is already in place")
         elif target.exists():
-            # A reinstall keeps the branding the site has already edited.
-            typer.echo(f"Keeping the branding already in {target}")
+            # A reinstall or update takes the branding just chosen; replaced file kept as .bak.
+            backup = target.with_name(target.name + ".bak")
+            shutil.copyfile(target, backup)
+            shutil.copyfile(origin, target)
+            typer.echo(f"Replaced {target} with {origin}; the previous file is {backup}")
         else:
             shutil.copyfile(origin, target)
             typer.echo(f"Copied {origin} to {target}")
 
-        host = host or _ask("Address operators' PCs use to reach TiQR", lan_address())
-        port = port or _ask("TCP port", 7102)
-        if write_local_settings({"TIQR_HOST": host, "TIQR_PORT": str(port)}):
-            typer.echo(f"Set TIQR_HOST and TIQR_PORT in {LOCAL_ENV_FILE}")
-        _pass_webhook_settings(pass_webhook_url, pass_webhook_secret)
+        if updating:
+            # An update keeps the address, port and webhook the site already set.
+            saved = load_environment()
+            host = host or saved.get("TIQR_HOST") or lan_address()
+            port = port or int(saved.get("TIQR_PORT") or 7102)
+            typer.echo(f"Updating: keeping the settings in {LOCAL_ENV_FILE}")
+        else:
+            host = host or _ask("Address operators' PCs use to reach TiQR", lan_address())
+            port = port or _ask("TCP port", 7102)
+            if write_local_settings({"TIQR_HOST": host, "TIQR_PORT": str(port)}):
+                typer.echo(f"Set TIQR_HOST and TIQR_PORT in {LOCAL_ENV_FILE}")
+            _pass_webhook_settings(pass_webhook_url, pass_webhook_secret)
 
         setup()
         with SQLiteRepository(Settings.from_env().database_path) as repository:
             has_users = bool(repository.list_users())
-        if not has_users:
+        if not has_users and not updating:
             if _interactive():
                 create_first_admin()
             else:
@@ -710,10 +725,7 @@ def ticket_save(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> N
             output_dir=runtime.settings.output_dir,
             timezone=runtime.settings.default_tz,
             renderer=partial(
-                render_pdf,
-                title=runtime.settings.app_name,
-                theme=runtime.settings.theme,
-                logo_path=runtime.settings.logo_path,
+                render_pdf, title=runtime.settings.app_name, theme=runtime.settings.theme
             ),
         )
         typer.echo(str(path))
@@ -729,12 +741,7 @@ def ticket_print(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> 
 
         def render_and_print(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
             path = render_pdf(
-                ticket,
-                output_dir,
-                timezone,
-                title=settings.app_name,
-                theme=settings.theme,
-                logo_path=settings.logo_path,
+                ticket, output_dir, timezone, title=settings.app_name, theme=settings.theme
             )
             send_to_printer(path)
             return path

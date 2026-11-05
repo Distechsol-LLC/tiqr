@@ -31,6 +31,7 @@ def open_service(settings: Settings) -> Generator[TicketService]:
             registrar=registrar,
             event_source=event_source,
             prefix=settings.prefix,
+            timezone=settings.default_tz,
         )
         link.service = service
         service.biostar_link = link
