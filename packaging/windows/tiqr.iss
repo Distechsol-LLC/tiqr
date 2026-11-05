@@ -937,13 +937,12 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
-    { The data folder is empty of earlier settings, and tiqr install keeps an existing branding file, so the
-      wizard's file is placed here. }
+    { A first install or reinstall has no settings file here, so the wizard's file is placed here. An update
+      that finds one leaves it to tiqr install, which saves it as tiqr_brand.jsonc.bak and replaces it. }
     ForceDirectories(DataFolder);
     Existing := DataFolder + '\' + BrandFile;
-    { An update keeps the settings file the app already reads. }
     if Updating and FileExists(Existing) then
-      Log('Update: keeping the existing ' + Existing)
+      Log('Update: tiqr install will replace ' + Existing + ' and keep the previous file as .bak')
     else if not FileCopy(ExpandConstant('{app}\' + BrandFile), Existing, False) then
       MsgBox('TiQR was copied, but ' + Existing + ' could not be written. Copy tiqr_brand.jsonc there by hand, then run tiqr.exe install.', mbError, MB_OK);
     { tiqr install registers the service, opens the firewall and runs the health check. The address and

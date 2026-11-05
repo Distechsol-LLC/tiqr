@@ -11,10 +11,10 @@ bundle: `iscc /DBundleDir=bundle\tiqr-Windows-X64 /DAppVersion=<version> packagi
    `%ProgramData%\TiQR` (`settings._project_root`). The installer writes `tiqr_brand.jsonc` and the logo
    there, and also copies them beside `tiqr.exe`. The app runtime is unchanged.
 3. **Running `tiqr install`.** The installer runs `tiqr.exe install --source <install folder> --host <host>
-   --port <port>` after copying files. `tiqr install` keeps an existing branding file in the data folder,
-   so the installer first saves that file as `tiqr_brand.jsonc.bak` and replaces it with the wizard's
-   file. A reinstall therefore takes the new wizard values. The docs say a reinstall keeps the branding
-   already in place, so confirm this is the intended behaviour.
+   --port <port>` after copying files. On an update, `tiqr install` replaces an existing branding file in
+   the data folder with the wizard's file and saves the previous one as `tiqr_brand.jsonc.bak`. The
+   installer leaves that copy to `tiqr install` rather than making it itself, so the backup is not overwritten.
+   A reinstall deletes the data folder first and copies the wizard's file.
 4. **"Takes effect without reinstalling."** The app reads the file on every start, so a hand edit applies
    after a restart (the file's own header says so), not live. No app change was made for live reload.
 5. **TLS on/off.** The schema has no TLS flag, only `tls_cert` and `tls_key` (both or neither). "On"

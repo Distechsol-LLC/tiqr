@@ -52,7 +52,7 @@ for file in THIRD-PARTY-NOTICES.txt INSTALL.txt; do
 done
 cp "$here/tiqr-health.sh" "$target/tiqr-health.sh"
 chmod 755 "$target/tiqr-health.sh"
-# The bundle's branding is only the default for a first install; the data folder keeps its own.
+# The bundle's branding is copied to the program folder; `tiqr install` then applies it to the data folder.
 [ -f "$here/tiqr_brand.jsonc" ] || { echo "tiqr_brand.jsonc is missing" >&2; exit 1; }
 cp "$here/tiqr_brand.jsonc" "$target/tiqr_brand.jsonc"
 

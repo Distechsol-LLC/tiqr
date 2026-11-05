@@ -379,8 +379,11 @@ def install(  # noqa: C901, PLR0912
         if origin.resolve() == target.resolve():
             typer.echo(f"{target} is already in place")
         elif target.exists():
-            # A reinstall keeps the branding the site has already edited.
-            typer.echo(f"Keeping the branding already in {target}")
+            # A reinstall or update takes the branding just chosen; replaced file kept as .bak.
+            backup = target.with_name(target.name + ".bak")
+            shutil.copyfile(target, backup)
+            shutil.copyfile(origin, target)
+            typer.echo(f"Replaced {target} with {origin}; the previous file is {backup}")
         else:
             shutil.copyfile(origin, target)
             typer.echo(f"Copied {origin} to {target}")

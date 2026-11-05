@@ -56,8 +56,8 @@ if defined TIQR_REINSTALL_CONFIRMED (
     rd /s /q "%DATA%" 2>nul
 )
 
-rem Everything in this folder except the scripts. The branding copied here is only the default for a
-rem first install; the installer keeps the one already in the data folder.
+rem Everything in this folder except the scripts. The branding copied here is applied to the data
+rem folder by the installer, which keeps the file it replaces as tiqr_brand.jsonc.bak.
 set "SKIP=install.cmd install.sh"
 robocopy "%HERE%." "%TARGET%" /XF %SKIP% /NFL /NDL /NJH /NJS /NP
 if errorlevel 8 (

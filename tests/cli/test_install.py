@@ -48,14 +48,15 @@ def test_install_copies_branding_into_tiqr_home(home, release):
     assert "Copied" in result.output
 
 
-def test_reinstall_keeps_the_branding_already_in_place(home, release):
-    (home / BRANDING_FILE).write_text(BRANDING.replace("TiQR", "Edited"))
+def test_reinstall_replaces_the_branding_and_keeps_a_backup(home, release):
+    (home / BRANDING_FILE).write_text(BRANDING.replace("TiQR", "Previous"))
 
     result = CliRunner().invoke(app, ["install", "--source", str(release), *QUIET])
 
     assert result.exit_code == 0, result.output
-    assert '"Edited"' in (home / BRANDING_FILE).read_text()
-    assert "Keeping the branding" in result.output
+    assert (home / BRANDING_FILE).read_text() == (release / BRANDING_FILE).read_text()
+    assert '"Previous"' in (home / (BRANDING_FILE + ".bak")).read_text()
+    assert "Replaced" in result.output
 
 
 def test_install_ends_with_the_license_request_code(home, release):
