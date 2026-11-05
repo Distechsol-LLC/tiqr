@@ -89,6 +89,7 @@ const az: Messages = {
     seconds: (count: number): string => `${count} saniyə`,
     server: 'Serverdə xəta baş verdi. Yenidən cəhd edin.',
     sessionEnded: 'Sessiyanız başa çatıb. Yenidən daxil olun.',
+    ticketTypeRequired: 'Bilet növünü seçin.',
     usernameLong: 'İstifadəçi adı çox uzundur.',
     usernameRequired: 'İstifadəçi adınızı daxil edin.',
     validFromRequired: 'Biletin başlama vaxtını seçin.',

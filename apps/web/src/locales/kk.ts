@@ -89,6 +89,7 @@ const kk: Messages = {
     seconds: (count: number): string => `${count} секунд`,
     server: 'Серверде бірдеңе дұрыс болмады. Қайтадан көріңіз.',
     sessionEnded: 'Сеанс аяқталды. Қайтадан кіріңіз.',
+    ticketTypeRequired: 'Билет түрін таңдаңыз.',
     usernameLong: 'Пайдаланушы аты тым ұзын.',
     usernameRequired: 'Пайдаланушы атын енгізіңіз.',
     validFromRequired: 'Билеттің басталу уақытын таңдаңыз.',

@@ -91,6 +91,7 @@ const ru: Messages = {
       `${count} ${plural('ru', count, { few: 'секунды', many: 'секунд', one: 'секунду', other: 'секунды' })}`,
     server: 'На сервере что-то пошло не так. Повторите попытку.',
     sessionEnded: 'Сеанс завершён. Войдите снова.',
+    ticketTypeRequired: 'Выберите тип билета.',
     usernameLong: 'Имя пользователя слишком длинное.',
     usernameRequired: 'Введите имя пользователя.',
     validFromRequired: 'Укажите, когда билет начинает действовать.',
