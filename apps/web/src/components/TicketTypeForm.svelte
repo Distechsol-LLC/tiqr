@@ -51,7 +51,9 @@
     untrack(() => {
       name = editing?.name ?? '';
       price = editing ? toPriceInput(editing.price_minor) : '';
-      currency = editing?.currency ?? '';
+      // With one currency on offer there is nothing to choose, so it is picked
+      currency =
+        editing?.currency ?? (branding.currencies.length === 1 ? branding.currencies[0] : '');
       isSubmitted = false;
     });
   });
