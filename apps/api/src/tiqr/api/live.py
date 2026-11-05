@@ -21,7 +21,7 @@ from tiqr.core.service import TicketService
 logger = logging.getLogger("tiqr.api")
 
 # BioStar saves an event to its database 3 to 10 seconds after announcing it.
-SYNC_DELAYS = (4.0, 11.0)
+SYNC_DELAYS = (1.0, 2.0, 3.5, 5.0, 7.0, 10.0)
 RETRY_DELAY = 5.0
 WS_PATH = "/wsapi"
 # Set to 1 to log raw pushed messages, to learn their shape. They may hold personal data.

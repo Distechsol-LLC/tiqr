@@ -10,7 +10,7 @@ from tiqr.core.service import TicketService
 
 logger = logging.getLogger("tiqr.api")
 
-SYNC_INTERVAL = 60
+SYNC_INTERVAL = 15
 CLEANUP_INTERVAL = 3600
 
 

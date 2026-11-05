@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from tiqr.api import openapi
 from tiqr.api.app import create_app
 from tiqr.api.config import ServerConfig
-from tiqr.api.maintenance import Maintenance
+from tiqr.api.maintenance import SYNC_INTERVAL, Maintenance
 from tiqr.api.runtime import Runtime
 from tiqr.api.security import LoginThrottle
 from tiqr.core.models import RawEvent, UsageType
@@ -144,7 +144,7 @@ def test_maintenance_runs_each_job_on_its_own_interval(caplog):
 def test_maintenance_uses_built_in_intervals_by_default():
     clock, service = Clock(), Service()
     maintenance = Maintenance(service, clock=clock)
-    assert maintenance.run_due() == 60
+    assert maintenance.run_due() == SYNC_INTERVAL
     assert service.calls == ["sync", "cleanup"]
 
 
