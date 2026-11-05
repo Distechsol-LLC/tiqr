@@ -537,7 +537,7 @@ begin
   Result.TimeZone := Trim(TimeZoneEdit.Text);
   Result.Host := Trim(NetworkPage.Values[0]);
   Result.Port := Trim(NetworkPage.Values[1]);
-  Result.TlsOn := SecurityPage.Values[0];
+  Result.TlsOn := SecurityPage.Values[1];
   Result.TlsCert := '';
   Result.TlsKey := '';
   if Result.TlsOn then
@@ -550,7 +550,7 @@ begin
     Result.TlsCert := Cert;
     Result.TlsKey := Key;
   end;
-  Result.ServerPrinting := SecurityPage.Values[1];
+  Result.ServerPrinting := SecurityPage.Values[0];
 end;
 
 { The error for one page, or '' when it is fine (or is not a page with input). }
@@ -659,12 +659,17 @@ var
   Browse: TNewButton;
   I, Y: Integer;
 begin
-  AppPage := CreateCustomPage(wpSelectDir, 'App', 'Name the app, choose its logo and theme, and set the ticket prefix.');
+  AppPage := CreateCustomPage(wpSelectDir, 'App', 'Name the app, set the ticket prefix, then choose its logo and theme.');
   Y := 0;
 
   AddCaption(AppPage, 0, Y, AppPage.SurfaceWidth, 'App name (required):');
   AppNameEdit := AddEdit(AppPage, 0, Y + ScaleY(18), AppPage.SurfaceWidth);
   AppNameEdit.Text := 'TiQR';
+  Y := Y + ScaleY(46);
+
+  AddCaption(AppPage, 0, Y, AppPage.SurfaceWidth, 'Ticket prefix: exactly 3 printable ASCII characters. Blank keeps TQR.');
+  PrefixEdit := AddEdit(AppPage, 0, Y + ScaleY(18), AppPage.SurfaceWidth);
+  PrefixEdit.Text := DefaultPrefix;
   Y := Y + ScaleY(46);
 
   AddCaption(AppPage, 0, Y, AppPage.SurfaceWidth, 'Logo (optional): PNG, SVG or JPG. Blank keeps the built-in logo.');
@@ -677,11 +682,6 @@ begin
   Browse.Width := ScaleX(80);
   Browse.Height := ScaleY(23);
   Browse.OnClick := @LogoBrowseClick;
-  Y := Y + ScaleY(46);
-
-  AddCaption(AppPage, 0, Y, AppPage.SurfaceWidth, 'Ticket prefix: exactly 3 printable ASCII characters. Blank keeps TQR.');
-  PrefixEdit := AddEdit(AppPage, 0, Y + ScaleY(18), AppPage.SurfaceWidth);
-  PrefixEdit.Text := DefaultPrefix;
   Y := Y + ScaleY(46);
 
   AddCaption(AppPage, 0, Y, AppPage.SurfaceWidth, '"vintage" is the default theme. Preview the 24 Skeleton themes at:');
@@ -784,8 +784,8 @@ begin
 
   { 5. Security and printing: HTTPS on or off, and server printing on or off }
   SecurityPage := CreateInputOptionPage(PassWebhookPage.ID, 'Security and printing', 'Should the server use HTTPS, and print on its own printer?', 'HTTPS needs a certificate and its private key; the next page asks for them. Server printing lets operators print badges on the server''s default printer from the web UI.', False, False);
-  SecurityPage.Add('Use HTTPS (plain HTTP when off)');
   SecurityPage.Add('Server printing');
+  SecurityPage.Add('Use HTTPS (plain HTTP when off)');
 
   { 6. TLS certificate files, shown only when HTTPS is ticked (tls_cert and tls_key are the schema's TLS keys). }
   TlsFilesPage := CreateInputFilePage(SecurityPage.ID, 'TLS certificate', 'Choose the certificate and key for HTTPS.', 'Both PEM files are used from where they are; keep them in place. Set them up so the TiQR service account can read the key.');
@@ -825,7 +825,7 @@ function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
   if PageID = TlsFilesPage.ID then
-    Result := not SecurityPage.Values[0];
+    Result := not SecurityPage.Values[1];
 end;
 
 { Nothing moves forward until the page's values pass; the message says what to fix. }
