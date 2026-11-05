@@ -1371,6 +1371,126 @@
         }
       }
     },
+    "/api/active-hours": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Active Hours",
+        "description": "When tickets may be created: any time, or the local hours a manager or admin has set.",
+        "operationId": "active_hours",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveHoursOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Set Active Hours",
+        "description": "Limit when tickets may be created, to local times in the server's timezone. Without\nboth times the limit is lifted. Admins and managers.",
+        "operationId": "set_active_hours",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActiveHoursIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveHoursOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Set Active Hours"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/visitor-types": {
       "get": {
         "tags": [
@@ -4251,6 +4371,80 @@
         ],
         "title": "ActivateIn"
       },
+      "ActiveHoursIn": {
+        "properties": {
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start",
+            "description": "HH:MM, when tickets may start being made"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End",
+            "description": "HH:MM, when they stop; before the start, the hours run past midnight"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ActiveHoursIn",
+        "description": "Both times, or neither to lift the limit. The times are in the server's timezone."
+      },
+      "ActiveHoursOut": {
+        "properties": {
+          "start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start",
+            "description": "HH:MM, or null when any time is allowed"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End",
+            "description": "HH:MM, or null when any time is allowed"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "The zone the times are in"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "timezone"
+        ],
+        "title": "ActiveHoursOut"
+      },
       "AssignIn": {
         "properties": {
           "assignee": {
@@ -4873,6 +5067,7 @@
               "not_found",
               "conflict",
               "external_code_taken",
+              "outside_active_hours",
               "idempotency_mismatch",
               "invalid_state",
               "credential_format",

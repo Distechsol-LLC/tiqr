@@ -9,7 +9,7 @@ import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from functools import partial
 from http import HTTPStatus
 from pathlib import Path
@@ -36,6 +36,8 @@ from tiqr.api.deps import (
 from tiqr.api.errors import ApiError, describe
 from tiqr.api.schemas import (
     ActivateIn,
+    ActiveHoursIn,
+    ActiveHoursOut,
     AssignIn,
     AuditOut,
     BatchIn,
@@ -375,6 +377,25 @@ def update_ticket_type(
 def delete_ticket_type(type_id: UUID, me: Signed, server: Server) -> None:
     """Remove a ticket type. Tickets already issued keep their name and price."""
     server.service.delete_ticket_type(me.user, type_id)
+
+
+@router.get("/active-hours", tags=["meta"], responses=_refusals(401))
+def active_hours(me: Signed, server: Server) -> ActiveHoursOut:
+    """When tickets may be created: any time, or the local hours a manager or admin has set."""
+    return ActiveHoursOut.of(server.service.active_hours(me.user), server.timezone)
+
+
+@router.put("/active-hours", tags=["meta"], responses=_refusals(401, 403, 422))
+def set_active_hours(body: ActiveHoursIn, me: Signed, server: Server) -> ActiveHoursOut:
+    """Limit when tickets may be created, to local times in the server's timezone. Without
+    both times the limit is lifted. Admins and managers.
+    """
+    hours = server.service.set_active_hours(
+        me.user,
+        None if body.start is None else time.fromisoformat(body.start),
+        None if body.end is None else time.fromisoformat(body.end),
+    )
+    return ActiveHoursOut.of(hours, server.timezone)
 
 
 @router.get("/visitor-types", tags=["catalog"], responses=_refusals(401, 403, 422))

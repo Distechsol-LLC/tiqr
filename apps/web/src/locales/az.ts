@@ -3,6 +3,17 @@ import type { Messages } from '@/locales/en.ts';
 
 // Azerbaijani nouns stay singular after a number, so counts need no plural forms
 const az: Messages = {
+  activeHours: {
+    anyTime: 'İstənilən vaxt',
+    button: 'Aktiv saatlar',
+    from: 'Başlanğıc',
+    notLoaded: 'Aktiv saatlar yüklənmədi',
+    notSaved: 'Aktiv saatlar saxlanmadı',
+    range: (start: string, end: string): string => `${start} – ${end}`,
+    saved: 'Aktiv saatlar saxlanıldı',
+    title: 'Aktiv saatlar',
+    to: 'Son',
+  },
   assign: {
     assigned: 'Bilet təyin edildi',
     assignee: 'İcraçı',
@@ -86,10 +97,12 @@ const az: Messages = {
     rateLimited: 'Həddindən artıq uğursuz giriş cəhdi. Bir az sonra yenidən cəhd edin.',
     rateLimitedFor: (wait: string): string =>
       `Həddindən artıq uğursuz giriş cəhdi. ${wait} sonra yenidən cəhd edin.`,
+    sameTime: 'Başlanğıc və son vaxt fərqli olmalıdır.',
     seconds: (count: number): string => `${count} saniyə`,
     server: 'Serverdə xəta baş verdi. Yenidən cəhd edin.',
     sessionEnded: 'Sessiyanız başa çatıb. Yenidən daxil olun.',
     ticketTypeRequired: 'Bilet növünü seçin.',
+    timeRequired: 'Vaxt seçin.',
     usernameLong: 'İstifadəçi adı çox uzundur.',
     usernameRequired: 'İstifadəçi adınızı daxil edin.',
     validFromRequired: 'Biletin başlama vaxtını seçin.',

@@ -4,13 +4,14 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from tiqr.core.license import LicenseState, LicenseStatus, LicenseType
 from tiqr.core.localtime import zone
 from tiqr.core.models import (
     MAX_DISCOUNT,
     MAX_PRICE,
+    ActiveHours,
     ApiKey,
     Currency,
     LicenseRecord,
@@ -531,6 +532,44 @@ class ConfigOut(BaseModel):
     server_printing: Annotated[bool, Field(description="Whether /print reaches a printer")]
 
 
+# A time of day on the 24-hour clock, such as 09:00
+_Clock = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
+
+
+class ActiveHoursIn(_Request):
+    """Both times, or neither to lift the limit. The times are in the server's timezone."""
+
+    start: Annotated[
+        _Clock | None, Field(description="HH:MM, when tickets may start being made")
+    ] = None
+    end: Annotated[
+        _Clock | None,
+        Field(description="HH:MM, when they stop; before the start, the hours run past midnight"),
+    ] = None
+
+    @model_validator(mode="after")
+    def _both_or_neither(self) -> ActiveHoursIn:
+        if (self.start is None) != (self.end is None):
+            raise ValueError("Give both a start and an end, or neither")
+        return self
+
+
+class ActiveHoursOut(BaseModel):
+    start: Annotated[str | None, Field(description="HH:MM, or null when any time is allowed")]
+    end: Annotated[str | None, Field(description="HH:MM, or null when any time is allowed")]
+    timezone: Annotated[str, Field(description="The zone the times are in")]
+
+    @classmethod
+    def of(cls, hours: ActiveHours | None, timezone: str) -> ActiveHoursOut:
+        if hours is None:
+            return cls(start=None, end=None, timezone=timezone)
+        return cls(
+            start=hours.start.isoformat(timespec="minutes"),
+            end=hours.end.isoformat(timespec="minutes"),
+            timezone=timezone,
+        )
+
+
 class BrandingOut(BaseModel):
     app_name: Annotated[str, Field(description="app_name, for titles and the header")]
     theme: Annotated[str, Field(description="theme: default, light, dark or a Skeleton theme name")]
@@ -615,6 +654,7 @@ ErrorCode = Literal[
     "not_found",
     "conflict",
     "external_code_taken",
+    "outside_active_hours",
     "idempotency_mismatch",
     "invalid_state",
     "credential_format",

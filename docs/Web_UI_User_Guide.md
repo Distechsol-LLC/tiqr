@@ -50,6 +50,7 @@ Your role decides which menu items you see. Your role is shown in the account me
 | Tickets | Yes (assigned to you only) | Yes (all tickets) | Yes (all tickets) |
 | Users | No | Yes (operators only) | Yes (all roles) |
 | Ticket types | No (used when creating tickets) | Yes | Yes |
+| Active hours (on Ticket types) | No | Yes | Yes |
 | Visitor types | No (used when creating tickets) | Yes | Yes |
 | Overview | No | Yes | Yes |
 | BioStar | No | No | Yes |
@@ -160,6 +161,16 @@ Ticket types define what a visitor pays and how much.
 - **New Ticket Type**: enter a **Name**, a **Price** such as `12.50`, and a **Currency**. Select **Create**.
 - **Edit**: change the name, price or currency.
 - **Delete**: removes the ticket type for good. Tickets already issued keep their original price.
+
+### Active hours
+
+Active hours limit when tickets can be created. Select the clock icon, to the left of **Refresh** on the Ticket types page, then:
+
+- Set the **From** and **To** times. A new system starts at 09:00 to 17:00. Times are in the server's timezone.
+- A **To** time before the **From** time runs past midnight, so 22:00 to 06:00 covers the night.
+- Clear both times and select **Save** to allow tickets at any time again.
+
+Outside the hours, the server refuses new tickets, for operators as well as managers and admins. Tickets already issued are not affected.
 
 ### Visitor types
 

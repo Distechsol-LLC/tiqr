@@ -18,9 +18,19 @@
     // Marks today in the calendar on this zone's clock
     timeZone?: string;
     error?: string;
+    // Whether a time of day may be picked; passed on to the time picker
+    allows?: (time: string) => boolean;
   };
 
-  let { id, label, value = $bindable(''), min, timeZone, error }: DateTimeFieldProps = $props();
+  let {
+    id,
+    label,
+    value = $bindable(''),
+    min,
+    timeZone,
+    error,
+    allows,
+  }: DateTimeFieldProps = $props();
 
   const ICON_SIZE = 16;
   const MONDAY = 1;
@@ -107,6 +117,7 @@
       </DatePicker.Trigger>
     </DatePicker.Control>
     <TimeField
+      {allows}
       describedBy={error ? errorId : undefined}
       isInvalid={Boolean(error)}
       label={`${label}, ${i18n.t.dateField.time}`}

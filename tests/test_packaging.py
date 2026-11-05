@@ -189,6 +189,7 @@ assert assets.joinpath("suprema.webp").read_bytes()[8:12] == b"WEBP"
 assert CliRunner().invoke(app, ["--help"]).exit_code == 0
 repository = SQLiteRepository(":memory:")
 repository.initialize()
+repository.save_active_hours(None)
 try:
     now = datetime(2030, 1, 1, 8, tzinfo=UTC)
     service = TicketService(repository, "installed-wheel-signing-key", clock=lambda: now)

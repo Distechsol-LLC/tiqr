@@ -28,7 +28,15 @@ import {
   visitorTypeSchema,
 } from '$/catalog.ts';
 import { type LicenseStatus, licenseStatusSchema, requestCodeSchema } from '$/license.ts';
-import { type Config, type Stats, configSchema, countSchema, statsSchema } from '$/operations.ts';
+import {
+  type ActiveHours,
+  type Config,
+  type Stats,
+  activeHoursSchema,
+  configSchema,
+  countSchema,
+  statsSchema,
+} from '$/operations.ts';
 import { MAX_SIZE, type Page, type PageRequest, pageSchema } from '$/pagination.ts';
 import {
   type AssignInput,
@@ -201,6 +209,16 @@ const fetchBiostarLogs = (): Promise<ApiResult<BiostarLog[]>> =>
   request('/biostar/logs?limit=100', z.array(biostarLogSchema));
 
 const fetchConfig = (): Promise<ApiResult<Config>> => request('/config', configSchema);
+
+const fetchActiveHours = (): Promise<ApiResult<ActiveHours>> =>
+  request('/active-hours', activeHoursSchema);
+
+// Both null lifts the limit
+const saveActiveHours = (
+  csrfToken: string,
+  input: { end: string | null; start: string | null }
+): Promise<ApiResult<ActiveHours>> =>
+  request('/active-hours', activeHoursSchema, write('PUT', csrfToken, input));
 
 const pageQuery = ({ page, size }: PageRequest): URLSearchParams =>
   new URLSearchParams({ page: String(page), size: String(size) });
@@ -379,6 +397,7 @@ export {
   deleteUser,
   deleteVisitorType,
   disconnectBiostar,
+  fetchActiveHours,
   fetchAllTicketTypes,
   fetchAllUsers,
   fetchAllVisitorTypes,
@@ -405,6 +424,7 @@ export {
   revokeTicket,
   runCleanup,
   runSync,
+  saveActiveHours,
   saveBiostar,
   updateTicketType,
   updateTicketWindow,

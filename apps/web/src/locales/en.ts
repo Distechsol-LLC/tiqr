@@ -1,6 +1,17 @@
 // biome-ignore-all lint/style/noExcessiveLinesPerFile: one flat table that must mirror en.ts
 // The source locale: every other one in config/locales.ts must match this shape
 const en = {
+  activeHours: {
+    anyTime: 'Any time',
+    button: 'Active hours',
+    from: 'From',
+    notLoaded: 'Active hours not loaded',
+    notSaved: 'Active hours not saved',
+    range: (start: string, end: string): string => `${start} to ${end}`,
+    saved: 'Active hours saved',
+    title: 'Active hours',
+    to: 'To',
+  },
   assign: {
     assigned: 'Ticket assigned',
     assignee: 'Assignee',
@@ -83,10 +94,12 @@ const en = {
     priceTooHigh: 'Price too high.',
     rateLimited: 'Too many failed sign-ins. Try again later.',
     rateLimitedFor: (wait: string): string => `Too many failed sign-ins. Try again in ${wait}.`,
+    sameTime: 'Start and end must be different.',
     seconds: (count: number): string => (count === 1 ? '1 second' : `${count} seconds`),
     server: 'Something went wrong on the server. Try again.',
     sessionEnded: 'Your session has ended. Sign in again.',
     ticketTypeRequired: 'Pick a ticket type.',
+    timeRequired: 'Pick a time.',
     usernameLong: 'Username is too long.',
     usernameRequired: 'Enter your username.',
     validFromRequired: 'Pick when the ticket starts.',

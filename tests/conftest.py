@@ -57,6 +57,8 @@ def repository(accounts):
     repo.initialize()
     for user in accounts.values():
         repo.add_user(user)
+    # A new database is limited to working hours; the suite's tickets are made at any time
+    repo.save_active_hours(None)
     yield repo
     repo.close()
 
