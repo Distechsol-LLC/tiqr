@@ -98,8 +98,15 @@ def test_a_reinstall_asks_then_starts_from_scratch() -> None:
     assert "DirExists(ExpandConstant('{commonappdata}\\TiQR'))" in SCRIPT
     assert "procedure RemoveExistingInstall;" in SCRIPT
     assert "DelTree(DataFolder, True, True, True);" in SCRIPT
-    assert "else if Reinstalling then\n    RemoveExistingInstall;" in SCRIPT
+    assert "else if Reinstalling then\n    RemoveExistingInstall" in SCRIPT
     assert "set TIQR_REINSTALL_CONFIRMED=1" in SCRIPT
+
+
+def test_an_update_keeps_the_data_and_sets_the_update_flag() -> None:
+    assert "Is this a reinstall or an update?" in SCRIPT
+    assert "MB_YESNOCANCEL" in SCRIPT
+    assert "set TIQR_UPDATE_CONFIRMED=1" in SCRIPT
+    assert "Updating and FileExists(Existing)" in SCRIPT
 
 
 def test_install_and_uninstall_cover_only_generated_files() -> None:

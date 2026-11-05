@@ -142,6 +142,7 @@ var
 
   KnownTimeZones: String;
   Reinstalling: Boolean;
+  Updating: Boolean;
 
 { ---------------------------------------------------------------------------------------------
   Text helpers
@@ -842,18 +843,31 @@ begin
 end;
 
 { An existing install (its folder, its data folder or its service) is asked about before the wizard starts.
-  A yes removes it at ssInstall and installs from scratch; a no ends the setup and changes nothing. }
+  The first question is reinstall or update. An update keeps the database, settings and license and replaces
+  only the program; a reinstall removes everything at ssInstall and installs from scratch. Cancel changes nothing. }
 function InitializeSetup(): Boolean;
 var
-  ResultCode: Integer;
+  ResultCode, Answer: Integer;
 begin
   Result := True;
+  Updating := False;
   Reinstalling := DirExists(ExpandConstant('{autopf}\TiQR')) or DirExists(ExpandConstant('{commonappdata}\TiQR'));
   if not Reinstalling then
     Reinstalling := Exec(ExpandConstant('{sys}\sc.exe'), 'query TiQR', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
   if Reinstalling then
   begin
-    if MsgBox('TiQR is already installed. Reinstalling deletes the program and all its data, including the database and users, and starts from scratch. Reinstall it?', mbConfirmation, MB_YESNO) = IDNO then
+    Answer := MsgBox('TiQR is already installed. Is this a reinstall or an update?' + NL + NL + 'Yes: update. Keeps the database, users, settings and license; only the program is replaced.' + NL + 'No: reinstall. Deletes the program and all its data, including the database and users.' + NL + 'Cancel: stop the setup; nothing is changed.', mbConfirmation, MB_YESNOCANCEL);
+    if Answer = IDYES then
+    begin
+      Updating := True;
+      Reinstalling := False;
+    end
+    else if Answer = IDNO then
+    begin
+      if MsgBox('This deletes all data, including the database and users, and starts from scratch. Continue?', mbConfirmation, MB_YESNO) = IDNO then
+        Result := False;
+    end
+    else
       Result := False;
   end;
 end;
@@ -883,6 +897,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Brand: TBrand;
   Json: String;
+  ResultCode: Integer;
 begin
   Result := '';
   Brand := ReadBrand;
@@ -907,7 +922,10 @@ begin
   if not SaveStringToFile(ExpandConstant('{tmp}\' + BrandFile), AnsiString(Json), False) then
     Result := 'The settings file could not be prepared, so nothing was installed.'
   else if Reinstalling then
-    RemoveExistingInstall;
+    RemoveExistingInstall
+  else if Updating then
+    { The service runs the program being replaced, so it is stopped before the files are copied. }
+    Exec(ExpandConstant('{sys}\net.exe'), 'stop TiQR', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -923,7 +941,10 @@ begin
       wizard's file is placed here. }
     ForceDirectories(DataFolder);
     Existing := DataFolder + '\' + BrandFile;
-    if not FileCopy(ExpandConstant('{app}\' + BrandFile), Existing, False) then
+    { An update keeps the settings file the app already reads. }
+    if Updating and FileExists(Existing) then
+      Log('Update: keeping the existing ' + Existing)
+    else if not FileCopy(ExpandConstant('{app}\' + BrandFile), Existing, False) then
       MsgBox('TiQR was copied, but ' + Existing + ' could not be written. Copy tiqr_brand.jsonc there by hand, then run tiqr.exe install.', mbError, MB_OK);
     { tiqr install registers the service, opens the firewall and runs the health check. The address and
       port come from the wizard so .env.local does not hold different values from the settings file. }
@@ -941,6 +962,8 @@ begin
     Confirmed := '';
     if Reinstalling then
       Confirmed := 'set TIQR_REINSTALL_CONFIRMED=1&& ';
+    if Updating then
+      Confirmed := 'set TIQR_UPDATE_CONFIRMED=1&& ';
     { cmd strips the outer quote, so exactly one more quote may open the executable's path. }
     Log('Running tiqr install in a console window');
     { The webhook goes as flags, so the console does not ask for it again; blank values mean none. }
