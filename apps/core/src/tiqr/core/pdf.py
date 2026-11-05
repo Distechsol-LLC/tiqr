@@ -398,8 +398,7 @@ def _draw_face(
     bar_height = 7
     bar_top = height - _FOLD_MARGIN - bar_height
     surface.rect(left, bar_top, text_width, bar_height, palette.band, radius=1.2)
-    if title == DEFAULT_TITLE:
-        surface.centered(width / 2, bar_top + 1.3, _TECH_LINE, 3.2, colors.white)
+    surface.centered(width / 2, bar_top + 1.3, _TECH_LINE, 3.2, colors.white)
     rule = bar_top - 2.5
 
     tracking = 0.6
