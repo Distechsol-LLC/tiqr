@@ -13,7 +13,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import dotenv_values
 
-from tiqr.core.languages import DEFAULT_LANGUAGES, currencies_for, parse_languages
+from tiqr.core.languages import (
+    DEFAULT_CURRENCIES,
+    DEFAULT_LANGUAGES,
+    parse_currencies,
+    parse_languages,
+)
 from tiqr.core.models import Currency
 from tiqr.core.qr import DEFAULT_PREFIX, validate_prefix
 
@@ -81,7 +86,7 @@ _BIOSTAR_OPTIONAL = (
 
 _JSONC_TOKEN = re.compile(r'("(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/', re.DOTALL)
 _TRAILING_COMMA = re.compile(r'("(?:\\.|[^"\\])*")|,(?=\s*[}\]])')
-_BRANDING_KEYS = frozenset({"app_name", "logo_path", "theme", "languages"})
+_BRANDING_KEYS = frozenset({"app_name", "logo_path", "theme", "languages", "currencies"})
 # The rest of the file's keys are the TIQR_* settings of the same name. The signing key is not among
 # them: it stays in .env.local, out of a file that gets shared.
 _SETTING_KEYS = frozenset(
@@ -131,7 +136,8 @@ def load_branding(path: Path | None = None) -> dict[str, object]:
         - {"biostar"}
         - {f"biostar.{key}" for key in _BIOSTAR_KEYS}
     )
-    missing = sorted(_BRANDING_KEYS - {"logo_path"} - set(data))
+    # A file from before currencies were chosen apart from languages still loads, with the defaults.
+    missing = sorted(_BRANDING_KEYS - {"logo_path", "currencies"} - set(data))
     if unknown or missing:
         raise ValueError(
             f"{BRANDING_FILE} "
@@ -402,6 +408,19 @@ def _branding_languages(branding: Mapping[str, object]) -> tuple[str, ...]:
     return parse_languages(cast("list[str]", codes))
 
 
+def _branding_currencies(branding: Mapping[str, object]) -> tuple[Currency, ...]:
+    value = branding.get("currencies")
+    if value is None:
+        return DEFAULT_CURRENCIES
+    message = f"{BRANDING_FILE}: currencies must be a list of codes such as USD"
+    if not isinstance(value, list):
+        raise ValueError(message)  # noqa: TRY004
+    codes = cast("list[object]", value)
+    if not all(isinstance(code, str) for code in codes):
+        raise ValueError(message)
+    return parse_currencies(cast("list[str]", codes))
+
+
 @dataclass(frozen=True, slots=True)
 class BioStarSettings:
     base_url: str
@@ -474,6 +493,7 @@ class Settings:
     logo_path: Path | None = None
     theme: str = DEFAULT_THEME
     languages: tuple[str, ...] = DEFAULT_LANGUAGES
+    currencies: tuple[Currency, ...] = DEFAULT_CURRENCIES
 
     def __post_init__(self) -> None:
         validate_secret(self.secret_key)
@@ -485,16 +505,13 @@ class Settings:
             raise ValueError("theme must be lowercase letters, digits and dashes")
         if not self.languages or self.languages != parse_languages(self.languages):
             raise ValueError("languages must list each language once, such as en-US, az-AZ")
+        if not self.currencies or self.currencies != parse_currencies(self.currencies):
+            raise ValueError("currencies must list each currency once, such as USD, AZN")
         if self.logo_path is not None:
             if self.logo_path.suffix.lower() not in LOGO_SUFFIXES:
                 raise ValueError("logo_path must be a PNG, SVG or JPG image")
             if not self.logo_path.is_file():
                 raise ValueError(f"logo_path does not exist: {self.logo_path}")
-
-    @property
-    def currencies(self) -> tuple[Currency, ...]:
-        """What prices may be in: the currency of each language's region."""
-        return currencies_for(self.languages)
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -515,4 +532,5 @@ class Settings:
             logo_path=_logo_path(branding),
             theme=_branding_text(branding, "theme").lower(),
             languages=_branding_languages(branding),
+            currencies=_branding_currencies(branding),
         )

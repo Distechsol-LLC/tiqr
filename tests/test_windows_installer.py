@@ -9,7 +9,13 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from tiqr.core import settings
-from tiqr.core.languages import DEFAULT_LANGUAGES, SUPPORTED_LANGUAGES, parse_language
+from tiqr.core.languages import (
+    DEFAULT_CURRENCIES,
+    DEFAULT_LANGUAGES,
+    SUPPORTED_LANGUAGES,
+    parse_language,
+)
+from tiqr.core.models import Currency
 from tiqr.core.qr import DEFAULT_PREFIX
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -50,6 +56,13 @@ def test_defaults_are_the_constructors() -> None:
     assert _constant("DefaultBioDoorDuration") == "3"
     assert _constant("DefaultBioDoorTimeout") == "10"
     assert {*_constant("LogoExtensions").split("|")} == settings.LOGO_SUFFIXES
+
+
+def test_currencies_are_the_apps() -> None:
+    codes = _constant("CurrencyCodes").split("|")
+    assert codes == [currency.value for currency in Currency]
+    assert tuple(_constant("DefaultCurrencies").split("|")) == DEFAULT_CURRENCIES
+    assert len(_constant("CurrencyLabels").split("|")) == len(codes)
 
 
 def test_generator_writes_the_schemas_keys_in_order() -> None:

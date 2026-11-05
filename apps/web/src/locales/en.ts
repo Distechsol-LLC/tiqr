@@ -86,7 +86,6 @@ const en = {
     seconds: (count: number): string => (count === 1 ? '1 second' : `${count} seconds`),
     server: 'Something went wrong on the server. Try again.',
     sessionEnded: 'Your session has ended. Sign in again.',
-    ticketTypeRequired: 'Pick a ticket type.',
     usernameLong: 'Username is too long.',
     usernameRequired: 'Enter your username.',
     validFromRequired: 'Pick when the ticket starts.',

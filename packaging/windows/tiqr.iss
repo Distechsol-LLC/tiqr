@@ -81,10 +81,15 @@ const
   DefaultThemeName = 'vintage';
   DefaultThemeValue = 'default';
 
-  { The app is translated into these; the region names the currency (core/languages.py). }
+  { The app is translated into these; the region only picks the flag (core/languages.py). }
   LanguageCodes = 'en-US|ru-RU|az-AZ|kk-KZ';
   LanguageLabels = 'English (en-US)|Russian (ru-RU)|Azerbaijani (az-AZ)|Kazakh (kk-KZ)';
   DefaultLanguages = 'en-US|ru-RU|az-AZ';
+
+  { The currencies a price may be in, chosen apart from the languages (core/models.py Currency). }
+  CurrencyCodes = 'USD|RUB|AZN|KZT';
+  CurrencyLabels = 'US dollar (USD)|Russian ruble (RUB)|Azerbaijani manat (AZN)|Kazakhstani tenge (KZT)';
+  DefaultCurrencies = 'USD|RUB|AZN';
 
   { Defaults the constructor documents; they pre-fill the pages. }
   DefaultPrefix = 'TQR';
@@ -107,6 +112,7 @@ type
     LogoFile: String;
     Theme: String;
     Languages: String;
+    Currencies: String;
     Prefix: String;
     TimeZone: String;
     Host: String;
@@ -124,6 +130,7 @@ var
   ThemePage: TWizardPage;
   ThemeCombo: TNewComboBox;
   LanguagesPage: TInputOptionWizardPage;
+  CurrenciesPage: TInputOptionWizardPage;
   PrefixPage: TInputQueryWizardPage;
   TimeZonePage: TInputQueryWizardPage;
   HostPage: TInputQueryWizardPage;
@@ -241,6 +248,13 @@ begin
   Result := '';
   if B.Languages = '' then
     Result := 'Choose at least one language.';
+end;
+
+function ValidateCurrencies(const B: TBrand): String;
+begin
+  Result := '';
+  if B.Currencies = '' then
+    Result := 'Choose at least one currency.';
 end;
 
 { Exactly three printable ASCII characters, none of ":" or "-" (core's validate_prefix). Blank keeps
@@ -450,6 +464,8 @@ begin
     Entry('  ', 'theme', JsonText(B.Theme), 'default: default (vintage)', False) +
     '  // The browser''s language is used when offered; otherwise the first language is the default.' + NL +
     Entry('  ', 'languages', JsonList(B.Languages, '|'), 'default: en-US, ru-RU, az-AZ', False) +
+    '  // The currencies a ticket type''s price may be in; chosen apart from the languages.' + NL +
+    Entry('  ', 'currencies', JsonList(B.Currencies, '|'), 'default: USD, RUB, AZN (also KZT)', False) +
     NL +
     '  // Tickets' + NL +
     Entry('  ', 'prefix', JsonText(B.Prefix), 'default: TQR', False) +
@@ -515,6 +531,15 @@ begin
         Result.Languages := Result.Languages + '|';
       Result.Languages := Result.Languages + Codes[I];
     end;
+  Result.Currencies := '';
+  Codes := SplitText(CurrencyCodes, '|');
+  for I := 0 to GetArrayLength(Codes) - 1 do
+    if CurrenciesPage.Values[I] then
+    begin
+      if Result.Currencies <> '' then
+        Result.Currencies := Result.Currencies + '|';
+      Result.Currencies := Result.Currencies + Codes[I];
+    end;
   Result.Prefix := Trim(PrefixPage.Values[0]);
   Result.TimeZone := Trim(TimeZonePage.Values[0]);
   Result.Host := Trim(HostPage.Values[0]);
@@ -547,6 +572,8 @@ begin
     Result := ValidateTheme(B)
   else if PageID = LanguagesPage.ID then
     Result := ValidateLanguages(B)
+  else if PageID = CurrenciesPage.ID then
+    Result := ValidateCurrencies(B)
   else if PageID = PrefixPage.ID then
     Result := ValidatePrefix(B)
   else if PageID = TimeZonePage.ID then
@@ -584,6 +611,7 @@ begin
   if Result = '' then Result := ValidateLogo(B);
   if Result = '' then Result := ValidateTheme(B);
   if Result = '' then Result := ValidateLanguages(B);
+  if Result = '' then Result := ValidateCurrencies(B);
   if Result = '' then Result := ValidatePrefix(B);
   if Result = '' then Result := ValidateTimeZone(B);
   if Result = '' then Result := ValidateHost(B);
@@ -681,6 +709,17 @@ begin
     LanguagesPage.Values[I] := Pos('|' + Codes[I] + '|', '|' + DefaultLanguages + '|') > 0;
   end;
   After := LanguagesPage.ID;
+
+  { 4b. Currencies, apart from the languages }
+  CurrenciesPage := CreateInputOptionPage(After, 'Currencies', 'Which currencies may ticket prices use?', 'Chosen apart from the languages. Tick at least one.', False, False);
+  Labels := SplitText(CurrencyLabels, '|');
+  Codes := SplitText(CurrencyCodes, '|');
+  for I := 0 to GetArrayLength(Labels) - 1 do
+  begin
+    CurrenciesPage.Add(Labels[I]);
+    CurrenciesPage.Values[I] := Pos('|' + Codes[I] + '|', '|' + DefaultCurrencies + '|') > 0;
+  end;
+  After := CurrenciesPage.ID;
 
   { 5. Prefix }
   PrefixPage := CreateInputQueryPage(After, 'Ticket prefix', 'How should ticket numbers begin?', 'Exactly 3 printable ASCII characters, without ":" or "-". Blank keeps TQR.');

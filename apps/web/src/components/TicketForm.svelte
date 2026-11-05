@@ -65,12 +65,6 @@
   );
 
   const ticketTypeOptions = $derived(ticketTypes.map((type) => type.name));
-  // With ticket types defined a ticket needs one, since that is what prices it
-  const ticketTypeError = $derived(
-    isSubmitted && ticketTypes.length > 0 && !ticketType
-      ? i18n.t.errors.ticketTypeRequired
-      : undefined
-  );
   const priced = $derived(ticketTypes.find((type) => type.name === ticketType));
   const discount = $derived(
     visitorTypes.find((type) => type.name === visitorType)?.discount_percent ?? 0
@@ -115,7 +109,7 @@
 
     const csrfToken = auth.session?.csrf_token;
 
-    if (!(validation.success && csrfToken) || ticketTypeError) return;
+    if (!(validation.success && csrfToken)) return;
 
     isPending = true;
 
@@ -178,7 +172,8 @@
 
   {#if ticketTypeOptions.length > 0}
     <FloatingSelect
-      error={ticketTypeError ?? fieldErrors.ticket_type?.[0]}
+      clearable
+      error={fieldErrors.ticket_type?.[0]}
       id="ticket-type"
       label={i18n.t.ticketForm.ticketType}
       options={ticketTypeOptions}

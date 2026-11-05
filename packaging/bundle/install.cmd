@@ -14,8 +14,9 @@ if errorlevel 1 (
     exit /b
 )
 
-rem An existing installation (service, program or data) is asked about before anything is stopped or copied;
-rem a no changes nothing. A yes deletes it all, database included, and installs from scratch.
+rem An existing installation (service, program or data) is asked about before anything is stopped or copied.
+rem The first question is reinstall or update. An update keeps the database, settings and license and
+rem replaces only the program; a reinstall deletes it all, database included, and starts from scratch.
 set "DATA=%ProgramData%\TiQR"
 sc query TiQR >nul 2>&1
 if not errorlevel 1 goto :ask
@@ -24,11 +25,26 @@ if exist "%DATA%" goto :ask
 goto :fresh
 :ask
 set "ANSWER="
-set /p "ANSWER=TiQR is already installed. Reinstalling deletes the program and all its data, including the database and users, and starts from scratch. Reinstall it? [y/N] "
-if /i "%ANSWER%"=="y" goto :confirmed
+echo TiQR is already installed. Is this a reinstall or an update?
+echo   update    keeps the database, users, settings and license; only the program is replaced
+echo   reinstall deletes the program and all its data, including the database and users
+set /p "ANSWER=Type update, reinstall, or anything else to cancel [update/reinstall/N] "
+if /i "%ANSWER%"=="update" goto :update
+if /i "%ANSWER%"=="u" goto :update
+if /i "%ANSWER%"=="reinstall" goto :sure
+if /i "%ANSWER%"=="r" goto :sure
+goto :cancel
+:sure
+set "SURE="
+set /p "SURE=This deletes all data, including the database and users. Continue? [y/N] "
+if /i "%SURE%"=="y" goto :confirmed
+:cancel
 echo Install cancelled; nothing was changed.
 pause
 exit /b 1
+:update
+set "TIQR_UPDATE_CONFIRMED=1"
+goto :fresh
 :confirmed
 set "TIQR_REINSTALL_CONFIRMED=1"
 :fresh
