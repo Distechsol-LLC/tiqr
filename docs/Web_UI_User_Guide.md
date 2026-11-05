@@ -52,6 +52,7 @@ Your role decides which menu items you see. Your role is shown in the account me
 | Ticket types | No (used when creating tickets) | Yes | Yes |
 | Visitor types | No (used when creating tickets) | Yes | Yes |
 | Overview | No | Yes | Yes |
+| BioStar | No | No | Yes |
 | License | No | No | Yes |
 
 The tasks below say which role can do each one.
@@ -188,7 +189,36 @@ Two maintenance buttons talk to BioStar:
   if the figures look out of date. A message reports how many new events were applied.
 - **Clean** (**Remove finished tickets**): removes finished tickets from BioStar. A message reports how many were removed.
 
-## 9. License (Admin)
+## 9. BioStar (Admin)
+
+The **BioStar** page connects TiQR to the BioStar access system. Until it is connected, tickets stay
+local and no passages are synced.
+
+### Connecting
+
+1. Enter the **BioStar URL**, a **Username** and a **Password** for the BioStar account TiQR should use.
+2. Leave **Verify the HTTPS certificate** ticked unless your administrator tells you otherwise.
+3. Select **Save and connect**.
+
+When the settings are already saved, the button reads **Save BioStar settings** and the password field
+shows that a password is kept. Leave the password blank to keep it. To stop using BioStar, select
+**Disconnect**.
+
+### Readers
+
+Once connected, the **Readers** table lists the access readers BioStar reports, with their ID, name,
+address and status. Tick the readers TiQR should use, then save the settings. Select **Refresh** to
+reload the list.
+
+### Scan log
+
+The **Scan log** shows the latest scans with the time, reader, direction and whether access was
+**Granted** or **Denied**. Select **Refresh** to update it.
+
+If the page cannot load the settings, readers or scan log, select **Refresh** and check that the BioStar
+address is reachable from the server.
+
+## 10. License (Admin)
 
 The app needs an active license before it can manage tickets. If the license is missing, expired or
 cannot be verified, a red message appears at the top of the License page, and the app stays locked until
@@ -211,7 +241,7 @@ Messages you may see:
 
 If you are an operator or manager and see the license message, send the request code to your administrator.
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | What you see | What to do |
 |---|---|
