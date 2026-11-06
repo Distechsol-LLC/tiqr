@@ -7,7 +7,7 @@ import sys
 import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
@@ -32,7 +32,7 @@ from tiqr.core.auth import AuthenticationError, Session
 from tiqr.core.biostar import ACCESS_GROUP_NAME, BioStarClient, BioStarError, BioStarXProvisioner
 from tiqr.core.license import build_request_code
 from tiqr.core.localtime import parse_input_datetime
-from tiqr.core.models import ApiKey, Role, Ticket, TicketState, UsageType, User
+from tiqr.core.models import ApiKey, Mode, Role, Ticket, TicketState, UsageType, User
 from tiqr.core.printer import send_to_printer
 from tiqr.core.repository import SQLiteRepository
 from tiqr.core.runtime import open_service
@@ -41,8 +41,10 @@ from tiqr.core.settings import (
     BRANDING_FILE,
     LOCAL_ENV_FILE,
     Settings,
+    adopt_legacy_database,
     branding_path,
     database_path,
+    database_paths,
     discard_access_group_id,
     discard_pass_webhook,
     discard_secret,
@@ -71,8 +73,8 @@ _TICKET_FIELDS = (
     "use_count",
     "external_code",
     "event_session",
+    "group_size",
 )
-_DB_SUFFIXES = ("-journal", "-wal", "-shm")
 # Set by the install scripts once the user has agreed to a reinstall, so it is not asked twice.
 REINSTALL_CONFIRMED_ENV = "TIQR_REINSTALL_CONFIRMED"
 # Set by the install scripts when the user chose to update: data, settings and license are kept.
@@ -226,9 +228,19 @@ def setup() -> None:
         else:
             typer.echo(f"TIQR_SECRET_KEY already set in {LOCAL_ENV_FILE}; nothing to do")
         settings = Settings.from_env()
-        with SQLiteRepository(settings.database_path) as repository:
-            repository.initialize(upgrade=True)
-        typer.echo(f"Database initialized: {settings.database_path}")
+        if adopt_legacy_database(settings.database_path.parent):
+            typer.echo(f"Renamed the database to {database_path(Mode.TICKET).name}")
+        # The other mode's database is upgraded too, so switching to it later finds it current.
+        others = [
+            path
+            for mode in Mode
+            if mode != settings.mode
+            and (path := settings.database_path.with_name(database_path(mode).name)).exists()
+        ]
+        for path in (settings.database_path, *others):
+            with SQLiteRepository(path) as repository:
+                repository.initialize(upgrade=True)
+        typer.echo(f"Database initialized: {settings.database_path} ({settings.mode} mode)")
         if settings.biostar is not None:
             with BioStarClient(settings.biostar) as client:
                 group_id = BioStarXProvisioner(client).ensure_access()
@@ -241,31 +253,28 @@ def reset(
     *,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt.")] = False,
 ) -> None:
-    """Delete the signing key, the pinned BioStar access group ID, and the database.
+    """Delete the signing key, the pinned BioStar access group ID, and both modes' databases.
 
     Users and tickets are lost and printed QR codes stop verifying. BioStar and PDFs are untouched.
     """
     with _errors():
-        database = database_path()
+        folder = database_path().parent
         if not yes:
             typer.confirm(
                 f"Delete TIQR_SECRET_KEY and TIQR_BIOSTAR_ACCESS_GROUP_ID from {LOCAL_ENV_FILE}"
-                f" and the database {database}?",
+                f" and the ticket and badge databases in {folder}?",
                 abort=True,
             )
         if discard_secret():
             typer.echo(f"Removed TIQR_SECRET_KEY from {LOCAL_ENV_FILE}")
         if discard_access_group_id():
             typer.echo(f"Cleared TIQR_BIOSTAR_ACCESS_GROUP_ID in {LOCAL_ENV_FILE}")
-        removed = [
-            file
-            for file in (database, *(database.with_name(database.name + s) for s in _DB_SUFFIXES))
-            if file.exists()
-        ]
+        removed = [file for file in database_paths(folder) if file.exists()]
         for file in removed:
             file.unlink()
-        if removed:
-            typer.echo(f"Deleted database: {database}")
+        for file in removed:
+            if file.suffix == ".db":
+                typer.echo(f"Deleted database: {file}")
         typer.echo("Reset complete. Next: tiqr setup")
 
 
@@ -281,7 +290,7 @@ def selftest() -> None:
     with _errors(), tempfile.TemporaryDirectory() as folder:
         start = datetime(2030, 1, 1, 8, tzinfo=UTC)
         owner = uuid4()
-        sample = Ticket(
+        badge = Ticket(
             id=uuid4(),
             external_id=None,
             qr_payload="TQR:300101-00001:ABCDEFGHIJKLMNO",
@@ -296,10 +305,20 @@ def selftest() -> None:
             assigned_operator=owner,
             created_at=start,
         )
-        pdf = render_pdf(sample, Path(folder), "UTC")
-        if not pdf.read_bytes().startswith(b"%PDF-"):
-            raise RuntimeError("The sample badge is not a PDF")
-    typer.echo("Self-test passed: the badge renders")
+        ticket = replace(
+            badge,
+            id=uuid4(),
+            qr_payload="TQR:300101-00002:ABCDEFGHIJKLMNO",
+            readable_serial="TQR-300101-00002",
+            visitor_name="",
+            usage_type=UsageType.GROUP,
+            group_size=10,
+        )
+        for sample, mode in ((badge, Mode.BADGE), (ticket, Mode.TICKET)):
+            pdf = render_pdf(sample, Path(folder), "UTC", mode=mode)
+            if not pdf.read_bytes().startswith(b"%PDF-"):
+                raise RuntimeError(f"The sample {mode} is not a PDF")
+    typer.echo("Self-test passed: the badge and the ticket render")
 
 
 def _reinstall_decision(*, service: bool) -> bool:
@@ -640,19 +659,27 @@ def user_password(username: Annotated[str, typer.Argument()]) -> None:
 
 @ticket_app.command("create")
 def ticket_create(  # noqa: PLR0913, PLR0917 - one option per ticket field
-    name: Annotated[str, typer.Option("--name", "-n")],
     visitor_type: Annotated[str, typer.Option("--type", "-t")],
     valid_from: Annotated[str, typer.Option("--from", "-f")],
     valid_until: Annotated[str, typer.Option("--until", "-u")],
     usage: Annotated[UsageType, typer.Option("--usage")],
     actor: Actor,
+    name: Annotated[
+        str, typer.Option("--name", "-n", help="The visitor; badges need one, tickets have none.")
+    ] = "",
+    group_size: Annotated[
+        int, typer.Option("--group-size", "-g", help="People a group ticket admits.")
+    ] = 1,
     timezone: Annotated[str | None, typer.Option("--tz")] = None,
     idempotency_key: Annotated[
         str | None,
         typer.Option(help="Repeat safely: the same key and options return the first ticket."),
     ] = None,
 ) -> None:
-    """Issue a ticket using ISO datetimes (naive inputs use --tz or TIQR_DEFAULT_TZ)."""
+    """Issue a ticket, or a badge in badge mode, using ISO datetimes.
+
+    Naive inputs use --tz or TIQR_DEFAULT_TZ. Tickets are one_time or group; badges multi_use.
+    """
     with _session() as runtime:
         user = runtime.authenticate(actor)
         zone = timezone or runtime.settings.default_tz
@@ -663,6 +690,7 @@ def ticket_create(  # noqa: PLR0913, PLR0917 - one option per ticket field
             "valid_until": valid_until,
             "usage_type": usage.value,
             "timezone": zone,
+            "group_size": group_size,
         }
         ticket = _create_once(runtime, user, definition, idempotency_key)[0]
         _json(runtime.ticket_data(ticket))
@@ -681,11 +709,12 @@ def _create_once(
         zone = str(definition["timezone"])
         return service.create_ticket(
             user,
-            visitor_name=str(definition["visitor_name"]),
+            visitor_name=str(definition.get("visitor_name") or ""),
             visitor_type=str(definition["visitor_type"]),
             valid_from=parse_input_datetime(str(definition["valid_from"]), zone),
             valid_until=parse_input_datetime(str(definition["valid_until"]), zone),
             usage_type=UsageType(definition["usage_type"]),
+            group_size=int(str(definition.get("group_size") or 1)),
         )
 
     if key is None:
@@ -725,7 +754,10 @@ def ticket_save(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> N
             output_dir=runtime.settings.output_dir,
             timezone=runtime.settings.default_tz,
             renderer=partial(
-                render_pdf, title=runtime.settings.app_name, theme=runtime.settings.theme
+                render_pdf,
+                title=runtime.settings.app_name,
+                theme=runtime.settings.theme,
+                mode=runtime.service.mode,
             ),
         )
         typer.echo(str(path))
@@ -741,7 +773,12 @@ def ticket_print(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> 
 
         def render_and_print(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
             path = render_pdf(
-                ticket, output_dir, timezone, title=settings.app_name, theme=settings.theme
+                ticket,
+                output_dir,
+                timezone,
+                title=settings.app_name,
+                theme=settings.theme,
+                mode=runtime.service.mode,
             )
             send_to_printer(path)
             return path
@@ -847,8 +884,8 @@ def ticket_batch(
     file: Annotated[
         Path,
         typer.Argument(
-            help="JSON list of tickets: visitor_name, visitor_type, valid_from, valid_until, "
-            "usage_type, and optionally timezone, idempotency_key."
+            help="JSON list of tickets: visitor_type, valid_from, valid_until, usage_type, and "
+            "optionally visitor_name (badges), group_size, timezone, idempotency_key."
         ),
     ],
     actor: Actor,

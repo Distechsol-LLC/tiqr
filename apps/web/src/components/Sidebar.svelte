@@ -10,6 +10,7 @@
   import { auth } from '%/useAuth.svelte.ts';
   import { branding } from '%/useBranding.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
+  import { mode } from '%/useMode.svelte.ts';
   import { sidebar } from '%/useSidebar.svelte.ts';
 
   const ICON_SIZE = 18;
@@ -18,7 +19,9 @@
   let expandButton = $state<HTMLButtonElement>();
 
   const user = $derived(auth.session?.user);
-  const items = $derived(user ? NAV[user.role] : []);
+  const items = $derived(
+    user ? NAV[user.role].filter((item) => !item.modes || item.modes.includes(mode.current)) : []
+  );
 
   // The pressed button leaves with the state it belongs to, so a keyboard user's focus moves to
   // its counterpart. Not after a click (detail > 0): focusing would pop that button's tooltip
@@ -95,6 +98,7 @@
     class="flex gap-1 overflow-x-auto md:flex-1 md:flex-col md:overflow-visible"
   >
     {#each items as item (item.path)}
+      {@const Icon = mode.isBadge && item.badgeIcon ? item.badgeIcon : item.icon}
       <!-- Fixed padding centres the icon in the collapsed width, so it never moves -->
       <a
         aria-current={isActive(item.path) ? 'page' : undefined}
@@ -107,7 +111,7 @@
         href={p(item.path)}
         title={sidebar.isCollapsed ? i18n.t.nav[item.label] : undefined}
       >
-        <item.icon aria-hidden="true" class="shrink-0" size={ICON_SIZE} />
+        <Icon aria-hidden="true" class="shrink-0" size={ICON_SIZE} />
         <span class={['transition-opacity', sidebar.isCollapsed && 'md:opacity-0']}>
           {i18n.t.nav[item.label]}
         </span>

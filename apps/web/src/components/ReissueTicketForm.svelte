@@ -95,7 +95,9 @@
   submitLabel={i18n.t.tickets.reissue}
   title={i18n.t.tickets.reissueFor(ticket?.readable_serial ?? i18n.t.assign.fallback)}
 >
-  <p>{ticket ? i18n.t.tickets.reissueConfirm(ticket.visitor_name) : ''}</p>
+  <p>
+    {ticket ? i18n.t.tickets.reissueConfirm(ticket.visitor_name || ticket.readable_serial) : ''}
+  </p>
 
   <div class="grid gap-4">
     <DateTimeField

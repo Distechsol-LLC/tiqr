@@ -1,5 +1,6 @@
 import { DEFAULT_LOCALES, type Locale, isLocale } from '@/config/locales.ts';
 import { fetchBranding } from '%/api.ts';
+import { mode } from '%/useMode.svelte.ts';
 import type { Branding } from '$/branding.ts';
 import { type Currency, currencySchema } from '$/catalog.ts';
 
@@ -41,7 +42,10 @@ const createBranding = (): BrandingController => {
     load: async (): Promise<void> => {
       const result = await fetchBranding();
 
-      if (result.ok) current = result.data;
+      if (!result.ok) return;
+
+      current = result.data;
+      mode.set(result.data.mode);
     },
     get locales(): readonly Locale[] {
       const locales = offered();

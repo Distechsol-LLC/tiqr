@@ -78,7 +78,7 @@ def test_config_is_read_from_project_root_not_working_directory(
 
     assert settings.secret_key == "root-file-key-0123456789abcdef"
     assert settings.default_tz == "UTC"
-    assert settings.database_path == project_root / "tiqr.db"
+    assert settings.database_path == project_root / "tiqr_ticket.db"
 
 
 def _zone_file(root, name):

@@ -53,6 +53,8 @@ from tiqr.api.schemas import (
     LicenseRecordOut,
     LicenseStatusOut,
     LoginIn,
+    ModeIn,
+    ModeOut,
     PassageOut,
     PassagePage,
     ReissueIn,
@@ -87,6 +89,7 @@ from tiqr.core.auth import WEB_SESSION_IDLE, AuthenticationError
 from tiqr.core.localtime import parse_input_datetime
 from tiqr.core.models import AccessEvent, Currency, Ticket, TicketState
 from tiqr.core.service import IdempotencyConflictError, TicketService
+from tiqr.core.settings import mode_pinned
 
 logger = logging.getLogger("tiqr.api")
 
@@ -181,6 +184,7 @@ def branding(server: Server) -> BrandingOut:
         languages=list(settings.languages),
         currencies=list(settings.currencies),
         has_logo=settings.logo_path is not None,
+        mode=server.service.mode,
     )
 
 
@@ -204,6 +208,32 @@ def logo(server: Server) -> FileResponse:
 @router.get("/config", tags=["meta"], responses=_refusals(401))
 def config(_: Signed, server: Server) -> ConfigOut:
     return ConfigOut(timezone=server.timezone, server_printing=server.config.server_printing)
+
+
+@router.get("/settings/mode", tags=["meta"], responses=_refusals(401))
+def mode(_: Signed, server: Server) -> ModeOut:
+    """Whether the install issues tickets or badges; any signed-in role may read it."""
+    return ModeOut(mode=server.service.mode, pinned=mode_pinned())
+
+
+@router.put("/settings/mode", tags=["meta"], responses=_refusals(401, 403, 409, 422))
+def set_mode(body: ModeIn, me: Signed, server: Server) -> ModeOut:
+    """Switch between tickets and badges (admin). Each mode keeps its own database: the other
+    one is created on the first switch, and accounts, sessions, keys, the license and the active
+    hours carry over. Saved in .env.local, so the server starts in it next time.
+    """
+    switch = server.service.mode_switch
+    if switch is None:
+        raise ApiError(409, "conflict", "This server cannot switch modes")
+    server.service.require_admin(me.user)
+    if mode_pinned() and body.mode != server.service.mode:
+        raise ApiError(
+            409, "mode_pinned", "TIQR_MODE is set in the environment; change it there instead"
+        )
+    # No sync or keyed create runs while the database changes under it.
+    with server.maintenance.lock, server.service.idempotency_lock:
+        switch.switch(me.user, body.mode)
+    return ModeOut(mode=server.service.mode, pinned=mode_pinned())
 
 
 @router.get("/license/status", tags=["license"], responses=_refusals(401))
@@ -568,6 +598,7 @@ def _create(server: AppState, me: Caller, body: TicketIn) -> tuple[int, TicketOu
         ticket_type=body.ticket_type,
         external_code=body.external_code,
         event_session=body.event_session,
+        group_size=body.group_size,
     )
     return 201, _ticket(server, ticket)
 
@@ -874,7 +905,9 @@ def ticket_pdf(ticket_id: UUID, me: Signed, server: Server) -> Response:
         ticket_id,
         output_dir=settings.output_dir,
         timezone=settings.default_tz,
-        renderer=partial(render_pdf, title=settings.app_name, theme=settings.theme),
+        renderer=partial(
+            render_pdf, title=settings.app_name, theme=settings.theme, mode=server.service.mode
+        ),
     )
     return Response(
         path.read_bytes(),
@@ -903,7 +936,12 @@ def ticket_print(ticket_id: UUID, me: Signed, server: Server) -> TicketOut:
 
     def render_and_print(ticket: Ticket, output_dir: Path, timezone: str) -> Path:
         path = render_pdf(
-            ticket, output_dir, timezone, title=settings.app_name, theme=settings.theme
+            ticket,
+            output_dir,
+            timezone,
+            title=settings.app_name,
+            theme=settings.theme,
+            mode=server.service.mode,
         )
         server.runtime.printer(path)
         return path

@@ -103,7 +103,7 @@ def test_install_writes_address_and_initializes_the_database(home, release):
     assert "TIQR_HOST=10.0.0.5" in local
     assert "TIQR_PORT=7200" in local
     assert "TIQR_SECRET_KEY=" in local
-    assert (home / "tiqr.db").exists()
+    assert (home / "tiqr_ticket.db").exists()
     assert "No users yet" in result.output
 
 

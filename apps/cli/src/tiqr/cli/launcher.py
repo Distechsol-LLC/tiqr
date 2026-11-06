@@ -56,11 +56,12 @@ def _needs_setup(arguments: Sequence[str]) -> bool:
     if _skips_setup(arguments):
         return False
     try:
-        Settings.from_env()
+        settings = Settings.from_env()
     except ValueError, LookupError:
         # Bad key, partial BioStar block or unknown timezone; setup reports which.
         return True
-    return not database_path().exists()
+    # A database of an earlier release still needs setup to rename it.
+    return not settings.database_path.exists()
 
 
 def _needs_admin(arguments: Sequence[str]) -> bool:

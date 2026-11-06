@@ -170,10 +170,10 @@ describe('api writes', () => {
   it('creates a ticket with JSON and the CSRF token', async () => {
     const fetchMock = mockFetch(Response.json(ticket, { status: 201 }));
     const input = {
+      group_size: 1,
       usage_type: 'one_time',
       valid_from: '2030-06-01T09:00',
       valid_until: '2030-06-01T18:00',
-      visitor_name: 'Ada',
       visitor_type: 'Guest',
     } as const;
 

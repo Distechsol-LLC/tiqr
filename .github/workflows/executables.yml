@@ -50,7 +50,7 @@ jobs:
           cp dist/tiqr* "$smoke/"
           # The executable refuses to run without its branding file beside it.
           cp tiqr_brand.jsonc "$smoke/"
-          # Named explicitly: once setup creates tiqr.db, a tiqr* glob would match it too.
+          # Named explicitly: once setup creates tiqr_ticket.db, a tiqr* glob would match it too.
           exe=$(basename dist/tiqr*)
           cd "$smoke"
           ./"$exe" --help > /dev/null

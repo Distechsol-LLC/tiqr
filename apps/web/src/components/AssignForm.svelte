@@ -88,7 +88,10 @@
   title={i18n.t.assign.title(ticket?.readable_serial ?? i18n.t.assign.fallback)}
 >
   {#if ticket}
-    <p class="text-surface-600-400">{ticket.visitor_name} · {ticket.visitor_type}</p>
+    <!-- A ticket names no one, so only its visitor type shows -->
+    <p class="text-surface-600-400">
+      {[ticket.visitor_name, ticket.visitor_type].filter(Boolean).join(' · ')}
+    </p>
   {/if}
 
   <FloatingSelect

@@ -122,12 +122,12 @@ def item(**extra):
 def test_batch_partial_and_atomic(cli_env, tmp_path):
     ready()
     path = tmp_path / "b.json"
-    path.write_text(json.dumps([item(), item(visitor_name=" "), item()]))
+    path.write_text(json.dumps([item(), item(usage_type="multi_use"), item()]))
     partial = invoke(["ticket", "batch", str(path), "--as", "admin"])
     assert partial.exit_code == 1
     body = printed(partial)
     assert [r["status"] for r in body["results"]] == ["created", "error", "created"]
-    path.write_text(json.dumps([item(), item(visitor_name=" "), item()]))
+    path.write_text(json.dumps([item(), item(usage_type="multi_use"), item()]))
     atomic = invoke(["ticket", "batch", str(path), "--as", "admin", "--atomic"])
     body = printed(atomic)
     assert atomic.exit_code == 1

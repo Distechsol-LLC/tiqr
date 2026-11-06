@@ -8,6 +8,9 @@ from tiqr.core.qr import PAYLOAD_LENGTH
 # Far above any real ticket, and well inside SQLite's integers and JSON's safe ones.
 MAX_PRICE = 10**11
 MAX_DISCOUNT = 100
+# The most people one group ticket admits; a group is at least two, or it is a one-time ticket.
+MAX_GROUP_SIZE = 100
+MIN_GROUP_SIZE = 2
 DEFAULT_TENANT = "default"
 
 
@@ -20,6 +23,14 @@ def utc(value: datetime) -> datetime:
 def discounted(price: int, percent: int) -> int:
     """`price` less `percent` per cent, in the same minor units, rounding half up."""
     return (price * (MAX_DISCOUNT - percent) + MAX_DISCOUNT // 2) // MAX_DISCOUNT
+
+
+def _check_group(usage_type: UsageType, group_size: int) -> None:
+    if usage_type == UsageType.GROUP:
+        if not MIN_GROUP_SIZE <= group_size <= MAX_GROUP_SIZE:
+            raise ValueError(f"A group is from {MIN_GROUP_SIZE} to {MAX_GROUP_SIZE} people")
+    elif group_size != 1:
+        raise ValueError("Only a group ticket admits more than one person")
 
 
 class Role(StrEnum):
@@ -35,9 +46,22 @@ class Currency(StrEnum):
     KZT = "KZT"
 
 
+class Mode(StrEnum):
+    """What the install issues; each mode keeps its own database.
+
+    Tickets carry no visitor name and admit once, or once per person of a group. Badges carry a
+    visitor's name, have no ticket types or prices, and admit as often as their window allows.
+    """
+
+    TICKET = "ticket"
+    BADGE = "badge"
+
+
 class UsageType(StrEnum):
     ONE_TIME = "one_time"
     MULTI_USE = "multi_use"
+    # One QR code for `group_size` people: it admits that many passages, then stops.
+    GROUP = "group"
 
 
 class TicketState(StrEnum):
@@ -145,6 +169,8 @@ class Ticket:
     tenant_id: str = DEFAULT_TENANT
     # The session or event the ticket admits to; free text, moved by a session transfer.
     event_session: str | None = None
+    # How many people the ticket admits: above one only for a group ticket.
+    group_size: int = 1
 
     def __post_init__(self) -> None:
         for name in ("valid_from", "valid_until", "created_at", "passed_at"):
@@ -161,18 +187,23 @@ class Ticket:
             raise ValueError(f"Price must be between 0 and {MAX_PRICE}")
         if not 0 <= self.discount_percent <= MAX_DISCOUNT:
             raise ValueError("Discount must be between 0 and 100 per cent")
+        _check_group(self.usage_type, self.group_size)
 
     @property
     def price(self) -> int | None:
-        """What the visitor pays: the base price less the visitor type's discount."""
-        return (
-            None if self.base_price is None else discounted(self.base_price, self.discount_percent)
-        )
+        """What the visitor pays: the base price less the visitor type's discount, per person."""
+        if self.base_price is None:
+            return None
+        return discounted(self.base_price, self.discount_percent) * self.group_size
 
     @property
     def is_spent(self) -> bool:
-        """A one-time ticket that has already let its visitor through."""
-        return self.state == TicketState.PASSED and self.usage_type == UsageType.ONE_TIME
+        """A one-time ticket that has let its visitor through, or a group ticket its whole group."""
+        if self.state != TicketState.PASSED:
+            return False
+        if self.usage_type == UsageType.GROUP:
+            return self.use_count >= self.group_size
+        return self.usage_type == UsageType.ONE_TIME
 
 
 @dataclass(frozen=True, slots=True)

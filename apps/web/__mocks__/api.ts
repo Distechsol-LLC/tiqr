@@ -22,6 +22,7 @@ const ticket: Ticket = {
   created_by: session.user.id,
   currency: null,
   discount_percent: 0,
+  group_size: 1,
   id: '6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f',
   passed_at: null,
   price_minor: null,

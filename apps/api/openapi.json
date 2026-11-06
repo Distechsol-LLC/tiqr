@@ -158,6 +158,136 @@
         }
       }
     },
+    "/api/settings/mode": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Mode",
+        "description": "Whether the install issues tickets or badges; any signed-in role may read it.",
+        "operationId": "mode",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModeOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Set Mode",
+        "description": "Switch between tickets and badges (admin). Each mode keeps its own database: the other\none is created on the first switch, and accounts, sessions, keys, the license and the active\nhours carry over. Saved in .env.local, so the server starts in it next time.",
+        "operationId": "set_mode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModeOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not in a state that allows this, or an external code or Idempotency-Key clashes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Set Mode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/license/status": {
       "get": {
         "tags": [
@@ -4562,7 +4692,6 @@
                 "usage_type": "one_time",
                 "valid_from": "2030-06-01T09:00",
                 "valid_until": "2030-06-01T17:00",
-                "visitor_name": "Ada",
                 "visitor_type": "Contractor"
               }
             ]
@@ -4574,7 +4703,9 @@
           "visitor_name": {
             "type": "string",
             "maxLength": 200,
-            "title": "Visitor Name"
+            "title": "Visitor Name",
+            "description": "The visitor, which a badge needs; a ticket names no one, so it is dropped",
+            "default": ""
           },
           "visitor_type": {
             "type": "string",
@@ -4603,7 +4734,16 @@
             ]
           },
           "usage_type": {
-            "$ref": "#/components/schemas/UsageType"
+            "$ref": "#/components/schemas/UsageType",
+            "description": "Tickets: one_time or group. Badges: multi_use; anything else is a 422"
+          },
+          "group_size": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Group Size",
+            "description": "People a group ticket admits, from 2; 1 for every other ticket",
+            "default": 1
           },
           "ticket_type": {
             "anyOf": [
@@ -4674,7 +4814,6 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "visitor_name",
           "visitor_type",
           "valid_from",
           "valid_until",
@@ -4934,6 +5073,11 @@
             "type": "boolean",
             "title": "Has Logo",
             "description": "Whether /api/logo serves logo_path"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/Mode",
+            "description": "Whether the install issues tickets or badges",
+            "default": "ticket"
           }
         },
         "type": "object",
@@ -5017,7 +5161,8 @@
           "prints",
           "passes"
         ],
-        "title": "CountsOut"
+        "title": "CountsOut",
+        "description": "Ticket counts weigh a group ticket by its size, so a group of ten counts as ten."
       },
       "Currency": {
         "type": "string",
@@ -5084,6 +5229,7 @@
               "invalid_state",
               "credential_format",
               "server_printing_off",
+              "mode_pinned",
               "invalid",
               "batch_too_large",
               "rate_limited",
@@ -5404,6 +5550,47 @@
           "password"
         ],
         "title": "LoginIn"
+      },
+      "Mode": {
+        "type": "string",
+        "enum": [
+          "ticket",
+          "badge"
+        ],
+        "title": "Mode",
+        "description": "What the install issues; each mode keeps its own database.\n\nTickets carry no visitor name and admit once, or once per person of a group. Badges carry a\nvisitor's name, have no ticket types or prices, and admit as often as their window allows."
+      },
+      "ModeIn": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/Mode",
+            "description": "ticket or badge; each keeps its own database"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "ModeIn"
+      },
+      "ModeOut": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/Mode"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned",
+            "description": "Whether TIQR_MODE is set in the environment, so it cannot switch"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "pinned"
+        ],
+        "title": "ModeOut"
       },
       "PassageOut": {
         "properties": {
@@ -5971,7 +6158,9 @@
           "visitor_name": {
             "type": "string",
             "maxLength": 200,
-            "title": "Visitor Name"
+            "title": "Visitor Name",
+            "description": "The visitor, which a badge needs; a ticket names no one, so it is dropped",
+            "default": ""
           },
           "visitor_type": {
             "type": "string",
@@ -6000,7 +6189,16 @@
             ]
           },
           "usage_type": {
-            "$ref": "#/components/schemas/UsageType"
+            "$ref": "#/components/schemas/UsageType",
+            "description": "Tickets: one_time or group. Badges: multi_use; anything else is a 422"
+          },
+          "group_size": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Group Size",
+            "description": "People a group ticket admits, from 2; 1 for every other ticket",
+            "default": 1
           },
           "ticket_type": {
             "anyOf": [
@@ -6058,7 +6256,6 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "visitor_name",
           "visitor_type",
           "valid_from",
           "valid_until",
@@ -6175,7 +6372,7 @@
               }
             ],
             "title": "Price Minor",
-            "description": "The base price less the discount"
+            "description": "The base price less the discount, times the group size"
           },
           "currency": {
             "anyOf": [
@@ -6216,6 +6413,12 @@
             ],
             "title": "Event Session",
             "description": "Null without one"
+          },
+          "group_size": {
+            "type": "integer",
+            "title": "Group Size",
+            "description": "People the ticket admits; above 1 only for a group ticket",
+            "default": 1
           }
         },
         "type": "object",
@@ -6557,7 +6760,8 @@
         "type": "string",
         "enum": [
           "one_time",
-          "multi_use"
+          "multi_use",
+          "group"
         ],
         "title": "UsageType"
       },

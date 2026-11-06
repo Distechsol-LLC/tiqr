@@ -11,6 +11,8 @@
     isOpen: boolean;
     isPending: boolean;
     isDestructive?: boolean;
+    // Keeps the form from being sent while something it needs is missing
+    isSubmitDisabled?: boolean;
     isNarrow?: boolean;
     onClose: () => void;
     onSubmit: (event: SubmitEvent) => void | Promise<void>;
@@ -23,6 +25,7 @@
     isOpen,
     isPending,
     isDestructive = false,
+    isSubmitDisabled = false,
     isNarrow = false,
     onClose,
     onSubmit,
@@ -34,7 +37,7 @@
   const handleSubmit = (event: SubmitEvent): void => {
     event.preventDefault();
 
-    if (!isPending) void onSubmit(event);
+    if (!(isPending || isSubmitDisabled)) void onSubmit(event);
   };
 </script>
 
@@ -63,7 +66,7 @@
           'btn h-11 min-w-36',
           isDestructive ? 'preset-filled-error-500' : 'preset-filled-primary-500',
         ]}
-        disabled={isPending}
+        disabled={isPending || isSubmitDisabled}
         type="submit"
       >
         {#if isPending}

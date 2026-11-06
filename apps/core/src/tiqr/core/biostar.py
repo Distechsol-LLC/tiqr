@@ -314,7 +314,8 @@ class BioStarClient:
             json={
                 "User": {
                     "user_id": external_id,
-                    "name": ticket.visitor_name,
+                    # Tickets name no visitor, so BioStar shows their serial instead.
+                    "name": ticket.visitor_name or ticket.readable_serial,
                     "user_group_id": {"id": "1"},
                     "disabled": "false",
                     "start_datetime": to_biostar_datetime(ticket.valid_from),

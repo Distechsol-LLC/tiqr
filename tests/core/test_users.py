@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 
 from tiqr.core.auth import AuthenticationError
-from tiqr.core.models import Role, UsageType
+from tiqr.core.models import Mode, Role, UsageType
 from tiqr.core.repository import _MIGRATIONS, SQLiteRepository
 from tiqr.core.service import NotFoundError, PermissionDeniedError, StateError
 
@@ -15,6 +15,8 @@ PASSWORD = "correct-password"
 
 def issue(service, actor, clock):
     service.create_visitor_type(service.repository.user_by_name("admin"), "Guest")
+    # A named, multi-use pass is a badge.
+    service.mode = Mode.BADGE
     return service.create_ticket(
         actor,
         visitor_name="Name",

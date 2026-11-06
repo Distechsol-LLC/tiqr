@@ -10,7 +10,16 @@ import pytest
 
 from tiqr.core.auth import SESSION_LIFETIME, AuthenticationError, verify_password
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
-from tiqr.core.models import AccessEvent, Outcome, Registration, Role, SyncCursor, UsageType, utc
+from tiqr.core.models import (
+    AccessEvent,
+    Mode,
+    Outcome,
+    Registration,
+    Role,
+    SyncCursor,
+    UsageType,
+    utc,
+)
 from tiqr.core.qr import build_payload, make_serial, signature, validate_prefix, verify_payload
 from tiqr.core.repository import _MIGRATIONS, SCHEMA_VERSION, SQLiteRepository
 from tiqr.core.service import TicketService
@@ -384,7 +393,7 @@ def test_dotenv_files_override_in_order_and_process_environment_wins(monkeypatch
     )
     settings = Settings.from_env()
     assert settings.secret_key == "local-file-key-0123456789abcdef"
-    assert settings.database_path == tmp_path / "tiqr.db"
+    assert settings.database_path == tmp_path / "tiqr_ticket.db"
     assert settings.output_dir == tmp_path / "out"
 
 
@@ -514,6 +523,8 @@ def test_subsecond_window_rejected_instead_of_silently_widened(service, accounts
 
 def test_repository_roundtrip_utc_uuid_enums_and_cursor(service, accounts, clock):
     service.create_visitor_type(accounts["admin"], "Guest")
+    # A named, multi-use pass is a badge.
+    service.mode = Mode.BADGE
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Əli",

@@ -5,6 +5,7 @@
   import PageHeader from '@/components/PageHeader.svelte';
   import VisitorTypesTable from '@/components/VisitorTypesTable.svelte';
   import { i18n } from '%/useLocale.svelte.ts';
+  import { mode } from '%/useMode.svelte.ts';
 
   type Table = {
     create: () => void;
@@ -17,7 +18,13 @@
   let isLoading = $state(true);
 </script>
 
-<PageHeader description={i18n.t.visitorTypes.description} title={i18n.t.visitorTypes.caption}>
+<!-- Badges carry no price, so their visitor types come with no discounts to describe -->
+<PageHeader
+  description={mode.isBadge
+    ? i18n.t.visitorTypes.descriptionBadge
+    : i18n.t.visitorTypes.description}
+  title={i18n.t.visitorTypes.caption}
+>
   {#snippet actions()}
     <button
       aria-label={i18n.t.common.refresh}

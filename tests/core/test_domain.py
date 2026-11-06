@@ -6,7 +6,7 @@ import pytest
 
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
 from tiqr.core.localtime import day_start
-from tiqr.core.models import Outcome, RawEvent, TicketState, UsageType
+from tiqr.core.models import Mode, Outcome, RawEvent, TicketState, UsageType
 from tiqr.core.service import StateError
 
 
@@ -17,6 +17,8 @@ def visitor_types(service, accounts):
 
 
 def issue(service, accounts, clock, usage=UsageType.ONE_TIME, actor="operator"):
+    # Multi-use passes are badges; the rest are tickets. Passages work alike in either mode.
+    service.mode = Mode.BADGE if usage == UsageType.MULTI_USE else Mode.TICKET
     return service.create_ticket(
         accounts[actor],
         visitor_name="Visitor",
@@ -33,13 +35,15 @@ def scan(service, ticket, at, event_id="1", granted=True):
 
 def test_search_matches_serial_visitor_and_type_ignoring_case(service, accounts, clock):
     admin = accounts["admin"]
+    # Only badges carry a visitor's name.
+    service.mode = Mode.BADGE
     ada = service.create_ticket(
         accounts["operator"],
         visitor_name="Ada Lovelace",
         visitor_type="Guest",
         valid_from=clock.now - timedelta(hours=1),
         valid_until=clock.now + timedelta(hours=1),
-        usage_type=UsageType.ONE_TIME,
+        usage_type=UsageType.MULTI_USE,
     )
     student = issue(service, accounts, clock)
     assert [t.id for t in service.list_tickets(admin, search="  LOVELACE ")] == [ada.id]
@@ -315,7 +319,9 @@ def test_window_failure_rolls_back_and_serial_is_not_reused(service, accounts, c
 @pytest.mark.parametrize(
     "change",
     [
-        {"visitor_name": " "},
+        {"usage_type": UsageType.MULTI_USE},
+        {"usage_type": UsageType.ONE_TIME, "group_size": 3},
+        {"usage_type": UsageType.GROUP, "group_size": 1},
         {"visitor_type": ""},
         {"usage_type": "bogus"},
         {"valid_until": "past"},

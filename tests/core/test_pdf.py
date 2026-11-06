@@ -12,7 +12,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen.canvas import Canvas
 
 from tiqr.core import pdf
-from tiqr.core.models import Ticket, TicketState, UsageType
+from tiqr.core.models import Mode, Ticket, TicketState, UsageType
 from tiqr.core.settings import BRANDING_FILE
 
 BAKU = "Asia/Baku"
@@ -265,6 +265,7 @@ def test_render_failure_does_not_increment_the_print_count(
 ):
     actor = accounts["admin"]
     service.create_visitor_type(actor, "Visitor")
+    service.mode = Mode.BADGE
     ticket = service.create_ticket(
         actor,
         visitor_name="Guest",

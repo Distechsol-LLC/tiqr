@@ -17,6 +17,7 @@
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
+  import { mode } from '%/useMode.svelte.ts';
   import { createPagination } from '%/usePagination.svelte.ts';
   import { createSortParams } from '%/useSortParams.svelte.ts';
   import type { VisitorType } from '$/catalog.ts';
@@ -129,9 +130,10 @@
   export { create, reload };
 </script>
 
+<!-- Badges carry no price, so their visitor types have no discount column -->
 <DataTable
   caption={i18n.t.visitorTypes.caption}
-  columns={COLUMNS}
+  columns={COLUMNS - (mode.isBadge ? 1 : 0)}
   emptyIcon={Percent}
   emptyMessage={i18n.t.visitorTypes.empty}
   isEmpty={rows.length === 0}
@@ -144,22 +146,26 @@
       label={i18n.t.visitorTypes.columns.name}
       onSort={(): void => sorting.sortBy('name')}
     />
-    <SortHeader
-      class="w-40"
-      direction={sorting.directionOf('discount')}
-      isEnd
-      label={i18n.t.visitorTypes.columns.discount}
-      onSort={(): void => sorting.sortBy('discount')}
-    />
+    {#if !mode.isBadge}
+      <SortHeader
+        class="w-40"
+        direction={sorting.directionOf('discount')}
+        isEnd
+        label={i18n.t.visitorTypes.columns.discount}
+        onSort={(): void => sorting.sortBy('discount')}
+      />
+    {/if}
     <ActionsHeader count={ACTIONS} />
   {/snippet}
 
   {#each rows as visitorType (visitorType.id)}
     <tr>
       <td class="font-semibold">{visitorType.name}</td>
-      <td class="text-right tabular-nums">
-        {i18n.t.visitorTypes.discount(visitorType.discount_percent)}
-      </td>
+      {#if !mode.isBadge}
+        <td class="text-right tabular-nums">
+          {i18n.t.visitorTypes.discount(visitorType.discount_percent)}
+        </td>
+      {/if}
       <td>
         <div class="flex justify-start gap-1">
           <button

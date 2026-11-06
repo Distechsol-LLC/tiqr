@@ -171,7 +171,7 @@ sys.path[:] = [entry for entry in sys.path
     if entry and pathlib.Path(entry).resolve() not in sources]
 sys.path.insert(0, str(root))
 import tiqr.core
-from tiqr.core.models import Role, UsageType
+from tiqr.core.models import Mode, Role, UsageType
 from tiqr.core.pdf import render_pdf
 from tiqr.core.repository import SQLiteRepository
 from tiqr.core.service import TicketService
@@ -192,7 +192,9 @@ repository.initialize()
 repository.save_active_hours(None)
 try:
     now = datetime(2030, 1, 1, 8, tzinfo=UTC)
-    service = TicketService(repository, "installed-wheel-signing-key", clock=lambda: now)
+    service = TicketService(
+        repository, "installed-wheel-signing-key", clock=lambda: now, mode=Mode.BADGE
+    )
     actor = service.add_user("admin", "wheel-password", Role.ADMIN)
     service.create_visitor_type(actor, "Visitor")
     ticket = service.create_ticket(actor, visitor_name="Əli Иванов", visitor_type="Visitor",
@@ -214,7 +216,7 @@ config = ServerConfig(dev=True)
 scheduler = lambda service: Maintenance(service, sync_interval=0, cleanup_interval=0)
 with TestClient(create_app(config, scheduler=scheduler)) as client:
     assert client.get("/api/health").json()["status"] == "ok"
-assert (home / "tiqr.db").is_file()
+assert (home / "tiqr_ticket.db").is_file()
 for name, module in tuple(sys.modules.items()):
     if name.startswith("tiqr.") and getattr(module, "__file__", None):
         assert pathlib.Path(module.__file__).resolve().is_relative_to(root), name

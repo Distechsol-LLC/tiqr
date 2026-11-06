@@ -50,7 +50,7 @@ Your role decides which menu items you see. Your role is shown in the account me
 | Tickets | Yes (assigned to you only) | Yes (all tickets) | Yes (all tickets) |
 | Users | No | Yes (operators only) | Yes (all roles) |
 | Ticket types | No (used when creating tickets) | Yes | Yes |
-| Active hours (on Ticket types) | No | Yes | Yes |
+| Active hours (on Tickets) | No | Yes | Yes |
 | Visitor types | No (used when creating tickets) | Yes | Yes |
 | Overview | No | Yes | Yes |
 | BioStar | No | No | Yes |
@@ -81,16 +81,28 @@ Operators see only tickets assigned to them. Managers and admins see every ticke
 
 1. Select **New Ticket**.
 2. Fill in the form:
-   - **Visitor name**: the visitor's full name.
    - **Visitor type**: choose from the list. Discounts for the visitor type are applied automatically.
    - **Ticket type**: choose from the list. The price comes from the ticket type.
-   - **Usage**: **One-time** (used for a single passage) or **Multi-use** (can be used repeatedly within its validity period).
+   - **Usage**: **One-time** (one passage) or **Group** (one QR code for a whole group).
+   - **People in the group**: for a group ticket, how many people it admits, from 2 to 100.
    - **Valid from** and **Valid until**: pick the date and time. The end must not be before the start.
-3. Check the **Price**, **Discount** and **Total** shown on the form.
+3. Check the **Price**, **Discount** and **Total** shown on the form. A group pays the price once
+   per person, so the form also shows the number of **People**.
 4. Select **Create**.
 
+Tickets carry no visitor name. A group ticket lets that many people through, one passage each, and
+then stops; the Stats page counts it once per person. The ticket prints on a narrow slip for small
+cut paper.
+
 The new ticket is assigned to you, the account that created it. A confirmation message shows the
-serial number and the visitor's name.
+serial number and the visitor type.
+
+### Creating a badge (badge mode)
+
+In badge mode the app says **badge** wherever it would say ticket. Select **New Badge**, enter the
+**Visitor name** and **Visitor type**, pick the validity, and select **Create**. Badges have no
+ticket types, prices or discounts, and are always multi-use: they let their visitor through as
+often as needed within the validity period. They print on a foldable A4 sheet.
 
 If the form says **Ticket and visitor types not loaded**, ask a manager or admin to check that the
 ticket types and visitor types exist, then select **Refresh** and try again.
@@ -164,7 +176,7 @@ Ticket types define what a visitor pays and how much.
 
 ### Active hours
 
-Active hours limit when tickets can be created. Select the clock icon, to the left of **Refresh** on the Ticket types page, then:
+Active hours limit when tickets can be created. Select the clock icon beside **Refresh** on the Tickets (or Badges) page, then:
 
 - Set the **From** and **To** times. A new system starts at 09:00 to 17:00. Times are in the server's timezone.
 - A **To** time before the **From** time runs past midnight, so 22:00 to 06:00 covers the night.
@@ -174,7 +186,7 @@ Outside the hours, the server refuses new tickets, for operators as well as mana
 
 ### Visitor types
 
-Visitor types define discounts.
+Visitor types define discounts. In badge mode they have no discount, only a name.
 
 - **New Visitor Type**: enter a **Name** and a **Discount, %** as a whole number from 0 to 100. Select **Create**.
 - **Edit**: change the name or discount.
@@ -252,7 +264,19 @@ Messages you may see:
 
 If you are an operator or manager and see the license message, send the request code to your administrator.
 
-## 11. Troubleshooting
+## 11. Settings (Admin)
+
+**Mode** chooses what this install issues:
+
+- **Tickets**: one-time or group tickets without names, on small cut paper, with prices.
+- **Badges**: named, multi-use visitor badges on a foldable A4 sheet, without prices.
+
+Select the other mode and confirm with **Switch**. Each mode keeps its own tickets or badges, types
+and statistics, and switching back shows them again. Accounts, the license and the active hours are
+shared, so nobody has to sign in again. If the page says the mode is set on the server, ask whoever
+runs the server to change `TIQR_MODE` there.
+
+## 12. Troubleshooting
 
 | What you see | What to do |
 |---|---|

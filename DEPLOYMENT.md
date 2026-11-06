@@ -253,10 +253,12 @@ install.cmd           # Windows, as administrator
    `install.sh` stops `tiqr.service`.
 2. If TiQR is already installed (the service, the program folder or the data folder exists), the script
    asks `Reinstall it?`. A no changes nothing. A yes deletes the program folder and the data folder,
-   including `tiqr.db`, `.env.local` and `tiqr_brand.jsonc`, and installs from scratch, so the first
-   admin is created again. Copy `tiqr.db` and `.env.local` somewhere safe first if they must be kept.
+   including `tiqr_ticket.db`, `tiqr_badge.db`, `.env.local` and `tiqr_brand.jsonc`, and installs
+   from scratch, so the first admin is created again. Copy both databases and `.env.local` somewhere
+   safe first if they must be kept.
    The wizard asks the same question on Windows.
-3. It runs `tiqr install` as on a first install. `tiqr setup` migrates the database, and the
+3. It runs `tiqr install` as on a first install. `tiqr setup` migrates both modes' databases
+   (renaming the `tiqr.db` of earlier releases to `tiqr_ticket.db` first), and the
    service and health probe are registered again. The health check then waits for the answer.
 
 Migrations are numbered, forward-only steps, each in one transaction with its version bump. A
@@ -265,8 +267,10 @@ there. `tiqr serve` refuses a database that is older than the program until `tiq
 An older program refuses a newer database, so going back needs the saved database copy below.
 
 The database is not backed up automatically yet. Before an upgrade, stop the service and copy
-`tiqr.db` from the data folder to a dated name, then start the service again. To go back, stop
-the service, reinstall the previous bundle, restore the saved `tiqr.db`, and start the service.
+`tiqr_ticket.db` and `tiqr_badge.db` from the data folder to dated names, then start the service
+again. To go back, stop the service, reinstall the previous bundle, restore the saved databases, and
+start the service. A release from before the modes reads only `tiqr.db`, so restore the ticket one
+under that name.
 
 Updates are offline by design, from a bundle delivered by download or USB, because many sites have
 no internet access.
@@ -296,7 +300,8 @@ These were decided in the backend phase and shape deployment:
 - **Authentication.** Server-side sessions in SQLite with `HttpOnly` cookies, a CSRF token on
   every write, `Origin` checks, and login rate limiting; see [Web API](README.md#web-api).
 - **Backups.** The database is now the customer's production record and holds the never-reused
-  BioStar ID range. Backups are not automated yet: copy `tiqr.db` while the service is stopped,
+  BioStar ID range. Backups are not automated yet: copy `tiqr_ticket.db` and `tiqr_badge.db` while
+  the service is stopped,
   and document restoring it.
 
 ## Security risks

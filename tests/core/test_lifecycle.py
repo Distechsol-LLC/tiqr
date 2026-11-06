@@ -362,18 +362,18 @@ def test_the_attribution_is_written_with_the_actor(service, accounts, make):
     assert secret
 
 
-def test_migrations_8_to_12_reverse_cleanly(tmp_path, accounts):
+def test_migrations_8_to_13_reverse_cleanly(tmp_path, accounts):
     path = tmp_path / "reversible.db"
     with SQLiteRepository(path) as repository:
         repository.initialize()
         repository._connection.execute("PRAGMA user_version").fetchone()
-        assert SCHEMA_VERSION == 12
+        assert SCHEMA_VERSION == 13
         repository.downgrade(OLDEST_REVERSIBLE)
         columns = {row[1] for row in repository._connection.execute("PRAGMA table_info(tickets)")}
         tables = {
             row[0] for row in repository._connection.execute("SELECT name FROM sqlite_master")
         }
-        assert "external_code" not in columns
+        assert not {"external_code", "group_size"} & columns
         assert not {"audit_log", "idempotency_keys", "api_keys", "active_hours"} & tables
         event_columns = {
             row[1] for row in repository._connection.execute("PRAGMA table_info(access_events)")
@@ -382,4 +382,4 @@ def test_migrations_8_to_12_reverse_cleanly(tmp_path, accounts):
         with pytest.raises(ValueError, match="Cannot downgrade"):
             repository.downgrade(OLDEST_REVERSIBLE - 1)
         repository.initialize(upgrade=True)
-        assert repository._connection.execute("PRAGMA user_version").fetchone()[0] == 12
+        assert repository._connection.execute("PRAGMA user_version").fetchone()[0] == 13

@@ -9,6 +9,7 @@
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
+  import { mode } from '%/useMode.svelte.ts';
   import { type VisitorType, visitorTypeInputSchema } from '$/catalog.ts';
 
   type VisitorTypeFormProps = {
@@ -29,7 +30,10 @@
   let isPending = $state(false);
   let isSubmitted = $state(false);
 
-  const validation = $derived(visitorTypeInputSchema.safeParse({ discount, name }));
+  // Badges carry no price, so their visitor types take no discount
+  const validation = $derived(
+    visitorTypeInputSchema.safeParse({ discount: mode.isBadge ? '0' : discount, name })
+  );
   const fieldErrors = $derived(
     isSubmitted && !validation.success ? z.flattenError(validation.error).fieldErrors : {}
   );
@@ -96,14 +100,16 @@
     bind:value={name}
   />
 
-  <FloatingInput
-    autocomplete="off"
-    error={fieldErrors.discount?.[0]}
-    id="visitor-type-discount"
-    inputmode="numeric"
-    label={i18n.t.visitorTypeForm.discount}
-    required
-    strip={DISCOUNT_CHARS}
-    bind:value={discount}
-  />
+  {#if !mode.isBadge}
+    <FloatingInput
+      autocomplete="off"
+      error={fieldErrors.discount?.[0]}
+      id="visitor-type-discount"
+      inputmode="numeric"
+      label={i18n.t.visitorTypeForm.discount}
+      required
+      strip={DISCOUNT_CHARS}
+      bind:value={discount}
+    />
+  {/if}
 </FormDialog>

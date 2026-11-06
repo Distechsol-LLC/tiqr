@@ -350,6 +350,32 @@ Operators see only their own tickets. Managers and admins see all tickets, and a
 assign them. The UI has light and dark themes and is available in English, Azerbaijani,
 Kazakh and Russian.
 
+### Ticket and badge modes
+
+TiQR issues either tickets or badges; an admin switches between them on the **Settings** page
+(`PUT /api/settings/mode`), which saves `TIQR_MODE` in `.env.local` for the next start. Setting
+`TIQR_MODE` as a real environment variable pins the mode, and the page then cannot change it.
+
+| | Tickets (`ticket`, the default) | Badges (`badge`) |
+|---|---|---|
+| Database | `tiqr_ticket.db` | `tiqr_badge.db` |
+| Visitor name | none; a name sent is dropped | required |
+| Usage | `one_time`, or `group` with a `group_size` of 2 to 100 | always `multi_use` |
+| Prices | ticket types, visitor discounts; a group pays once per person | none: no ticket types or discounts |
+| PDF | an 80 × 140 mm slip for small cut paper | the foldable A4 badge |
+
+A group ticket is one QR code that admits `group_size` passages, then BioStar disables it, as it
+does a one-time ticket after its first. Statistics count it once per person, so a group of ten is
+ten tickets. In badge mode the web app says "badge" wherever it would say "ticket", in every
+language.
+
+Each mode has its own tickets, catalog, passages and statistics. The other mode's database is
+created on the first switch; each switch copies the accounts, web sessions, API keys, license,
+active hours and counters from the database left behind, so everyone stays signed in, and serials
+and BioStar user IDs never repeat across the two. Both modes register in the same BioStar, so a
+mode's sync catches up on the scans it missed when it is switched back to. The `tiqr.db` of
+earlier releases becomes `tiqr_ticket.db` the first time the program opens it.
+
 For a production-style run from the built UI, `bun bundle` in `apps/web` writes `build/`.
 Release builds copy that folder to `apps/api/src/tiqr/api/web`, which `tiqr serve` then serves
 under `/tiqr/`. The folder is git-ignored, so copy it by hand only for a local test.
@@ -552,7 +578,8 @@ unpacks it. CI holds no vendor key, so the smoke test checks that unlicensed wor
 Builds from `prod` or a `v*` tag upload the archives as 7-day artifacts; a manual run on any other ref
 only builds and tests. The executable contains Python, the fonts and logos, and
 the time zone data. Its config and data live beside it, not in a temporary folder:
-`.env.local`, `tiqr.db` and `out/` appear in the folder that holds the executable. Copy
+`.env.local`, `tiqr_ticket.db` (and `tiqr_badge.db` once badge mode is used) and `out/` appear in
+the folder that holds the executable. Copy
 your own `.env.local` there to supply BioStar settings, and put `tiqr_brand.jsonc` there too: the
 executable refuses to run without it. Secrets are never built in.
 

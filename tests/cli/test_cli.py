@@ -15,7 +15,7 @@ from tiqr.core import runtime as core_runtime
 from tiqr.core.biostar import BioStarError
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
 from tiqr.core.license import build_request_code, parse_request_code
-from tiqr.core.models import LicenseRecord, RawEvent, Role, VisitorType
+from tiqr.core.models import LicenseRecord, Mode, RawEvent, Role, VisitorType
 from tiqr.core.repository import _MIGRATIONS, SQLiteRepository
 from tiqr.core.service import TicketService
 
@@ -66,6 +66,7 @@ def cli_env(tmp_path, monkeypatch, license_pair, project_root):
             event_source=events,
             clock=lambda: NOW,
             license_public_key=license_pair[1],
+            mode=kwargs.get("mode", Mode.TICKET),
         )
 
     monkeypatch.setattr(core_runtime, "TicketService", service)
@@ -96,8 +97,6 @@ def create_ticket(actor="admin", **options):
     args = [
         "ticket",
         "create",
-        "--name",
-        "Əli Иванов",
         "--type",
         "Visitor",
         "--from",
@@ -105,7 +104,7 @@ def create_ticket(actor="admin", **options):
         "--until",
         options.get("end", "2030-01-01T14:00"),
         "--usage",
-        "multi_use",
+        "one_time",
         "--as",
         actor,
     ]
@@ -446,7 +445,8 @@ def test_short_option_aliases_match_long_forms(cli_env):
             ]
         )
     )
-    assert created["visitor_name"] == "Guest"
+    # Tickets name nobody, so the name given is dropped.
+    assert created["visitor_name"] == ""
     assert created["visitor_type"] == "Visitor"
     listed = output_json(invoke(["ticket", "list", "-a", "admin"]))
     assert [ticket["id"] for ticket in listed] == [created["id"]]
@@ -509,7 +509,7 @@ def test_error_output_names_biostar_code_and_status(error, expected):
     assert cli._describe(error) == expected
 
 
-@pytest.mark.parametrize("option", ["--name", "--type", "--from", "--until", "--usage", "--as"])
+@pytest.mark.parametrize("option", ["--type", "--from", "--until", "--usage", "--as"])
 def test_each_create_option_required(cli_env, option):
     args = [
         "ticket",
@@ -600,6 +600,7 @@ def test_biostar_adapters_selected_and_resources_closed(cli_env, monkeypatch, fa
             "event_source": cli_env[2],
             "prefix": "TQR",
             "timezone": "Asia/Baku",
+            "mode": Mode.TICKET,
         }
         if fail_construction:
             raise RuntimeError("adapter startup failure")
@@ -666,15 +667,20 @@ def test_reset_deletes_the_database_so_setup_starts_fresh(cli_env):
     directory, _, _ = cli_env
     assert invoke(["setup"]).exit_code == 0
     add_user("admin", "admin")
-    database = directory / "tiqr.db"
-    sidecar = directory / "tiqr.db-wal"
+    database = directory / "tiqr_ticket.db"
+    sidecar = directory / "tiqr_ticket.db-wal"
     sidecar.write_bytes(b"")
+    # The other mode's database, and one left by an earlier release, go too.
+    others = [directory / "tiqr_badge.db", directory / "tiqr.db"]
+    for other in others:
+        other.write_bytes(b"")
 
     result = runner.invoke(cli.app, ["reset"], input="y\n")
 
     assert result.exit_code == 0, result.output
     assert not database.exists()
     assert not sidecar.exists()
+    assert not any(other.exists() for other in others)
     assert invoke(["setup"]).exit_code == 0
     assert output_json(invoke(["user", "list"])) == []
 
@@ -686,7 +692,7 @@ def test_reset_aborts_without_confirmation(cli_env):
     result = runner.invoke(cli.app, ["reset"], input="n\n")
 
     assert result.exit_code != 0
-    assert (directory / "tiqr.db").exists()
+    assert (directory / "tiqr_ticket.db").exists()
 
 
 def test_reset_yes_works_on_a_fresh_checkout(cli_env):
@@ -755,7 +761,7 @@ def test_serve_checks_settings_then_runs_the_server(cli_env, monkeypatch):
     # Plain HTTP on 7102 unless a certificate is configured.
     assert (plain.host, plain.port, plain.dev, plain.secure) == ("127.0.0.1", 7102, False, False)
     assert (dev.port, dev.dev) == (8123, True)
-    assert (directory / "tiqr.db").exists()
+    assert (directory / "tiqr_ticket.db").exists()
 
 
 @pytest.mark.parametrize(

@@ -9,7 +9,7 @@ import {
   visitorTypeInputSchema,
   visitorTypeSchema,
 } from '$/catalog.ts';
-import { ticketInputSchema } from '$/tickets.ts';
+import { ticketOnlyInputSchema } from '$/tickets.ts';
 
 const FRACTION = 1.5;
 const OVER = 101;
@@ -117,15 +117,15 @@ describe('catalog', () => {
 
   it('leaves the ticket type out of a ticket unless one is picked', () => {
     const base = {
+      group_size: '',
       usage_type: 'one_time',
       valid_from: '2030-06-01T09:00',
       valid_until: '2030-06-01T18:00',
-      visitor_name: 'Ada',
       visitor_type: 'Guest',
-    };
+    } as const;
 
-    expect(ticketInputSchema.parse({ ...base, ticket_type: '' }).ticket_type).toBeUndefined();
-    expect(ticketInputSchema.parse({ ...base, ticket_type: ' Day pass ' }).ticket_type).toBe(
+    expect(ticketOnlyInputSchema.parse({ ...base, ticket_type: '' }).ticket_type).toBeUndefined();
+    expect(ticketOnlyInputSchema.parse({ ...base, ticket_type: ' Day pass ' }).ticket_type).toBe(
       'Day pass'
     );
   });
