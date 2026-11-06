@@ -2,6 +2,7 @@ import json
 import os
 import re
 import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -491,7 +492,8 @@ def test_a_ticket_needs_a_subtype_of_its_type(cli_env, subtype, message):
 
 def test_old_database_refused_and_connection_closed(cli_env, monkeypatch):
     directory = cli_env[0]
-    with sqlite3.connect(directory / "tiqr.db") as connection:
+    # Closed explicitly: Windows cannot rename the legacy file while this connection holds it.
+    with closing(sqlite3.connect(directory / "tiqr.db")) as connection, connection:
         connection.execute("CREATE TABLE guests (id INTEGER)")
     closed = []
     original = SQLiteRepository.close
@@ -774,7 +776,7 @@ def test_ticket_print_failure_keeps_print_count(cli_env, monkeypatch):
 
 
 def write_v1_database(path):
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.executescript(";\n".join((*_MIGRATIONS[0], "PRAGMA user_version = 1;")))
 
 
