@@ -347,10 +347,9 @@ end;
   --------------------------------------------------------------------------------------------- }
 
 function HexDigits(Value: Integer): String;
-const
-  Digits = '0123456789abcdef';
 begin
-  Result := Copy(Digits, Value + 1, 1);
+  { Pascal Script takes no const block inside a function, so the digits are written out here. }
+  Result := Copy('0123456789abcdef', Value + 1, 1);
 end;
 
 function JsonString(const Text: String): String;
