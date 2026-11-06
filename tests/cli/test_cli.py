@@ -155,7 +155,7 @@ def test_all_commands_use_core_fakes(cli_env):
     assert synced.exit_code == 0, synced.output
     assert "1" in synced.output
     stats = output_json(invoke(["stats", "--as", "admin"]))
-    counts = {"issued": 0, "passed": 1, "expired": 0, "total": 1}
+    counts = {"issued": 0, "passed": 1, "expired": 0, "total": 1, "prints": 1, "passes": 1}
     assert stats == {
         **counts,
         "ticket_types": {"": counts},

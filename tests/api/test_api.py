@@ -385,7 +385,7 @@ def test_sync_cleanup_and_stats(client, service):
     assert client.post("/api/sync").json() == {"count": 1}
     assert client.post("/api/sync").json() == {"count": 0}
     assert client.post("/api/cleanup").json() == {"count": 1}
-    counts = {"total": 1, "issued": 0, "passed": 1, "expired": 0}
+    counts = {"total": 1, "issued": 0, "passed": 1, "expired": 0, "prints": 0, "passes": 1}
     assert client.get("/api/stats").json() == {
         **counts,
         "ticket_types": {"": counts},

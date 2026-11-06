@@ -222,6 +222,8 @@ const ru: Messages = {
         description: 'Пройдены хотя бы раз, ещё действуют',
         label: 'Пройдены',
       },
+      passes: { description: 'Всего проходов по всем билетам', label: 'Проходы' },
+      prints: { description: 'Всего напечатанных бейджей по всем билетам', label: 'Распечатки' },
       total: { description: 'Все билеты, выданные за период', label: 'Всего' },
     },
     notLoaded: 'Статистика не загружена',

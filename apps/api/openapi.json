@@ -4996,6 +4996,16 @@
           "expired": {
             "type": "integer",
             "title": "Expired"
+          },
+          "prints": {
+            "type": "integer",
+            "title": "Prints",
+            "description": "Badges made, summed over the tickets"
+          },
+          "passes": {
+            "type": "integer",
+            "title": "Passes",
+            "description": "Passages made, summed over the tickets"
           }
         },
         "type": "object",
@@ -5003,7 +5013,9 @@
           "total",
           "issued",
           "passed",
-          "expired"
+          "expired",
+          "prints",
+          "passes"
         ],
         "title": "CountsOut"
       },
@@ -5914,6 +5926,16 @@
             "type": "integer",
             "title": "Expired"
           },
+          "prints": {
+            "type": "integer",
+            "title": "Prints",
+            "description": "Badges made, summed over the tickets"
+          },
+          "passes": {
+            "type": "integer",
+            "title": "Passes",
+            "description": "Passages made, summed over the tickets"
+          },
           "visitor_types": {
             "additionalProperties": {
               "$ref": "#/components/schemas/VisitorStatsOut"
@@ -5937,6 +5959,8 @@
           "issued",
           "passed",
           "expired",
+          "prints",
+          "passes",
           "visitor_types",
           "ticket_types"
         ],
@@ -6685,6 +6709,16 @@
             "type": "integer",
             "title": "Expired"
           },
+          "prints": {
+            "type": "integer",
+            "title": "Prints",
+            "description": "Badges made, summed over the tickets"
+          },
+          "passes": {
+            "type": "integer",
+            "title": "Passes",
+            "description": "Passages made, summed over the tickets"
+          },
           "ticket_types": {
             "additionalProperties": {
               "$ref": "#/components/schemas/CountsOut"
@@ -6700,6 +6734,8 @@
           "issued",
           "passed",
           "expired",
+          "prints",
+          "passes",
           "ticket_types"
         ],
         "title": "VisitorStatsOut"

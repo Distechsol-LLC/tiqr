@@ -222,6 +222,8 @@ const az: Messages = {
         description: 'Ən azı bir dəfə keçib, hələ etibarlıdır',
         label: 'Keçib',
       },
+      passes: { description: 'Bütün biletlər üzrə keçidlərin cəmi', label: 'Keçidlər' },
+      prints: { description: 'Bütün biletlər üzrə çap olunmuş vəsiqələrin cəmi', label: 'Çaplar' },
       total: { description: 'Dövr ərzində verilən bütün biletlər', label: 'Cəmi' },
     },
     notLoaded: 'Statistika yüklənmədi',
