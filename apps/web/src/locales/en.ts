@@ -205,6 +205,7 @@ const en = {
     earlier: 'Earlier',
     empty: 'No statistics',
     export: {
+      action: 'Export',
       failed: 'Export failed',
       hint: 'Export as XLSX',
       total: 'All visitors',

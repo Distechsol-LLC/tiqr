@@ -206,6 +206,7 @@ const kk: Messages = {
     earlier: 'Бұрынғы',
     empty: 'Статистика жоқ',
     export: {
+      action: 'Экспорттау',
       failed: 'Экспорттау сәтсіз аяқталды',
       hint: 'XLSX ретінде экспорттау',
       total: 'Барлық қонақтар',

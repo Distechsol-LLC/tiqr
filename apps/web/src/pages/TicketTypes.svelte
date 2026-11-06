@@ -43,20 +43,6 @@
 
 <PageHeader description={i18n.t.ticketTypes.description} title={i18n.t.ticketTypes.caption}>
   {#snippet actions()}
-    {#if canSetHours}
-      <button
-        aria-label={i18n.t.activeHours.button}
-        class="btn-icon preset-tonal size-11"
-        disabled={activeHours === null}
-        onclick={(): void => {
-          isEditingHours = true;
-        }}
-        title={i18n.t.activeHours.button}
-        type="button"
-      >
-        <Clock aria-hidden="true" size={ICON_SIZE} />
-      </button>
-    {/if}
     <button
       aria-label={i18n.t.common.refresh}
       class="btn-icon preset-tonal size-11"
@@ -73,6 +59,20 @@
         size={ICON_SIZE}
       />
     </button>
+    {#if canSetHours}
+      <button
+        aria-label={i18n.t.activeHours.button}
+        class="btn-icon preset-tonal size-11"
+        disabled={activeHours === null}
+        onclick={(): void => {
+          isEditingHours = true;
+        }}
+        title={i18n.t.activeHours.button}
+        type="button"
+      >
+        <Clock aria-hidden="true" size={ICON_SIZE} />
+      </button>
+    {/if}
     <button
       class="btn preset-filled-primary-500 h-11 min-w-44"
       onclick={(): void => table?.create()}

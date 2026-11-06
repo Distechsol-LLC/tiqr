@@ -207,6 +207,7 @@ const az: Messages = {
     earlier: 'Əvvəlki',
     empty: 'Statistika yoxdur',
     export: {
+      action: 'İxrac et',
       failed: 'İxrac alınmadı',
       hint: 'XLSX kimi ixrac et',
       total: 'Bütün ziyarətçilər',

@@ -288,16 +288,6 @@
       />
     </button>
     <button
-      aria-label={i18n.t.overview.export.hint}
-      class="btn-icon preset-tonal size-11"
-      disabled={isExporting}
-      onclick={exportWorkbook}
-      title={i18n.t.overview.export.hint}
-      type="button"
-    >
-      <Download aria-hidden="true" size={ICON_SIZE} />
-    </button>
-    <button
       class="btn preset-tonal h-11 min-w-36"
       disabled={running !== null}
       onclick={(): Promise<void> => run('cleanup')}
@@ -313,17 +303,13 @@
     </button>
     <button
       class="btn preset-filled-primary-500 h-11 min-w-36"
-      disabled={running !== null}
-      onclick={(): Promise<void> => run('sync')}
-      title={i18n.t.overview.sync.hint}
+      disabled={isExporting}
+      onclick={exportWorkbook}
+      title={i18n.t.overview.export.hint}
       type="button"
     >
-      {#if running === 'sync'}
-        <LoaderCircle aria-hidden="true" class="animate-spin" size={ICON_SIZE} />
-      {:else}
-        <RefreshCw aria-hidden="true" size={ICON_SIZE} />
-      {/if}
-      {i18n.t.overview.sync.action}
+      <Download aria-hidden="true" size={ICON_SIZE} />
+      {i18n.t.overview.export.action}
     </button>
   {/snippet}
   {#snippet toolbar()}

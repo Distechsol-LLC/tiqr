@@ -210,6 +210,7 @@ const ru: Messages = {
     earlier: 'Раньше',
     empty: 'Нет статистики',
     export: {
+      action: 'Экспорт',
       failed: 'Экспорт не выполнен',
       hint: 'Экспорт в XLSX',
       total: 'Все посетители',
