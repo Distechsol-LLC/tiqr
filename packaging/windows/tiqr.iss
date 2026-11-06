@@ -140,6 +140,7 @@ var
   TlsFilesPage: TInputFileWizardPage;
 
   KnownTimeZones: String;
+  RegionShown: Boolean;
   Reinstalling: Boolean;
   Updating: Boolean;
 
@@ -499,6 +500,34 @@ begin
     Result := DefaultThemeValue;
 end;
 
+{ The region checkboxes can be read before the region page has ever been shown. Until it is, the
+  defaults are the values, so they are answered from the defaults instead of the controls. }
+function LanguageOn(Index: Integer): Boolean;
+var
+  Codes: TArrayOfString;
+begin
+  if RegionShown then
+    Result := LanguageList.Checked[Index]
+  else
+  begin
+    Codes := SplitText(LanguageCodes, '|');
+    Result := Pos('|' + Codes[Index] + '|', '|' + DefaultLanguages + '|') > 0;
+  end;
+end;
+
+function CurrencyOn(Index: Integer): Boolean;
+var
+  Codes: TArrayOfString;
+begin
+  if RegionShown then
+    Result := CurrencyList.Checked[Index]
+  else
+  begin
+    Codes := SplitText(CurrencyCodes, '|');
+    Result := Pos('|' + Codes[Index] + '|', '|' + DefaultCurrencies + '|') > 0;
+  end;
+end;
+
 function ReadBrand: TBrand;
 var
   Codes: TArrayOfString;
@@ -517,7 +546,7 @@ begin
   Result.Languages := '';
   Codes := SplitText(LanguageCodes, '|');
   for I := 0 to GetArrayLength(Codes) - 1 do
-    if LanguageList.Checked[I] then
+    if LanguageOn(I) then
     begin
       if Result.Languages <> '' then
         Result.Languages := Result.Languages + '|';
@@ -526,7 +555,7 @@ begin
   Result.Currencies := '';
   Codes := SplitText(CurrencyCodes, '|');
   for I := 0 to GetArrayLength(Codes) - 1 do
-    if CurrencyList.Checked[I] then
+    if CurrencyOn(I) then
     begin
       if Result.Currencies <> '' then
         Result.Currencies := Result.Currencies + '|';
@@ -743,7 +772,6 @@ begin
   for I := 0 to GetArrayLength(Labels) - 1 do
   begin
     LanguageList.Items.Add(Labels[I]);
-    LanguageList.Checked[I] := Pos('|' + Codes[I] + '|', '|' + DefaultLanguages + '|') > 0;
   end;
 
   CurrencyList := TNewCheckListBox.Create(RegionPage);
@@ -757,8 +785,30 @@ begin
   for I := 0 to GetArrayLength(Labels) - 1 do
   begin
     CurrencyList.Items.Add(Labels[I]);
-    CurrencyList.Checked[I] := Pos('|' + Codes[I] + '|', '|' + DefaultCurrencies + '|') > 0;
   end;
+end;
+
+{ Ticks the default languages and currencies once the region page is shown. Setting Checked before
+  the page exists on screen (as InitializeWizard did) is what raised "List index out of bounds" at
+  startup, so the defaults are applied here instead. }
+procedure ApplyRegionDefaults;
+var
+  Codes: TArrayOfString;
+  I: Integer;
+begin
+  Codes := SplitText(LanguageCodes, '|');
+  for I := 0 to GetArrayLength(Codes) - 1 do
+    LanguageList.Checked[I] := Pos('|' + Codes[I] + '|', '|' + DefaultLanguages + '|') > 0;
+  Codes := SplitText(CurrencyCodes, '|');
+  for I := 0 to GetArrayLength(Codes) - 1 do
+    CurrencyList.Checked[I] := Pos('|' + Codes[I] + '|', '|' + DefaultCurrencies + '|') > 0;
+  RegionShown := True;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if (CurPageID = RegionPage.ID) and not RegionShown then
+    ApplyRegionDefaults;
 end;
 
 procedure CreateWizardPages;
