@@ -940,13 +940,21 @@ def assign_ticket(ticket_id: UUID, body: AssignIn, me: Signed, server: Server) -
     return _ticket(server, server.service.assign_ticket(me.user, ticket_id, body.assignee))
 
 
+# The language the operator's app is in, for the ticket's wording; one the install does not offer
+# falls back to its first.
+type Language = Annotated[
+    str | None,
+    Query(pattern=r"^[A-Za-z]{2}(-[A-Za-z]{2})?$", description="The app's language, such as ru"),
+]
+
+
 @router.post(
     "/tickets/{ticket_id}/pdf",
     tags=["tickets"],
     response_class=Response,
     responses=_refusals(401, 403, 404, 409, 422) | _PDF,
 )
-def ticket_pdf(ticket_id: UUID, me: Signed, server: Server) -> Response:
+def ticket_pdf(ticket_id: UUID, me: Signed, server: Server, lang: Language = None) -> Response:
     """Render the badge and return it; a POST, since every render counts as a print.
 
     The PDF is also kept in the out folder, as `tiqr ticket save` does.
@@ -960,7 +968,13 @@ def ticket_pdf(ticket_id: UUID, me: Signed, server: Server) -> Response:
         output_dir=settings.output_dir,
         timezone=settings.default_tz,
         renderer=partial(
-            render_pdf, title=settings.app_name, theme=settings.theme, mode=server.service.mode
+            render_pdf,
+            title=settings.app_name,
+            theme=settings.theme,
+            mode=server.service.mode,
+            logo=settings.logo_path,
+            languages=settings.languages,
+            language=lang,
         ),
     )
     return Response(
@@ -975,7 +989,7 @@ def ticket_pdf(ticket_id: UUID, me: Signed, server: Server) -> Response:
     tags=["tickets"],
     responses=_refusals(401, 403, 404, 409, 422, 502),
 )
-def ticket_print(ticket_id: UUID, me: Signed, server: Server) -> TicketOut:
+def ticket_print(ticket_id: UUID, me: Signed, server: Server, lang: Language = None) -> TicketOut:
     """Print on the server's default printer, when TIQR_SERVER_PRINTING is on.
 
     As with `tiqr ticket print`, a print the system refuses leaves the print count alone.
@@ -996,6 +1010,9 @@ def ticket_print(ticket_id: UUID, me: Signed, server: Server) -> TicketOut:
             title=settings.app_name,
             theme=settings.theme,
             mode=server.service.mode,
+            logo=settings.logo_path,
+            languages=settings.languages,
+            language=lang,
         )
         server.runtime.printer(path)
         return path

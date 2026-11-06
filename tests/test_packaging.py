@@ -111,6 +111,7 @@ def test_core_wheel_contains_assets_and_only_library_scope(built_wheels):
     with zipfile.ZipFile(built_wheels["core"]) as archive:
         assert archive.read("tiqr/core/assets/images/distechsol.webp")[8:12] == b"WEBP"
         assert archive.read("tiqr/core/assets/images/suprema.webp")[8:12] == b"WEBP"
+        assert archive.read("tiqr/core/assets/images/tiqr.png").startswith(b"\x89PNG")
         assert archive.read("tiqr/core/assets/fonts/Geist.ttf").startswith(b"\x00\x01\x00\x00")
         for name in archive.namelist():
             for part in Path(name).parts[2:]:

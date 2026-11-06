@@ -162,19 +162,34 @@ def test_the_ticket_prints_on_a_narrow_slip(service, accounts, clock, tmp_path):
     group = create(
         service, accounts, clock, usage_type=UsageType.GROUP, group_size=10, ticket_type="Entry"
     )
-    assert page_mm(service.print_ticket(accounts["admin"], group.id, tmp_path)) == (80, 140)
+    assert page_mm(service.print_ticket(accounts["admin"], group.id, tmp_path)) == (80, 160)
     service.mode = Mode.BADGE
     badge = create(service, accounts, clock, visitor_name="Ada", usage_type=UsageType.MULTI_USE)
     # A badge is the foldable A4 sheet.
     assert page_mm(service.print_ticket(accounts["admin"], badge.id, tmp_path)) == (210, 297)
 
 
-def test_price_text_shows_what_the_group_paid(service, accounts, clock):
+def test_the_ticket_says_how_many_people_a_group_admits(service, accounts, clock):
     group = create(
         service, accounts, clock, usage_type=UsageType.GROUP, group_size=100, ticket_type="Entry"
     )
-    assert pdf._price_text(group) == "501.00 AZN"
-    assert pdf._admits(group) == "GROUP OF 100"
+    assert pdf._admits(group) == "GROUP · 100 PEOPLE"
+    assert pdf._admits(group, "az") == "QRUP · 100 NƏFƏR"
+    assert pdf._admits(group, "kk") == "ТОП · 100 АДАМ"
+
+
+@pytest.mark.parametrize(
+    ("count", "people"), [(2, "ЧЕЛОВЕКА"), (5, "ЧЕЛОВЕК"), (12, "ЧЕЛОВЕК"), (22, "ЧЕЛОВЕКА")]
+)
+def test_russian_group_sizes_take_the_right_case(count, people):
+    assert pdf._russian_people(count) == people
+
+
+@pytest.mark.parametrize(
+    ("asked", "expected"), [("ru", "ru"), ("ru-RU", "ru"), ("kk", "en"), (None, "en")]
+)
+def test_the_ticket_speaks_the_apps_language_when_the_install_offers_it(asked, expected):
+    assert pdf._ticket_language(("en-US", "ru-RU"), asked) == expected
 
 
 @pytest.fixture

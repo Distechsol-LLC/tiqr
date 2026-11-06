@@ -26,6 +26,7 @@ from typing import cast
 from zoneinfo import ZoneInfo
 
 import qrcode
+from PIL import Image
 from qrcode.constants import ERROR_CORRECT_M
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -35,7 +36,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen.canvas import Canvas
 
-from tiqr.core.models import Currency, Mode, Ticket, UsageType
+from tiqr.core.languages import DEFAULT_LANGUAGES
+from tiqr.core.models import Mode, Ticket, UsageType
 
 _FONT = "TiQR-Geist"
 _PAGE_WIDTH, _PAGE_HEIGHT = A4
@@ -51,12 +53,15 @@ _HOLE_OFFSET = 8
 _HOLE_SPACING = 60
 _HOLE_RADIUS = 2.5
 # A ticket is its own page: a narrow slip, as cut ticket paper and receipt printers take.
-_TICKET_MM = (80.0, 140.0)
-_TICKET_MARGIN = 5
+_TICKET_MM = (80.0, 160.0)
+_TICKET_FRAME = 3
+_TICKET_MARGIN = 7
 
 _MUTED = colors.HexColor("#71757b")
 _PANEL = colors.HexColor("#e8e9ea")
 _GUIDE = colors.HexColor("#babcbf")
+# Tickets print in black only, so any printer gives the same slip.
+_INK = colors.black
 
 # Band, accent and stripe for each Skeleton theme: primary-800, primary-500 and secondary-500.
 _THEME_COLORS: dict[str, tuple[str, str, str]] = {
@@ -107,12 +112,48 @@ def _palette(theme: str) -> _Palette:
 DEFAULT_TITLE = "TiQR"
 _TECH_LINE = "Distechsol · Suprema BioStar X"
 _LOGOS = ("distechsol.webp", "suprema.webp")
+# The web app's built-in logo, shown on tickets for installs without a logo of their own.
+_BUILT_IN_LOGO = "tiqr.png"
 # Geist ships one weight; bold adds a stroke of this many ems.
 _BOLD_STROKE = 0.035
 _TITLE_SIZES = (3.6, 3.0, 2.5)
 _NAME_SIZES = (8, 7, 6, 5, 4.2)
 _TYPE_SIZES = (3.0, 2.6, 2.2)
 _DETAIL_SIZES = (3.4, 3.0, 2.6)
+_ADMITS_SIZES = (5.0, 4.4, 3.8)
+_VALUE_SIZES = (5.0, 4.4, 3.8, 3.2)
+_LABEL_SIZES = (2.2, 2.0, 1.8)
+_LABEL_TRACKING = 0.3
+_LABEL_SEPARATOR = " / "
+
+# A ticket's field labels in each language the web app speaks, as its locales word them. They are
+# written in capitals here because str.upper() gets Azerbaijani's dotted İ wrong.
+_FIELD_LABELS: dict[str, dict[str, str]] = {
+    "visitor_type": {
+        "en": "VISITOR TYPE",
+        "ru": "ТИП ПОСЕТИТЕЛЯ",
+        "az": "ZİYARƏTÇİNİN NÖVÜ",
+        "kk": "КЕЛУШІ ТҮРІ",
+    },
+    "ticket_type": {
+        "en": "TICKET TYPE",
+        "ru": "ТИП БИЛЕТА",
+        "az": "BİLET NÖVÜ",
+        "kk": "БИЛЕТ ТҮРІ",
+    },
+    "valid_from": {
+        "en": "VALID FROM",
+        "ru": "ДЕЙСТВУЕТ С",
+        "az": "BAŞLAMA VAXTI",
+        "kk": "ЖАРАМДЫ БАСЫНАН",
+    },
+    "valid_until": {
+        "en": "VALID TO",
+        "ru": "ДЕЙСТВУЕТ ДО",
+        "az": "BİTMƏ VAXTI",
+        "kk": "ЖАРАМДЫ АЯҒЫНА ДЕЙІН",
+    },
+}
 
 
 def _asset(folder: str, name: str) -> bytes:
@@ -253,6 +294,15 @@ class _Surface:
         if dash is not None:
             self.canvas.setDash(dash[0] * mm, dash[1] * mm)
         self.canvas.line(start[0] * mm, self._y(start[1]), end[0] * mm, self._y(end[1]))
+        self.canvas.restoreState()
+
+    def outline(
+        self, x: float, top: float, width: float, height: float, color: colors.Color, line: float
+    ) -> None:
+        self.canvas.saveState()
+        self.canvas.setStrokeColor(color)
+        self.canvas.setLineWidth(line * mm)
+        self.canvas.rect(x * mm, self._y(top + height), width * mm, height * mm, stroke=1, fill=0)
         self.canvas.restoreState()
 
     def circle(
@@ -534,117 +584,251 @@ def _draw_sheet(
         page.text(hint_x, top, hint, 3.4, _MUTED)
 
 
-# Minor units per major one, for every currency TiQR prices in.
-_MINOR_PER_UNIT = 100
+# Whom a ticket admits, worded as the web app's locales word its usage types, in capitals.
+_USAGE_WORDS: dict[str, dict[UsageType, str]] = {
+    "en": {UsageType.ONE_TIME: "ONE-TIME", UsageType.MULTI_USE: "MULTI-USE"},
+    "ru": {UsageType.ONE_TIME: "ОДНОРАЗОВЫЙ", UsageType.MULTI_USE: "МНОГОРАЗОВЫЙ"},
+    "az": {UsageType.ONE_TIME: "BİRDƏFƏLİK", UsageType.MULTI_USE: "ÇOXDƏFƏLİK"},
+    "kk": {UsageType.ONE_TIME: "БІР РЕТТІК", UsageType.MULTI_USE: "КӨП РЕТТІК"},
+}
 
 
-def _price_text(ticket: Ticket) -> str | None:
-    price, currency = ticket.price, ticket.currency
-    if price is None or currency is None:
+def _russian_people(count: int) -> str:
+    """Человек takes its genitive singular after 2-4 (but not 12-14), and stays put otherwise."""
+    few = count % 10 in {2, 3, 4} and count % 100 not in {12, 13, 14}
+    return "ЧЕЛОВЕКА" if few else "ЧЕЛОВЕК"
+
+
+def _admits(ticket: Ticket, language: str = "en") -> str:
+    """Whom the ticket admits in a language (en, ru, az or kk): its usage, or a group's size."""
+    if ticket.usage_type != UsageType.GROUP:
+        return _USAGE_WORDS[language][UsageType(ticket.usage_type)]
+    count = ticket.group_size
+    group = {
+        "en": f"GROUP · {count} {'PERSON' if count == 1 else 'PEOPLE'}",
+        "ru": f"ГРУППА · {count} {_russian_people(count)}",
+        # Azerbaijani and Kazakh nouns stay singular after a number.
+        "az": f"QRUP · {count} NƏFƏR",
+        "kk": f"ТОП · {count} АДАМ",
+    }
+    return group[language]
+
+
+def _ticket_language(languages: tuple[str, ...], language: str | None) -> str:
+    """The language whom the ticket admits is written in: `language` when the install offers it,
+    else the install's first language; either way as its bare code, such as ru."""
+    offered = [code.partition("-")[0] for code in languages]
+    wanted = (language or "").partition("-")[0].lower()
+    return wanted if wanted in offered else offered[0]
+
+
+def _ticket_logo(path: Path | None) -> ImageReader | None:
+    """The install's logo (its `logo_path`, as the installer wrote it) in greyscale on white paper,
+    or the built-in logo when the install has none.
+
+    None when the install's logo is an SVG: Pillow cannot read SVG, so it is left off the ticket
+    rather than swapped for another image.
+    """
+    if path is not None and path.suffix.lower() == ".svg":
         return None
-    whole, cents = divmod(price, _MINOR_PER_UNIT)
-    return f"{whole:,}.{cents:02d} {Currency(currency).value}".replace(",", " ")
+    data = path.read_bytes() if path is not None else _asset("images", _BUILT_IN_LOGO)
+    with Image.open(BytesIO(data)) as source:
+        rgba = source.convert("RGBA")
+    paper = Image.new("RGBA", rgba.size, "white")
+    paper.alpha_composite(rgba)
+    return ImageReader(paper.convert("L"))
 
 
-def _admits(ticket: Ticket) -> str:
-    if ticket.usage_type == UsageType.GROUP:
-        return f"GROUP OF {ticket.group_size}"
-    return "ONE-TIME" if ticket.usage_type == UsageType.ONE_TIME else "MULTI-USE"
+def _field_label(field: str, languages: tuple[str, ...]) -> str:
+    """The field's label in each language, in the install's order, such as `TICKET TYPE / ...`."""
+    labels = _FIELD_LABELS[field]
+    return _LABEL_SEPARATOR.join(labels[code.partition("-")[0]] for code in languages)
+
+
+def _fit_label(label: str, width: float) -> tuple[float, list[str]]:
+    """Fit a label on as few lines as it can, shrinking before it wraps; never cut it."""
+    for lines_allowed in (1, 2, 3, 4):
+        for size in _LABEL_SIZES:
+            lines = _wrap_label(label, size, width)
+            if len(lines) <= lines_allowed:
+                return size, lines
+    size = _LABEL_SIZES[-1]
+    return size, _wrap_label(label, size, width)
+
+
+def _wrap_label(label: str, size: float, width: float) -> list[str]:
+    """Wrap a label between its languages first, and inside one only when it alone is too wide."""
+    lines: list[str] = []
+    for part in label.split(_LABEL_SEPARATOR):
+        joined = f"{lines[-1]}{_LABEL_SEPARATOR}{part}" if lines else part
+        if lines and _width(joined, size, _LABEL_TRACKING) <= width:
+            lines[-1] = joined
+        elif _width(part, size, _LABEL_TRACKING) <= width:
+            lines.append(part)
+        else:
+            lines.extend(_wrap(part, size, width - _LABEL_TRACKING * len(part)))
+    return lines
+
+
+def _draw_field(
+    surface: _Surface,
+    left: float,
+    top: float,
+    width: float,
+    label: tuple[float, list[str]],
+    lines: list[tuple[str, float, bool]],
+    label_rows: int = 0,
+) -> float:
+    """Draw a cheque field: a small label, its value lines, then a rule; return the rule's top.
+
+    `label_rows` reserves that many label lines, so fields side by side keep their values level.
+    """
+    label_size, label_lines = label
+    step = label_size * 1.2
+    for row, line in enumerate(label_lines):
+        surface.text(left, top + row * step, line, label_size, _INK, tracking=_LABEL_TRACKING)
+    top += step * max(len(label_lines), label_rows) + label_size * 0.25
+    for line, size, bold in lines:
+        surface.text(left, top, line, size, _INK, bold=bold)
+        top += size * 1.2
+    top += 0.8
+    surface.line((left, top), (left + width, top), _INK, 0.2)
+    return top
 
 
 def _draw_ticket(
     canvas: Canvas,
     ticket: Ticket,
-    logos: list[ImageReader],
+    logo: ImageReader | None,
     zone: ZoneInfo,
-    title: str,
-    palette: _Palette,
+    languages: tuple[str, ...],
+    language: str,
 ) -> None:
-    """Draw a ticket on its slip, top to bottom: header, admission, QR code, window, tech line.
+    """Draw a ticket on its slip in black only, laid out like a cheque, top to bottom: the logo
+    (when the install has one), whom it admits, visitor type, ticket type, validity, then the QR
+    code and serial below a tear line.
 
-    A ticket names no visitor: it shows its visitor type, ticket type, whom it admits (one person
-    or a group of so many) and, when priced, what it cost, which a group pays once per person.
+    A ticket names no visitor, shows no price and carries no partner logos. Field labels are in
+    each of the install's `languages`, in its order, since visitors may read any of them; whom it
+    admits is in `language`, the one the operator's app is in.
     """
     width, height = _TICKET_MM
     surface = _Surface(canvas, height)
-    left, text_width = _TICKET_MARGIN, width - _TICKET_MARGIN * 2
-    top = _draw_header(
-        surface, logos, title, palette, width=width, margin=_TICKET_MARGIN, edge=_TICKET_MARGIN
-    )
+    frame, margin = _TICKET_FRAME, _TICKET_MARGIN
+    left, right = margin, width - margin
+    text_width = right - left
+    surface.outline(frame, frame, width - frame * 2, height - frame * 2, _INK, 0.5)
 
-    tracking, chip_height = 0.6, 6.2
-    type_size, visitor_type = _fit_line(
-        ticket.visitor_type, _TYPE_SIZES, text_width * 0.6, tracking
-    )
-    chip_width = _width(visitor_type, type_size, tracking) + 6
-    surface.rect(left, top, chip_width, chip_height, palette.accent, radius=1.2)
-    surface.text(
-        left + 3, top + 1.3, visitor_type, type_size, colors.white, bold=True, tracking=tracking
-    )
-    # Whom it admits sits level with the chip, against the right edge.
-    admits = _admits(ticket)
-    admits_size = 3.2
-    surface.text(
-        width - _TICKET_MARGIN - _width(admits, admits_size, tracking),
-        top + 1.4,
-        admits,
-        admits_size,
-        palette.band,
-        bold=True,
-        tracking=tracking,
-    )
-    top += chip_height + 2.5
+    top, logo_height = margin, 12.0
+    if logo is not None:
+        pixels_wide, pixels_high = logo.getSize()
+        drawn = min(logo_height, text_width * pixels_high / pixels_wide)
+        surface.image(
+            logo, (width - _image_width(logo, drawn)) / 2, top + (logo_height - drawn) / 2, drawn
+        )
+        top += logo_height + 2.5
+        surface.line((left, top), (right, top), _INK, 0.6)
+        surface.line((left, top + 0.9), (right, top + 0.9), _INK, 0.2)
+        top += 3.5
 
-    if ticket.ticket_type:
-        size, line = _fit_line(ticket.ticket_type, _DETAIL_SIZES, text_width, 0)
-        surface.text(left, top, line, size, _MUTED)
-        top += size * 1.3
-    if (price := _price_text(ticket)) is not None:
-        surface.text(left, top, price, 5, palette.band, bold=True)
-        top += 6.5
-
-    bar_height = 6
-    bar_top = height - _TICKET_MARGIN - bar_height
-    surface.rect(left, bar_top, text_width, bar_height, palette.band, radius=1.2)
-    surface.centered(width / 2, bar_top + 1.1, _TECH_LINE, 2.8, colors.white)
-    window_size = 3.2
-    window_top = bar_top - 2.5 - window_size * 1.2
-    surface.centered(width / 2, window_top, _window(ticket, zone), window_size, _MUTED)
-
-    # The QR code stays black on white: the reader needs the contrast.
-    pad, serial_height = 3, 7
-    panel_top = top + 1.5
-    room = window_top - 2.5 - panel_top
-    qr_size = min(52, room - pad * 2 - serial_height)
-    panel_height = qr_size + pad * 2 + serial_height
-    panel_top += (room - panel_height) / 2
-    surface.rect(left, panel_top, text_width, panel_height, _PANEL, radius=2)
-    surface.qr(ticket.qr_payload, (width - qr_size) / 2, panel_top + pad, qr_size)
+    # Whom it admits is white on a black bar, the first thing a gatekeeper reads.
+    bar_height = 10
+    surface.rect(left, top, text_width, bar_height, _INK, radius=1)
+    size, admits = _fit_line(_admits(ticket, language), _ADMITS_SIZES, text_width - 4, 0.8)
     surface.centered(
         width / 2,
-        panel_top + pad + qr_size + 1,
-        ticket.readable_serial,
-        4.4,
-        palette.band,
+        top + (bar_height - size) / 2,
+        admits,
+        size,
+        colors.white,
         bold=True,
+        tracking=0.8,
+    )
+    top += bar_height + 4
+
+    # Long types wrap rather than lose words; the QR code below gives up some room.
+    size, lines = _fit(ticket.visitor_type, _VALUE_SIZES, text_width, 2)
+    top = _draw_field(
+        surface,
+        left,
+        top,
+        text_width,
+        _fit_label(_field_label("visitor_type", languages), text_width),
+        [(line, size, True) for line in lines],
+    )
+    if ticket.ticket_type:
+        size, lines = _fit(ticket.ticket_type, _VALUE_SIZES[1:], text_width, 3)
+        top = _draw_field(
+            surface,
+            left,
+            top + 3,
+            text_width,
+            _fit_label(_field_label("ticket_type", languages), text_width),
+            [(line, size, True) for line in lines],
+        )
+
+    gap = 6
+    column = (text_width - gap) / 2
+    validity = (("valid_from", ticket.valid_from), ("valid_until", ticket.valid_until))
+    labels = [_fit_label(_field_label(field, languages), column) for field, _ in validity]
+    # Both labels share one size and one height, so the two dates line up.
+    size = min(label_size for label_size, _ in labels)
+    labels = [
+        (size, _wrap_label(_field_label(field, languages), size, column)) for field, _ in validity
+    ]
+    rows = max(len(label_lines) for _, label_lines in labels)
+    bottoms: list[float] = []
+    for index, ((_, moment), label) in enumerate(zip(validity, labels, strict=True)):
+        local = moment.astimezone(zone)
+        lines = [(f"{local:%d.%m.%Y}", 4.4, True), (f"{local:%H:%M}", 3.6, False)]
+        x = left + index * (column + gap)
+        bottoms.append(_draw_field(surface, x, top + 3, column, label, lines, rows))
+    top = max(bottoms) + 4
+
+    # A tear line keeps the code apart from the details, as on a cheque's stub.
+    surface.line((frame, top), (width - frame, top), _INK, 0.25, dash=(1.5, 1.2))
+
+    # The QR code stays black on white: the reader needs the contrast. Its quiet zone is the gap
+    # below the tear line.
+    serial_size, serial_gap = 4.0, 1.5
+    room_top, room_bottom = top + 0.5, height - margin + 1
+    qr_size = min(56, room_bottom - room_top - serial_gap - serial_size * 1.2)
+    qr_top = room_top + (room_bottom - room_top - qr_size - serial_gap - serial_size * 1.2) / 2
+    surface.qr(ticket.qr_payload, (width - qr_size) / 2, qr_top, qr_size)
+    surface.centered(
+        width / 2,
+        qr_top + qr_size + serial_gap,
+        ticket.readable_serial,
+        serial_size,
+        _INK,
+        bold=True,
+        tracking=0.4,
     )
 
 
-def render_pdf(
+def render_pdf(  # noqa: PLR0913 - the ticket and where it goes, then branding by keyword
     ticket: Ticket,
     output_dir: Path,
     timezone: str,
+    *,
     title: str = DEFAULT_TITLE,
     theme: str = "default",
     mode: Mode = Mode.BADGE,
+    logo: Path | None = None,
+    languages: tuple[str, ...] = DEFAULT_LANGUAGES,
+    language: str | None = None,
 ) -> Path:
-    """Render the badge, or the ticket in ticket mode; `title` is the name in its header band
-    (TIQR_APP_NAME).
+    """Render the badge, or the ticket in ticket mode; `title` is the app name (TIQR_APP_NAME).
 
-    `theme` sets the colours. The partner logos are printed in the header; the app logo is not.
+    The badge prints in `theme`'s colours with the partner logos in its header band. The ticket
+    prints in black with the install's `logo` (its logo_path) in greyscale on top when it has one,
+    its field labels in each of `languages` (codes such as en-US), in that order, and whom it admits
+    in `language` (such as ru) when that is one of them, else in the first.
     """
     zone = ZoneInfo(timezone)
-    logos = [ImageReader(BytesIO(_asset("images", name))) for name in _LOGOS]
+    is_ticket = Mode(mode) == Mode.TICKET
+    logos = [] if is_ticket else [ImageReader(BytesIO(_asset("images", n))) for n in _LOGOS]
+    ticket_logo = _ticket_logo(logo) if is_ticket else None
     # Validate before creating any file, so a failure leaves no debris.
     _require_glyphs(ticket.visitor_name + ticket.visitor_type + (ticket.ticket_type or "") + title)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -655,12 +839,15 @@ def render_pdf(
     os.close(descriptor)
     temporary = Path(temporary_name)
     try:
-        is_ticket = Mode(mode) == Mode.TICKET
         size = (_TICKET_MM[0] * mm, _TICKET_MM[1] * mm) if is_ticket else A4
         canvas = Canvas(str(temporary), pagesize=size, pageCompression=0)
         canvas.setTitle(ticket.readable_serial)
-        draw = _draw_ticket if is_ticket else _draw_sheet
-        draw(canvas, ticket, logos, zone, title, _palette(theme))
+        if is_ticket:
+            _draw_ticket(
+                canvas, ticket, ticket_logo, zone, languages, _ticket_language(languages, language)
+            )
+        else:
+            _draw_sheet(canvas, ticket, logos, zone, title, _palette(theme))
         canvas.save()
         temporary.replace(destination)
     finally:

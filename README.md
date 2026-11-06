@@ -362,7 +362,7 @@ TiQR issues either tickets or badges; an admin switches between them on the **Se
 | Visitor name | none; a name sent is dropped | required |
 | Usage | `one_time`, or `group` with a `group_size` of 2 to 100 | always `multi_use` |
 | Prices | ticket types, visitor discounts; a group pays once per person | none: no ticket types or discounts |
-| PDF | an 80 × 140 mm slip for small cut paper | the foldable A4 badge |
+| PDF | an 80 × 160 mm black-and-white slip for small cut paper | the foldable A4 badge |
 
 A group ticket is one QR code that admits `group_size` passages, then BioStar disables it, as it
 does a one-time ticket after its first. Statistics count it once per person, so a group of ten is

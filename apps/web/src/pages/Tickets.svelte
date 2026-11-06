@@ -202,7 +202,7 @@
 
     pending = { action, id: ticket.id };
 
-    const result = await renderTicketPdf(csrfToken, ticket.id);
+    const result = await renderTicketPdf(csrfToken, ticket.id, i18n.code);
 
     pending = null;
 
@@ -251,7 +251,7 @@
 
     pending = { action: 'print', id: ticket.id };
 
-    const result = await printTicket(csrfToken, ticket.id);
+    const result = await printTicket(csrfToken, ticket.id, i18n.code);
 
     pending = null;
 

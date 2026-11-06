@@ -768,6 +768,8 @@ def ticket_save(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> N
                 title=runtime.settings.app_name,
                 theme=runtime.settings.theme,
                 mode=runtime.service.mode,
+                logo=runtime.settings.logo_path,
+                languages=runtime.settings.languages,
             ),
         )
         typer.echo(str(path))
@@ -789,6 +791,8 @@ def ticket_print(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> 
                 title=settings.app_name,
                 theme=settings.theme,
                 mode=runtime.service.mode,
+                logo=settings.logo_path,
+                languages=settings.languages,
             )
             send_to_printer(path)
             return path
