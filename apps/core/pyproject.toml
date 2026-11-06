@@ -1,6 +1,6 @@
 [project]
 name = "tiqr-core"
-version = "1.1.0"
+version = "1.4.0"
 description = "TiQR core: tickets, storage, BioStar X integration, QR and PDF output"
 requires-python = ">=3.14"
 dependencies = [

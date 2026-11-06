@@ -1,7 +1,7 @@
 # Workspace root. The product version lives here; members under apps/ are versioned separately.
 [project]
 name = "tiqr"
-version = "1.1.0"
+version = "1.4.0"
 description = "QR Ticketing System for Suprema BioStar X"
 readme = "README.md"
 requires-python = ">=3.14"
