@@ -30,6 +30,7 @@ def ticket_body(**overrides):
     return {
         "visitor_name": "Əli Иванов",
         "visitor_type": "Visitor",
+        "visitor_subtype": "Visitor",
         "valid_from": "2026-09-17T13:00",
         "valid_until": "2026-09-17T15:00",
         "usage_type": "one_time",
@@ -229,8 +230,9 @@ def test_search_narrows_the_list_on_the_server(client, service):
     login(client)
     # Only badges carry a visitor's name.
     service.mode = Mode.BADGE
-    ada = create_ticket(client, visitor_name="Ada Lovelace", usage_type="multi_use")["id"]
-    grace = create_ticket(client, visitor_name="Grace Hopper", usage_type="multi_use")["id"]
+    badge = partial(create_ticket, client, visitor_subtype=None, usage_type="multi_use")
+    ada = badge(visitor_name="Ada Lovelace")["id"]
+    grace = badge(visitor_name="Grace Hopper")["id"]
 
     def found(**params):
         return {
@@ -627,10 +629,14 @@ def test_ticket_types_are_managed_by_staff_and_read_by_everyone(client):
 
 def test_visitor_types_are_managed_by_staff_and_read_by_everyone(client):
     login(client, "manager")
-    created = client.post("/api/visitor-types", json={"name": "Student", "discount_percent": 30})
+    created = client.post("/api/visitor-types", json={"name": "Student"})
     assert created.status_code == 201
     student = created.json()
-    assert student["discount_percent"] == 30
+    assert (student["discount_percent"], student["subtypes"]) == (0, [])
+    # Tickets take their discount from a subtype, so a type refuses one.
+    discounted = client.post("/api/visitor-types", json={"name": "Staff", "discount_percent": 30})
+    assert discounted.status_code == 422
+    assert discounted.json()["detail"] == "Discounts are set on visitor subtypes"
 
     login(client, "operator")
     assert student in client.get("/api/visitor-types").json()["items"]
@@ -638,11 +644,115 @@ def test_visitor_types_are_managed_by_staff_and_read_by_everyone(client):
     assert client.delete(f"/api/visitor-types/{student['id']}").status_code == 403
 
     login(client, "admin")
-    patched = client.patch(f"/api/visitor-types/{student['id']}", json={"discount_percent": 40})
-    assert patched.json() == student | {"discount_percent": 40}
+    patched = client.patch(f"/api/visitor-types/{student['id']}", json={"name": "Pupil"})
+    assert patched.json() == student | {"name": "Pupil"}
     assert client.post("/api/visitor-types", json={"name": "Staff"}).json()["discount_percent"] == 0
     assert client.delete(f"/api/visitor-types/{student['id']}").status_code == 204
     assert client.delete(f"/api/visitor-types/{student['id']}").status_code == 404
+
+
+def test_visitor_subtypes_are_managed_by_staff_and_listed_under_their_type(client):
+    login(client, "manager")
+    student = client.post("/api/visitor-types", json={"name": "Student"}).json()
+    subtypes = f"/api/visitor-types/{student['id']}/subtypes"
+    created = client.post(subtypes, json={"name": "Undergraduate", "discount_percent": 30})
+    assert created.status_code == 201
+    undergraduate = created.json()
+    assert undergraduate == {
+        "id": undergraduate["id"],
+        "visitor_type_id": student["id"],
+        "name": "Undergraduate",
+        "discount_percent": 30,
+    }
+    postgraduate = client.post(subtypes, json={"name": "Postgraduate"}).json()
+    assert postgraduate["discount_percent"] == 0
+
+    login(client, "operator")
+    listed = {item["name"]: item for item in client.get("/api/visitor-types").json()["items"]}
+    # By name, and each type lists only its own.
+    assert listed["Student"]["subtypes"] == [postgraduate, undergraduate]
+    assert [item["name"] for item in listed["Visitor"]["subtypes"]] == ["Visitor"]
+    assert client.post(subtypes, json={"name": "Staff"}).status_code == 403
+    one = f"{subtypes}/{undergraduate['id']}"
+    assert client.patch(one, json={"discount_percent": 1}).status_code == 403
+    assert client.delete(one).status_code == 403
+
+    login(client, "admin")
+    patched = client.patch(one, json={"discount_percent": 40})
+    assert patched.status_code == 200
+    assert patched.json() == undergraduate | {"discount_percent": 40}
+    renamed = client.patch(one, json={"name": "Bachelor"}).json()
+    assert renamed == undergraduate | {"name": "Bachelor", "discount_percent": 40}
+    assert client.delete(one).status_code == 204
+    assert client.delete(one).status_code == 404
+    names = [
+        item["name"] for item in client.get("/api/visitor-types").json()["items"][0]["subtypes"]
+    ]
+    assert names == ["Postgraduate"]
+
+
+def test_visitor_subtype_refusals(client):
+    login(client, "admin")
+    student = client.post("/api/visitor-types", json={"name": "Student"}).json()
+    subtypes = f"/api/visitor-types/{student['id']}/subtypes"
+    pupil = client.post(subtypes, json={"name": "Pupil"}).json()
+    # Names are unique across every type, whatever their case.
+    duplicate = client.post(subtypes, json={"name": "visitor"})
+    assert duplicate.status_code == 422
+    assert duplicate.json()["code"] == "invalid"
+    for body in (
+        {"name": "Child", "discount_percent": 101},
+        {"name": "Child", "discount_percent": -1},
+        {"name": " "},
+    ):
+        assert client.post(subtypes, json=body).status_code == 422
+    assert client.patch(f"{subtypes}/{pupil['id']}", json={}).status_code == 422
+    assert (
+        client.post(f"/api/visitor-types/{uuid4()}/subtypes", json={"name": "X"}).status_code == 404
+    )
+    # A subtype is only found under its own type.
+    visitor = next(
+        item
+        for item in client.get("/api/visitor-types").json()["items"]
+        if item["name"] == "Visitor"
+    )
+    elsewhere = f"/api/visitor-types/{visitor['id']}/subtypes/{pupil['id']}"
+    assert client.patch(elsewhere, json={"name": "Moved"}).status_code == 404
+    assert client.delete(elsewhere).status_code == 404
+    assert client.delete(f"{subtypes}/{uuid4()}").status_code == 404
+    # Deleting a type takes its subtypes with it.
+    assert client.delete(f"/api/visitor-types/{student['id']}").status_code == 204
+    assert (
+        client.post(
+            f"/api/visitor-types/{visitor['id']}/subtypes", json={"name": "Pupil"}
+        ).status_code
+        == 201
+    )
+
+
+def test_a_ticket_needs_a_subtype_of_its_visitor_type(client):
+    login(client, "admin")
+    student = client.post("/api/visitor-types", json={"name": "Student"}).json()
+    client.post(f"/api/visitor-types/{student['id']}/subtypes", json={"name": "Pupil"})
+
+    login(client, "operator")
+    for subtype, message in (
+        (None, "A visitor subtype is required"),
+        (" ", "A visitor subtype is required"),
+        ("Nobody", "Unknown visitor subtype"),
+        # A subtype of another type does not do.
+        ("Visitor", "Unknown visitor subtype"),
+    ):
+        refused = client.post(
+            "/api/tickets", json=ticket_body(visitor_type="Student", visitor_subtype=subtype)
+        )
+        assert refused.status_code == 422
+        assert refused.json()["detail"] == message
+    body = ticket_body(visitor_type="Student")
+    del body["visitor_subtype"]
+    assert client.post("/api/tickets", json=body).status_code == 422
+    ticket = create_ticket(client, visitor_type="Student", visitor_subtype="pupil")
+    assert ticket["visitor_type"] == "Pupil"
 
 
 def test_catalog_refusals(client):
@@ -691,10 +801,17 @@ def test_a_ticket_is_priced_from_its_types(client):
     client.post(
         "/api/ticket-types", json={"name": "Day pass", "price_minor": 1250, "currency": "USD"}
     )
-    client.post("/api/visitor-types", json={"name": "Student", "discount_percent": 20})
+    student = client.post("/api/visitor-types", json={"name": "Student"}).json()
+    client.post(
+        f"/api/visitor-types/{student['id']}/subtypes",
+        json={"name": "Pupil", "discount_percent": 20},
+    )
 
     login(client, "operator")
-    ticket = create_ticket(client, ticket_type="Day pass", visitor_type="Student")
+    ticket = create_ticket(
+        client, ticket_type="Day pass", visitor_type="Student", visitor_subtype="Pupil"
+    )
+    assert ticket["visitor_type"] == "Pupil"
     assert ticket["ticket_type"] == "Day pass"
     assert ticket["base_price_minor"] == 1250
     assert ticket["discount_percent"] == 20

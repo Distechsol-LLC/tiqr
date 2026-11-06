@@ -5,6 +5,7 @@ PASSWORD = "correct-password"
 BODY = {
     "visitor_name": "Əli",
     "visitor_type": "Visitor",
+    "visitor_subtype": "Visitor",
     "valid_from": "2026-09-17T19:00",
     "valid_until": "2026-09-17T21:00",
     "usage_type": "one_time",

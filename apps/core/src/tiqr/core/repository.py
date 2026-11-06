@@ -26,6 +26,7 @@ from tiqr.core.models import (
     TicketType,
     UsageType,
     User,
+    VisitorSubtype,
     VisitorType,
     WebSession,
     utc,
@@ -302,6 +303,34 @@ ALTER TABLE tickets_rebuilt RENAME TO tickets;
 {_EXTERNAL_CODE_INDEX}
 """  # noqa: S608 - built from the constants above, not input
 
+# Visitor subtypes, which tickets are issued for. Names are unique across every type, whatever
+# their case, since a ticket keeps only the name. Each type already made gets one subtype of its
+# own name, taking over its discount, so ticketing carries on and earlier tickets still count
+# under the same name. The ids are random version 4 UUIDs, as uuid4 makes and clients check.
+_SUBTYPES = """
+CREATE TABLE visitor_subtypes (
+    id TEXT PRIMARY KEY,
+    visitor_type_id TEXT NOT NULL REFERENCES visitor_types(id) ON DELETE CASCADE,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    discount_percent INTEGER NOT NULL CHECK(discount_percent BETWEEN 0 AND 100)
+);
+CREATE INDEX visitor_subtypes_type ON visitor_subtypes(visitor_type_id);
+INSERT INTO visitor_subtypes (id, visitor_type_id, name, discount_percent)
+    SELECT lower(substr(digits, 1, 8) || '-' || substr(digits, 9, 4) || '-4'
+        || substr(digits, 14, 3) || '-' || substr('89ab', abs(random()) % 4 + 1, 1)
+        || substr(digits, 18, 3) || '-' || substr(digits, 21, 12)),
+        id, name, discount_percent
+    FROM (SELECT hex(randomblob(16)) AS digits, id, name, discount_percent FROM visitor_types);
+UPDATE visitor_types SET discount_percent = 0
+"""
+# Undoing it: a type takes back the discount of its subtype of the same name, if it has one.
+_SUBTYPES_DOWN = """
+UPDATE visitor_types SET discount_percent = COALESCE((SELECT discount_percent
+    FROM visitor_subtypes WHERE visitor_type_id = visitor_types.id
+    AND name = visitor_types.name), 0);
+DROP TABLE visitor_subtypes
+"""
+
 # What both modes' databases share: who may sign in, their sessions and keys, the license, and the
 # hours. The active database is the authority, so a mode switch copies these into the other one.
 # Accounts deleted from the source go, unless the target's tickets still name them; those stay,
@@ -363,6 +392,7 @@ _MIGRATIONS = tuple(
         _ACTIVE_HOURS,
         _ACTIVE_HOURS_DEFAULT,
         _GROUPS,
+        _SUBTYPES,
     )
 )
 # Reversal N undoes step N, taking version N to N - 1. Steps 1 to 7 predate reversals and are not
@@ -374,6 +404,7 @@ _REVERSALS = {
     11: _statements(_ACTIVE_HOURS_DOWN),
     12: _statements(_ACTIVE_HOURS_DEFAULT_DOWN),
     13: _statements(_GROUPS_DOWN),
+    14: _statements(_SUBTYPES_DOWN),
 }
 OLDEST_REVERSIBLE = min(_REVERSALS) - 1
 SCHEMA_VERSION = len(_MIGRATIONS)
@@ -497,6 +528,12 @@ def _ticket_type(row: sqlite3.Row) -> TicketType:
 
 def _visitor_type(row: sqlite3.Row) -> VisitorType:
     return VisitorType(UUID(row["id"]), row["name"], row["discount_percent"])
+
+
+def _visitor_subtype(row: sqlite3.Row) -> VisitorSubtype:
+    return VisitorSubtype(
+        UUID(row["id"]), UUID(row["visitor_type_id"]), row["name"], row["discount_percent"]
+    )
 
 
 def _active_hours(row: sqlite3.Row) -> ActiveHours | None:
@@ -792,6 +829,35 @@ class SQLiteRepository(Repository):
 
     def delete_visitor_type(self, type_id: UUID) -> None:
         self._execute("DELETE FROM visitor_types WHERE id=?", (str(type_id),))
+
+    def add_visitor_subtype(self, subtype: VisitorSubtype) -> None:
+        self._execute(
+            "INSERT INTO visitor_subtypes (id, visitor_type_id, name, discount_percent)"
+            " VALUES (?,?,?,?)",
+            (str(subtype.id), str(subtype.visitor_type_id), subtype.name, subtype.discount_percent),
+        )
+
+    def save_visitor_subtype(self, subtype: VisitorSubtype) -> None:
+        self._execute(
+            "UPDATE visitor_subtypes SET name=?, discount_percent=? WHERE id=?",
+            (subtype.name, subtype.discount_percent, str(subtype.id)),
+        )
+
+    def get_visitor_subtype(self, subtype_id: UUID) -> VisitorSubtype | None:
+        return self._fetch_one(
+            _visitor_subtype, "SELECT * FROM visitor_subtypes WHERE id=?", (str(subtype_id),)
+        )
+
+    def visitor_subtype_by_name(self, name: str) -> VisitorSubtype | None:
+        return self._fetch_one(
+            _visitor_subtype, "SELECT * FROM visitor_subtypes WHERE name=?", (name,)
+        )
+
+    def list_visitor_subtypes(self) -> list[VisitorSubtype]:
+        return self._fetch_all(_visitor_subtype, "SELECT * FROM visitor_subtypes ORDER BY name, id")
+
+    def delete_visitor_subtype(self, subtype_id: UUID) -> None:
+        self._execute("DELETE FROM visitor_subtypes WHERE id=?", (str(subtype_id),))
 
     def save_ticket(self, ticket: Ticket) -> None:
         self._execute(

@@ -101,11 +101,13 @@ def test_qr_rejects_forgery_without_crashing(bad):
 
 
 def test_qr_signs_no_personal_data_and_detects_tampering(service, accounts, clock):
-    service.create_visitor_type(accounts["admin"], "Sensitive type")
+    sensitive = service.create_visitor_type(accounts["admin"], "Sensitive type")
+    service.create_visitor_subtype(accounts["admin"], sensitive.id, "Sensitive subtype")
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Sensitive name",
         visitor_type="Sensitive type",
+        visitor_subtype="Sensitive subtype",
         valid_from=clock.now,
         valid_until=clock.now + timedelta(hours=1),
         usage_type=UsageType.ONE_TIME,
@@ -119,11 +121,13 @@ def test_qr_signs_no_personal_data_and_detects_tampering(service, accounts, cloc
 
 def test_service_issues_tickets_under_the_configured_prefix(repository, accounts, clock):
     service = TicketService(repository, "test-prefix-secret-0123456789", clock=clock, prefix="DTS")
-    service.create_visitor_type(accounts["admin"], "Guest")
+    guest = service.create_visitor_type(accounts["admin"], "Guest")
+    service.create_visitor_subtype(accounts["admin"], guest.id, "Guest")
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Visitor",
         visitor_type="Guest",
+        visitor_subtype="Guest",
         valid_from=clock.now,
         valid_until=clock.now + timedelta(hours=1),
         usage_type=UsageType.ONE_TIME,
@@ -490,13 +494,15 @@ def test_live_url_validation(url):
 
 @pytest.mark.parametrize(("zone", "hour"), [("Asia/Baku", 4), ("Asia/Almaty", 5)])
 def test_timezone_normalization_at_core_input(service, accounts, clock, zone, hour):
-    service.create_visitor_type(accounts["admin"], "Guest")
+    guest = service.create_visitor_type(accounts["admin"], "Guest")
+    service.create_visitor_subtype(accounts["admin"], guest.id, "Guest")
     local = datetime(2026, 9, 17, 12, tzinfo=ZoneInfo(zone))
     clock.now = utc(local)
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Name",
         visitor_type="Guest",
+        visitor_subtype="Guest",
         valid_from=local,
         valid_until=local + timedelta(hours=1),
         usage_type=UsageType.ONE_TIME,

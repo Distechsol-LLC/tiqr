@@ -107,8 +107,29 @@ class TicketType:
 
 
 @dataclass(frozen=True, slots=True)
+class VisitorSubtype:
+    """A kind of visitor within a visitor type, and the share of a ticket's price taken off.
+
+    Tickets mode only: a ticket is issued for a subtype, and carries its name and discount in
+    place of the type's. Names are unique across every type, so a name alone finds one.
+    """
+
+    id: UUID
+    visitor_type_id: UUID
+    name: str
+    discount_percent: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("A name is required")
+        if not 0 <= self.discount_percent <= MAX_DISCOUNT:
+            raise ValueError("Discount must be between 0 and 100 per cent")
+
+
+@dataclass(frozen=True, slots=True)
 class VisitorType:
-    """A kind of visitor and the share of a ticket's price taken off for them."""
+    """A kind of visitor. Badges use it as it is; tickets use one of its subtypes, which carry
+    the discount, so a ticket mode type keeps none of its own."""
 
     id: UUID
     name: str

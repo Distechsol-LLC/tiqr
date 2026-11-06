@@ -68,6 +68,8 @@ def test_external_code_and_session_are_not_offered(cli_env):
         "A",
         "-t",
         "V",
+        "-s",
+        "V",
         "-f",
         "2030-01-01T12:00",
         "-u",
@@ -91,6 +93,8 @@ def test_idempotency_key_replays_and_conflicts(cli_env):
         "A",
         "-t",
         "V",
+        "-s",
+        "V",
         "-f",
         "2030-01-01T12:00",
         "-u",
@@ -113,6 +117,7 @@ def item(**extra):
     return {
         "visitor_name": "A",
         "visitor_type": "V",
+        "visitor_subtype": "V",
         "valid_from": "2030-01-01T12:00",
         "valid_until": "2030-01-01T14:00",
         "usage_type": "one_time",
@@ -133,6 +138,22 @@ def test_batch_partial_and_atomic(cli_env, tmp_path):
     assert atomic.exit_code == 1
     assert [r["status"] for r in body["results"]] == ["rolled_back", "error", "skipped"]
     assert body["committed"] is False
+
+
+def test_batch_items_need_a_subtype(cli_env, tmp_path):
+    ready()
+    path = tmp_path / "b.json"
+    missing = item()
+    del missing["visitor_subtype"]
+    path.write_text(json.dumps([item(), missing, item(visitor_subtype="Visitor")]))
+    result = invoke(["ticket", "batch", str(path), "--as", "admin"])
+    assert result.exit_code == 1
+    body = printed(result)
+    assert [r["status"] for r in body["results"]] == ["created", "error", "error"]
+    assert [r.get("error") for r in body["results"][1:]] == [
+        "A visitor subtype is required",
+        "Unknown visitor subtype",
+    ]
 
 
 def test_batch_size_limit(cli_env, tmp_path, monkeypatch):

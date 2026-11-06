@@ -9,7 +9,6 @@
   import { toaster } from '%/toaster.ts';
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
-  import { mode } from '%/useMode.svelte.ts';
   import { type VisitorType, visitorTypeInputSchema } from '$/catalog.ts';
 
   type VisitorTypeFormProps = {
@@ -22,29 +21,22 @@
 
   const { editing, isOpen, onClose, onSaved }: VisitorTypeFormProps = $props();
 
-  // Whole numbers only; the range is checked in the schema
-  const DISCOUNT_CHARS = /\D/g;
-
   let name = $state('');
-  let discount = $state('');
   let isPending = $state(false);
   let isSubmitted = $state(false);
 
-  // Badges carry no price, so their visitor types take no discount
-  const validation = $derived(
-    visitorTypeInputSchema.safeParse({ discount: mode.isBadge ? '0' : discount, name })
-  );
+  // A type is only a name: badges carry no price, and tickets take a subtype's discount
+  const validation = $derived(visitorTypeInputSchema.safeParse({ name }));
   const fieldErrors = $derived(
     isSubmitted && !validation.success ? z.flattenError(validation.error).fieldErrors : {}
   );
 
-  // Each opening starts from the type being edited, or blank with no discount
+  // Each opening starts from the type being edited, or blank
   $effect(() => {
     if (!isOpen) return;
 
     untrack(() => {
       name = editing?.name ?? '';
-      discount = editing ? String(editing.discount_percent) : '';
       isSubmitted = false;
     });
   });
@@ -56,7 +48,7 @@
 
     if (!(validation.success && csrfToken)) return;
 
-    const fields = { discount_percent: validation.data.discount, name: validation.data.name };
+    const fields = { name: validation.data.name };
 
     isPending = true;
 
@@ -99,17 +91,4 @@
     required
     bind:value={name}
   />
-
-  {#if !mode.isBadge}
-    <FloatingInput
-      autocomplete="off"
-      error={fieldErrors.discount?.[0]}
-      id="visitor-type-discount"
-      inputmode="numeric"
-      label={i18n.t.visitorTypeForm.discount}
-      required
-      strip={DISCOUNT_CHARS}
-      bind:value={discount}
-    />
-  {/if}
 </FormDialog>

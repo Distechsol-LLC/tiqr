@@ -12,7 +12,8 @@ ACTIONS = ("create", "view", "view_other", "assign", "stats", "sync", "cleanup",
 
 @pytest.fixture(autouse=True)
 def visitor_type(service, accounts):
-    service.create_visitor_type(accounts["admin"], "Guest")
+    guest = service.create_visitor_type(accounts["admin"], "Guest")
+    service.create_visitor_subtype(accounts["admin"], guest.id, "Guest")
 
 
 def issue(service, accounts, clock, actor="operator", usage=UsageType.ONE_TIME):
@@ -20,6 +21,7 @@ def issue(service, accounts, clock, actor="operator", usage=UsageType.ONE_TIME):
         accounts[actor],
         visitor_name="Name",
         visitor_type="Guest",
+        visitor_subtype="Guest",
         valid_from=clock.now,
         valid_until=clock.now + timedelta(hours=1),
         usage_type=usage,

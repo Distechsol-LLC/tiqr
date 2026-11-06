@@ -81,7 +81,10 @@ Operators see only tickets assigned to them. Managers and admins see every ticke
 
 1. Select **New Ticket**.
 2. Fill in the form:
-   - **Visitor type**: choose from the list. Discounts for the visitor type are applied automatically.
+   - **Visitor type**: choose from the list. Only types that have at least one subtype are listed.
+   - **Visitor subtype**: choose one of the chosen type's subtypes. Its discount is applied
+     automatically, and the ticket carries the subtype's name: the type itself is not shown on the
+     ticket, in the tickets list or on the Overview page.
    - **Ticket type**: choose from the list. The price comes from the ticket type.
    - **Usage**: **One-time** (one passage) or **Group** (one QR code for a whole group).
    - **People in the group**: for a group ticket, how many people it admits, from 2 to 100.
@@ -95,7 +98,7 @@ then stops; the Stats page counts it once per person. The ticket prints on a nar
 cut paper.
 
 The new ticket is assigned to you, the account that created it. A confirmation message shows the
-serial number and the visitor type.
+serial number and the visitor subtype.
 
 ### Creating a badge (badge mode)
 
@@ -186,11 +189,20 @@ Outside the hours, the server refuses new tickets, for operators as well as mana
 
 ### Visitor types
 
-Visitor types define discounts. In badge mode they have no discount, only a name.
+In ticket mode every visitor type has one or more **subtypes**, and tickets are issued for a
+subtype. The subtype holds the discount; the type only groups its subtypes. Each type's subtypes are
+listed under it. Subtype names are unique across all types.
 
-- **New Visitor Type**: enter a **Name** and a **Discount, %** as a whole number from 0 to 100. Select **Create**.
-- **Edit**: change the name or discount.
-- **Delete**: removes the visitor type for good. Tickets already issued keep their original discount.
+- **New Visitor Type**: enter a **Name**. Select **Create**.
+- **Add subtype** (ticket mode): enter a **Name** and a **Discount, %** as a whole number from 0 to
+  100. Select **Create**. A type with no subtypes is flagged, and cannot be used for tickets until
+  it has one.
+- **Edit**: change a type's name, or a subtype's name or discount.
+- **Delete**: removes a visitor type, with its subtypes, or a single subtype, for good. Tickets
+  already issued keep their original name and discount.
+
+In badge mode visitor types have no subtypes and no discount, only a name, and badges carry the
+visitor type itself.
 
 ## 8. Overview (Manager and Admin)
 

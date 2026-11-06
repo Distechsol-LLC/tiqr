@@ -174,6 +174,7 @@ describe('api writes', () => {
       usage_type: 'one_time',
       valid_from: '2030-06-01T09:00',
       valid_until: '2030-06-01T18:00',
+      visitor_subtype: 'Walk-in',
       visitor_type: 'Guest',
     } as const;
 

@@ -181,10 +181,13 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 | POST | `/ticket-types` | session + CSRF | Add a ticket type. Body `{name, price_minor, currency}`; `price_minor` is whole minor units (1250 is 12.50), 0 to 100000000000; `currency` is required and must be one of the currencies `GET /branding` lists (those of the configured languages' regions: `USD`, `RUB` and `AZN` by default, plus `KZT` once a `kk-KZ` language is configured). Admins and managers. Returns `201`; `422` for a blank or taken name (case-insensitive). |
 | PATCH | `/ticket-types/{type_id}` | session + CSRF | Change `name`, `price_minor` or `currency`; omitted fields are unchanged. A type may keep a currency that is no longer offered, but not move to one. Admins and managers. Issued tickets keep their price. |
 | DELETE | `/ticket-types/{type_id}` | session + CSRF | Remove a ticket type. Admins and managers. Returns `204`; issued tickets keep their price. |
-| GET | `/visitor-types` | session, or key with `tickets:read` | List visitor types, by name, as a page (see Pagination). Every role may read them; an integration key reads them to pick a `visitor_type` name for ticket creation. |
-| POST | `/visitor-types` | session + CSRF | Add a visitor type. Body `{name, discount_percent}`; the discount is a whole number from 0 (the default) to 100. Admins and managers. Returns `201`. |
-| PATCH | `/visitor-types/{type_id}` | session + CSRF | Change `name` or `discount_percent`; omitted fields are unchanged. Admins and managers. Issued tickets keep their discount. |
-| DELETE | `/visitor-types/{type_id}` | session + CSRF | Remove a visitor type. Admins and managers. Returns `204`; issued tickets keep their discount. |
+| GET | `/visitor-types` | session, or key with `tickets:read` | List visitor types, by name, as a page (see Pagination). Each carries its `subtypes` (`{id, visitor_type_id, name, discount_percent}`, by name; always empty in badge mode). Every role may read them; an integration key reads them to pick the `visitor_type` and `visitor_subtype` names for ticket creation. |
+| POST | `/visitor-types` | session + CSRF | Add a visitor type. Body `{name}`. A type holds no discount: `discount_percent` may be sent only as `0`, since tickets take a subtype's discount and badges are unpriced. Admins and managers. Returns `201`. |
+| PATCH | `/visitor-types/{type_id}` | session + CSRF | Change `name`. Admins and managers. Issued tickets keep their name. |
+| DELETE | `/visitor-types/{type_id}` | session + CSRF | Remove a visitor type and its subtypes. Admins and managers. Returns `204`; issued tickets keep their name and discount. |
+| POST | `/visitor-types/{type_id}/subtypes` | session + CSRF | Add a subtype. Body `{name, discount_percent}`; the discount is a whole number from 0 (the default) to 100. Names are unique across every type's subtypes (case-insensitive). Ticket mode only (`422` in badge mode). Admins and managers. Returns `201`. |
+| PATCH | `/visitor-types/{type_id}/subtypes/{subtype_id}` | session + CSRF | Change `name` or `discount_percent`; omitted fields are unchanged. Admins and managers. Issued tickets keep their discount. |
+| DELETE | `/visitor-types/{type_id}/subtypes/{subtype_id}` | session + CSRF | Remove a subtype. Admins and managers. Returns `204`; issued tickets keep their name and discount. |
 
 ### Tickets
 
@@ -219,7 +222,8 @@ Admins cannot change their own role or deactivate themselves. The last active ad
 
 - `usage_type` is `one_time` or `multi_use`.
 - `ticket_type` is optional: the name of a catalog ticket type, which prices the ticket.
-- `visitor_type` is required to be a name from the catalog (`GET /visitor-types`); free text is refused with `422` (code `invalid`, message `Unknown visitor type`). Its discount comes off the ticket type's price. Admins and managers create visitor types with `POST /visitor-types`; integrators use only the names they are given.
+- `visitor_type` is required to be a name from the catalog (`GET /visitor-types`); free text is refused with `422` (code `invalid`, message `Unknown visitor type`). Admins and managers create visitor types with `POST /visitor-types`; integrators use only the names they are given.
+- `visitor_subtype` is required for a ticket and must be one of that visitor type's `subtypes` (`422` `A visitor subtype is required` or `Unknown visitor subtype` otherwise). Its discount comes off the ticket type's price, and the ticket carries the subtype's name as its `visitor_type`, so responses, search, stats and the printed ticket show the subtype. A badge takes no subtype; sending one is a `422`.
 - `timezone` is optional. It defaults to the server's `TIQR_DEFAULT_TZ`.
 - `external_code` is optional. It is the BioStar pass code, used unchanged; leading and trailing spaces are trimmed. Allowed formats: alphanumeric, up to 32 characters of letters, digits and hyphens; or numeric, exactly 12 or 16 digits with leading zeros kept. It must be unique per tenant, and the code of a revoked pass remains occupied. A code the readers cannot read is a `422` `credential_format`. Freedom's readers take 16-digit numeric codes with leading zeros only, so issue codes in that format.
 - `event_session` is optional (at most 200 characters).

@@ -201,14 +201,13 @@ X-CSRF-Token: {{csrfToken}}
 GET {{baseUrl}}/api/visitor-types?page=1&size=10
 
 ### [WRITE] Create visitor type
-# Admins and managers. discount_percent is 0 to 100. Saves visitorTypeId. 201.
+# Admins and managers. A type has no discount; its subtypes do. Saves visitorTypeId. 201.
 POST {{baseUrl}}/api/visitor-types
 Content-Type: application/json
 X-CSRF-Token: {{csrfToken}}
 
 {
-  "name": "Student",
-  "discount_percent": 20
+  "name": "Student"
 }
 
 > {%
@@ -219,17 +218,17 @@ X-CSRF-Token: {{csrfToken}}
 %}
 
 ### [WRITE] Change visitor type
-# Any of name, discount_percent. 200; 404 if gone.
+# A new name. 200; 404 if gone.
 PATCH {{baseUrl}}/api/visitor-types/{{visitorTypeId}}
 Content-Type: application/json
 X-CSRF-Token: {{csrfToken}}
 
 {
-  "discount_percent": 25
+  "name": "Students"
 }
 
 ### [WRITE] Delete visitor type
-# Issued tickets keep their discount. 204; 404 if gone.
+# Its subtypes go with it. Issued tickets keep their discount. 204; 404 if gone.
 DELETE {{baseUrl}}/api/visitor-types/{{visitorTypeId}}
 X-CSRF-Token: {{csrfToken}}
 
@@ -241,8 +240,7 @@ Content-Type: application/json
 X-CSRF-Token: {{csrfToken}}
 
 {
-  "name": "Contractor",
-  "discount_percent": 20
+  "name": "Contractor"
 }
 
 > {%
@@ -250,6 +248,25 @@ X-CSRF-Token: {{csrfToken}}
     client.assert(response.status === 201, "Expected 201, got " + response.status);
   });
   client.global.set("visitorTypeId", response.body.id);
+%}
+
+### [WRITE] Create visitor subtype for tickets
+# Tickets mode. A ticket names a subtype of its type, and takes its name and discount; the ticket
+# samples below use Contractor. discount_percent is 0 to 100. 201; 422 for a taken name.
+POST {{baseUrl}}/api/visitor-types/{{visitorTypeId}}/subtypes
+Content-Type: application/json
+X-CSRF-Token: {{csrfToken}}
+
+{
+  "name": "Contractor",
+  "discount_percent": 20
+}
+
+> {%
+  client.test("Visitor subtype created", function() {
+    client.assert(response.status === 201, "Expected 201, got " + response.status);
+  });
+  client.global.set("visitorSubtypeId", response.body.id);
 %}
 
 ### [WRITE] Delete ticket type
@@ -287,6 +304,7 @@ X-CSRF-Token: {{csrfToken}}
 {
   "visitor_name": "Jane Doe",
   "visitor_type": "Contractor",
+  "visitor_subtype": "Contractor",
   "valid_from": "2030-06-01T09:00",
   "valid_until": "2030-06-01T17:00",
   "usage_type": "one_time",
@@ -391,6 +409,7 @@ X-CSRF-Token: {{csrfToken}}
     {
       "visitor_name": "Ada",
       "visitor_type": "Contractor",
+  "visitor_subtype": "Contractor",
       "valid_from": "2030-06-01T09:00",
       "valid_until": "2030-06-01T17:00",
       "usage_type": "one_time"
@@ -513,6 +532,7 @@ Content-Type: application/json
 {
   "visitor_name": "No Token",
   "visitor_type": "Contractor",
+  "visitor_subtype": "Contractor",
   "valid_from": "2030-06-01T09:00",
   "valid_until": "2030-06-01T17:00",
   "usage_type": "one_time"
@@ -552,6 +572,7 @@ X-CSRF-Token: {{csrfToken}}
 {
   "visitor_name": "Jane Doe",
   "visitor_type": "Contractor",
+  "visitor_subtype": "Contractor",
   "valid_from": "next tuesday",
   "valid_until": "2030-06-01T17:00",
   "usage_type": "one_time"
@@ -587,6 +608,7 @@ Idempotency-Key: ext-EXT-0000000001
 {
   "visitor_name": "Sector A, row 5, seat 12",
   "visitor_type": "Contractor",
+  "visitor_subtype": "Contractor",
   "valid_from": "2030-06-01T09:00+05:00",
   "valid_until": "2030-06-01T17:00+05:00",
   "usage_type": "one_time",
@@ -609,6 +631,7 @@ Idempotency-Key: ext-EXT-0000000001
 {
   "visitor_name": "Sector A, row 5, seat 12",
   "visitor_type": "Contractor",
+  "visitor_subtype": "Contractor",
   "valid_from": "2030-06-01T09:00+05:00",
   "valid_until": "2030-06-01T17:00+05:00",
   "usage_type": "one_time",
@@ -632,6 +655,7 @@ Idempotency-Key: ext-EXT-0000000001-again
 {
   "visitor_name": "Sector A, row 5, seat 13",
   "visitor_type": "Contractor",
+  "visitor_subtype": "Contractor",
   "valid_from": "2030-06-01T09:00+05:00",
   "valid_until": "2030-06-01T17:00+05:00",
   "usage_type": "one_time",
@@ -654,6 +678,7 @@ Authorization: Bearer {{serviceKey}}
 {
   "visitor_name": "Sector A, row 5, seat 14",
   "visitor_type": "Contractor",
+  "visitor_subtype": "Contractor",
   "valid_from": "2030-06-01T09:00+05:00",
   "valid_until": "2030-06-01T17:00+05:00",
   "usage_type": "one_time",

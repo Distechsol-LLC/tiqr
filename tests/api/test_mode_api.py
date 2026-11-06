@@ -41,7 +41,8 @@ def switching(tmp_path, issue, license_pair, saved):
             service.create_user(admin, "manager", PASSWORD, Role.MANAGER)
             service.activate_license(admin, issue())
             service.repository.save_active_hours(None)
-            service.create_visitor_type(admin, "Visitor")
+            visitor = service.create_visitor_type(admin, "Visitor")
+            service.create_visitor_subtype(admin, visitor.id, "Visitor")
             yield Runtime(settings, service)
 
     app = create_app(PLAIN, runtime=runtime, web_root=tmp_path / "no-web", scheduler=IDLE)
@@ -62,12 +63,23 @@ def test_admins_switch_between_tickets_and_badges(switching, saved):
     assert switching.get("/api/branding").json()["mode"] == "badge"
     # Still signed in and licensed, on a database of its own.
     assert switching.get("/api/tickets").json()["total"] == 0
-    assert switching.post("/api/visitor-types", json={"name": "Visitor"}).status_code == 201
+    visitor = switching.post("/api/visitor-types", json={"name": "Visitor"})
+    assert visitor.status_code == 201
+    # Badges do without subtypes: none are listed, none can be added, and a badge takes none.
+    assert switching.get("/api/visitor-types").json()["items"][0]["subtypes"] == []
+    subtypes = f"/api/visitor-types/{visitor.json()['id']}/subtypes"
+    assert switching.post(subtypes, json={"name": "Adult"}).status_code == 422
+    with_subtype = ticket_body(visitor_name="Ada", usage_type="multi_use")
+    assert switching.post("/api/tickets", json=with_subtype).status_code == 422
     badge = switching.post(
-        "/api/tickets", json=ticket_body(visitor_name="Ada", usage_type="multi_use")
+        "/api/tickets",
+        json=ticket_body(visitor_name="Ada", usage_type="multi_use", visitor_subtype=None),
     )
     assert (badge.status_code, badge.json()["visitor_name"]) == (201, "Ada")
-    priced = ticket_body(visitor_name="Ada", usage_type="multi_use", ticket_type="Entry")
+    assert badge.json()["visitor_type"] == "Visitor"
+    priced = ticket_body(
+        visitor_name="Ada", usage_type="multi_use", ticket_type="Entry", visitor_subtype=None
+    )
     assert switching.post("/api/tickets", json=priced).status_code == 422
 
     assert switching.put("/api/settings/mode", json={"mode": "ticket"}).status_code == 200

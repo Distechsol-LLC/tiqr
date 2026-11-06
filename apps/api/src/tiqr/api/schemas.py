@@ -23,6 +23,7 @@ from tiqr.core.models import (
     TicketType,
     UsageType,
     User,
+    VisitorSubtype,
     VisitorType,
     WebSession,
 )
@@ -99,6 +100,15 @@ class TicketIn(_Request):
     visitor_type: Annotated[
         _Name, Field(description="A visitor type from GET /visitor-types; any other name is a 422")
     ]
+    visitor_subtype: Annotated[
+        _Name | None,
+        Field(
+            description=(
+                "Tickets: required, one of the visitor type's `subtypes`; the ticket carries its "
+                "name as `visitor_type`, and its discount. Badges take none; sending one is a 422"
+            )
+        ),
+    ] = None
     valid_from: _LocalDatetime
     valid_until: _LocalDatetime
     usage_type: Annotated[
@@ -287,12 +297,29 @@ class TicketTypePatch(_Request):
     currency: Currency | None = None
 
 
+_TypeDiscount = Annotated[
+    int, Field(ge=0, le=MAX_DISCOUNT, description="Always 0: tickets take a subtype's discount")
+]
+
+
 class VisitorTypeIn(_Request):
     name: _Name
-    discount_percent: _Discount = 0
+    discount_percent: _TypeDiscount = 0
 
 
 class VisitorTypePatch(_Request):
+    """A new name. Omitted fields stay as they are."""
+
+    name: _Name | None = None
+    discount_percent: _TypeDiscount | None = None
+
+
+class VisitorSubtypeIn(_Request):
+    name: Annotated[_Name, Field(description="Unique across every visitor type's subtypes")]
+    discount_percent: _Discount = 0
+
+
+class VisitorSubtypePatch(_Request):
     """Any of: a new name, a new discount. Omitted fields stay as they are."""
 
     name: _Name | None = None
@@ -330,17 +357,44 @@ class TicketTypeOut(BaseModel):
         )
 
 
-class VisitorTypeOut(BaseModel):
+class VisitorSubtypeOut(BaseModel):
     id: UUID
+    visitor_type_id: UUID
     name: str
     discount_percent: Annotated[int, Field(description="Per cent taken off a ticket's price")]
 
     @classmethod
-    def of(cls, visitor_type: VisitorType) -> VisitorTypeOut:
+    def of(cls, subtype: VisitorSubtype) -> VisitorSubtypeOut:
+        return cls(
+            id=subtype.id,
+            visitor_type_id=subtype.visitor_type_id,
+            name=subtype.name,
+            discount_percent=subtype.discount_percent,
+        )
+
+
+class VisitorTypeOut(BaseModel):
+    id: UUID
+    name: str
+    discount_percent: Annotated[int, Field(description="Always 0: tickets take a subtype's")]
+    subtypes: Annotated[
+        list[VisitorSubtypeOut],
+        Field(description="By name; a ticket needs one. Always empty for badges"),
+    ] = []
+
+    @classmethod
+    def of(
+        cls, visitor_type: VisitorType, subtypes: list[VisitorSubtype] | None = None
+    ) -> VisitorTypeOut:
         return cls(
             id=visitor_type.id,
             name=visitor_type.name,
             discount_percent=visitor_type.discount_percent,
+            subtypes=[
+                VisitorSubtypeOut.of(subtype)
+                for subtype in subtypes or ()
+                if subtype.visitor_type_id == visitor_type.id
+            ],
         )
 
 

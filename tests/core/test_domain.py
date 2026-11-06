@@ -12,8 +12,9 @@ from tiqr.core.service import StateError
 
 @pytest.fixture(autouse=True)
 def visitor_types(service, accounts):
-    service.create_visitor_type(accounts["admin"], "Student")
-    service.create_visitor_type(accounts["admin"], "Guest")
+    for name in ("Student", "Guest"):
+        visitor_type = service.create_visitor_type(accounts["admin"], name)
+        service.create_visitor_subtype(accounts["admin"], visitor_type.id, name)
 
 
 def issue(service, accounts, clock, usage=UsageType.ONE_TIME, actor="operator"):
@@ -23,6 +24,7 @@ def issue(service, accounts, clock, usage=UsageType.ONE_TIME, actor="operator"):
         accounts[actor],
         visitor_name="Visitor",
         visitor_type="Student",
+        visitor_subtype="Student" if service.mode == Mode.TICKET else None,
         valid_from=clock.now - timedelta(hours=1),
         valid_until=clock.now + timedelta(hours=1),
         usage_type=usage,
@@ -332,6 +334,7 @@ def test_invalid_creation(service, accounts, clock, change):
     draft = {
         "visitor_name": "Visitor",
         "visitor_type": "Guest",
+        "visitor_subtype": "Guest",
         "valid_from": clock.now,
         "valid_until": clock.now + timedelta(hours=1),
         "usage_type": UsageType.ONE_TIME,

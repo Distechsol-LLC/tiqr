@@ -1,12 +1,14 @@
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from uuid import RFC_4122, UUID, uuid4
 
 import pytest
 
 from tiqr.core.biostar import BioStarError
 from tiqr.core.fakes import InMemoryRegistrar
-from tiqr.core.models import TicketState, UsageType
-from tiqr.core.repository import OLDEST_REVERSIBLE, SCHEMA_VERSION, SQLiteRepository
+from tiqr.core.models import TicketState, UsageType, VisitorSubtype, VisitorType
+from tiqr.core.repository import _MIGRATIONS, OLDEST_REVERSIBLE, SCHEMA_VERSION, SQLiteRepository
 from tiqr.core.service import (
     CredentialFormatError,
     ExternalCodeTakenError,
@@ -54,12 +56,14 @@ def registrar(service):
 
 @pytest.fixture
 def make(service, accounts):
-    service.create_visitor_type(accounts["admin"], "Visitor")
+    visitor = service.create_visitor_type(accounts["admin"], "Visitor")
+    service.create_visitor_subtype(accounts["admin"], visitor.id, "Visitor")
 
     def create(**overrides):
         arguments = {
             "visitor_name": "Ali",
             "visitor_type": "Visitor",
+            "visitor_subtype": "Visitor",
             "valid_from": START,
             "valid_until": END,
             "usage_type": UsageType.ONE_TIME,
@@ -362,19 +366,22 @@ def test_the_attribution_is_written_with_the_actor(service, accounts, make):
     assert secret
 
 
-def test_migrations_8_to_13_reverse_cleanly(tmp_path, accounts):
+def test_migrations_8_to_14_reverse_cleanly(tmp_path, accounts):
     path = tmp_path / "reversible.db"
     with SQLiteRepository(path) as repository:
         repository.initialize()
         repository._connection.execute("PRAGMA user_version").fetchone()
-        assert SCHEMA_VERSION == 13
+        assert SCHEMA_VERSION == 14
         repository.downgrade(OLDEST_REVERSIBLE)
         columns = {row[1] for row in repository._connection.execute("PRAGMA table_info(tickets)")}
         tables = {
             row[0] for row in repository._connection.execute("SELECT name FROM sqlite_master")
         }
         assert not {"external_code", "group_size"} & columns
-        assert not {"audit_log", "idempotency_keys", "api_keys", "active_hours"} & tables
+        assert (
+            not {"audit_log", "idempotency_keys", "api_keys", "active_hours", "visitor_subtypes"}
+            & tables
+        )
         event_columns = {
             row[1] for row in repository._connection.execute("PRAGMA table_info(access_events)")
         }
@@ -382,4 +389,71 @@ def test_migrations_8_to_13_reverse_cleanly(tmp_path, accounts):
         with pytest.raises(ValueError, match="Cannot downgrade"):
             repository.downgrade(OLDEST_REVERSIBLE - 1)
         repository.initialize(upgrade=True)
+        assert repository._connection.execute("PRAGMA user_version").fetchone()[0] == 14
+
+
+def test_migration_14_gives_each_visitor_type_a_subtype_with_its_discount(tmp_path):
+    path = tmp_path / "before_subtypes.db"
+    with sqlite3.connect(path) as connection:
+        for statements in _MIGRATIONS[:13]:
+            for statement in statements:
+                connection.execute(statement)
+        connection.execute("PRAGMA user_version = 13")
+        connection.executemany(
+            "INSERT INTO visitor_types (id, name, discount_percent) VALUES (?,?,?)",
+            [
+                ("00000000-0000-0000-0000-000000000001", "Student", 30),
+                ("00000000-0000-0000-0000-000000000002", "Guest", 0),
+            ],
+        )
+    student = UUID("00000000-0000-0000-0000-000000000001")
+    guest = UUID("00000000-0000-0000-0000-000000000002")
+
+    with SQLiteRepository(path) as repository:
+        repository.initialize(upgrade=True)
+        assert repository._connection.execute("PRAGMA user_version").fetchone()[0] == 14
+        # The discount moves to the subtype, so ticketing carries on under the same names.
+        assert {item.name: item.discount_percent for item in repository.list_visitor_types()} == {
+            "Student": 0,
+            "Guest": 0,
+        }
+        subtypes = repository.list_visitor_subtypes()
+        assert [(item.visitor_type_id, item.name, item.discount_percent) for item in subtypes] == [
+            (guest, "Guest", 0),
+            (student, "Student", 30),
+        ]
+        # Each gets an id of its own, in the form the repository reads back.
+        assert len({item.id for item in subtypes}) == 2
+        # Real version 4 UUIDs, which the web client refuses anything short of.
+        assert {(item.id.version, item.id.variant) for item in subtypes} == {(4, RFC_4122)}
+        assert repository.get_visitor_subtype(subtypes[1].id) == subtypes[1]
+        assert repository._connection.execute("PRAGMA foreign_key_check").fetchall() == []
+
+        # A type whose same-named subtype is gone takes back no discount.
+        repository.delete_visitor_subtype(subtypes[0].id)
+        repository.save_visitor_subtype(replace(subtypes[1], discount_percent=40))
+        repository.downgrade(13)
         assert repository._connection.execute("PRAGMA user_version").fetchone()[0] == 13
+        tables = {
+            row[0] for row in repository._connection.execute("SELECT name FROM sqlite_master")
+        }
+        assert "visitor_subtypes" not in tables
+        assert {item.name: item.discount_percent for item in repository.list_visitor_types()} == {
+            "Student": 40,
+            "Guest": 0,
+        }
+
+        repository.initialize(upgrade=True)
+        assert [item.name for item in repository.list_visitor_subtypes()] == ["Guest", "Student"]
+
+
+def test_a_subtype_goes_with_its_visitor_type(repository):
+    student = VisitorType(uuid4(), "Student")
+    repository.add_visitor_type(student)
+    repository.add_visitor_subtype(VisitorSubtype(uuid4(), student.id, "Pupil", 10))
+    with pytest.raises(sqlite3.IntegrityError):
+        # Names are unique across every type, whatever their case.
+        repository.add_visitor_subtype(VisitorSubtype(uuid4(), student.id, "PUPIL"))
+    assert repository.visitor_subtype_by_name("pupil").name == "Pupil"
+    repository.delete_visitor_type(student.id)
+    assert repository.list_visitor_subtypes() == []
