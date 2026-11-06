@@ -21,10 +21,18 @@ const ticketTypeSchema = z.object({
   price_minor: z.number().int().nonnegative(),
 });
 
-const visitorTypeSchema = z.object({
+// Tickets are issued for a subtype, which carries the discount; badges have none
+const visitorSubtypeSchema = z.object({
   discount_percent: z.number().int().min(0).max(DISCOUNT_MAX),
   id: z.uuid(),
   name: z.string(),
+  visitor_type_id: z.uuid(),
+});
+
+const visitorTypeSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  subtypes: z.array(visitorSubtypeSchema).default([]),
 });
 
 const nameSchema = z
@@ -48,7 +56,9 @@ const ticketTypeInputSchema = z.object({
     .transform((minor) => minor as number),
 });
 
-const visitorTypeInputSchema = z.object({
+const visitorTypeInputSchema = z.object({ name: nameSchema });
+
+const visitorSubtypeInputSchema = z.object({
   discount: z
     .string()
     .trim()
@@ -62,14 +72,26 @@ const visitorTypeInputSchema = z.object({
 type Currency = z.infer<typeof currencySchema>;
 type TicketType = z.infer<typeof ticketTypeSchema>;
 type TicketTypeFields = { currency: Currency; name: string; price_minor: number };
+type VisitorSubtype = z.infer<typeof visitorSubtypeSchema>;
+type VisitorSubtypeFields = { discount_percent: number; name: string };
 type VisitorType = z.infer<typeof visitorTypeSchema>;
-type VisitorTypeFields = { discount_percent: number; name: string };
+type VisitorTypeFields = { name: string };
 
-export type { Currency, TicketType, TicketTypeFields, VisitorType, VisitorTypeFields };
+export type {
+  Currency,
+  TicketType,
+  TicketTypeFields,
+  VisitorSubtype,
+  VisitorSubtypeFields,
+  VisitorType,
+  VisitorTypeFields,
+};
 export {
   currencySchema,
   ticketTypeInputSchema,
   ticketTypeSchema,
+  visitorSubtypeInputSchema,
+  visitorSubtypeSchema,
   visitorTypeInputSchema,
   visitorTypeSchema,
 };

@@ -20,6 +20,7 @@ const fields = {
   valid_from: '2030-06-01T09:00',
   valid_until: '2030-06-01T09:00',
   visitor_name: '  Ada  ',
+  visitor_subtype: ' Walk-in ',
   visitor_type: 'Guest',
 };
 
@@ -87,8 +88,23 @@ describe('tickets', () => {
       usage_type: 'one_time',
       valid_from: '2030-06-01T09:00',
       valid_until: '2030-06-01T09:00',
+      visitor_subtype: 'Walk-in',
       visitor_type: 'Guest',
     });
+  });
+
+  it('refuses a ticket without a visitor subtype', () => {
+    const result = parseTicketInput('ticket', { ...fields, visitor_subtype: '  ' });
+
+    expect(result.ok ? null : result.errors.visitor_subtype).toEqual([
+      en.errors.visitorSubtypeRequired,
+    ]);
+  });
+
+  it('sends a badge without a visitor subtype', () => {
+    const result = parseTicketInput('badge', badge);
+
+    expect(result.ok && 'visitor_subtype' in result.data).toBeFalse();
   });
 
   it('sends a group ticket with its size', () => {

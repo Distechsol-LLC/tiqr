@@ -281,11 +281,16 @@ def test_scopes_are_enforced(admin, machine):
 
 
 def test_a_read_key_lists_visitor_types_and_a_write_only_key_does_not(admin, machine):
-    admin.post("/api/visitor-types", json={"name": "Student", "discount_percent": 30})
+    student = admin.post("/api/visitor-types", json={"name": "Student"}).json()
+    admin.post(
+        f"/api/visitor-types/{student['id']}/subtypes",
+        json={"name": "Pupil", "discount_percent": 30},
+    )
     reader = machine(new_key(admin, "tickets:read")["secret"])
     listed = reader.get("/api/visitor-types")
     assert listed.status_code == 200
-    assert "Student" in [item["name"] for item in listed.json()["items"]]
+    names = {item["name"]: item["subtypes"] for item in listed.json()["items"]}
+    assert [subtype["name"] for subtype in names["Student"]] == ["Pupil"]
     writer = machine(new_key(admin, "tickets:write")["secret"])
     denied = writer.get("/api/visitor-types")
     assert denied.status_code == 403

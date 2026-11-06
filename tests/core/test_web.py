@@ -25,7 +25,7 @@ def test_new_database_gets_the_latest_schema(tmp_path):
     path = tmp_path / "new.db"
     with SQLiteRepository(path) as repository:
         repository.initialize()
-    assert version(path) == SCHEMA_VERSION == 13
+    assert version(path) == SCHEMA_VERSION == 14
 
 
 def test_older_schema_is_refused_until_setup_upgrades_it(tmp_path):
@@ -163,11 +163,13 @@ def test_staff_create_and_list_users(service, accounts, role):
 
 
 def test_scheduled_runs_need_no_actor(service, accounts, clock):
-    service.create_visitor_type(accounts["admin"], "Guest")
+    guest = service.create_visitor_type(accounts["admin"], "Guest")
+    service.create_visitor_subtype(accounts["admin"], guest.id, "Guest")
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Name",
         visitor_type="Guest",
+        visitor_subtype="Guest",
         valid_from=clock.now,
         valid_until=clock.now + timedelta(hours=1),
         usage_type=UsageType.ONE_TIME,

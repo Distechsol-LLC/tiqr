@@ -664,6 +664,10 @@ def ticket_create(  # noqa: PLR0913, PLR0917 - one option per ticket field
     valid_until: Annotated[str, typer.Option("--until", "-u")],
     usage: Annotated[UsageType, typer.Option("--usage")],
     actor: Actor,
+    subtype: Annotated[
+        str | None,
+        typer.Option("--subtype", "-s", help="The visitor subtype; tickets need one, badges none."),
+    ] = None,
     name: Annotated[
         str, typer.Option("--name", "-n", help="The visitor; badges need one, tickets have none.")
     ] = "",
@@ -686,6 +690,7 @@ def ticket_create(  # noqa: PLR0913, PLR0917 - one option per ticket field
         definition: dict[str, object] = {
             "visitor_name": name,
             "visitor_type": visitor_type,
+            "visitor_subtype": subtype,
             "valid_from": valid_from,
             "valid_until": valid_until,
             "usage_type": usage.value,
@@ -711,6 +716,11 @@ def _create_once(
             user,
             visitor_name=str(definition.get("visitor_name") or ""),
             visitor_type=str(definition["visitor_type"]),
+            visitor_subtype=(
+                None
+                if definition.get("visitor_subtype") is None
+                else str(definition["visitor_subtype"])
+            ),
             valid_from=parse_input_datetime(str(definition["valid_from"]), zone),
             valid_until=parse_input_datetime(str(definition["valid_until"]), zone),
             usage_type=UsageType(definition["usage_type"]),
@@ -889,8 +899,9 @@ def ticket_batch(
     file: Annotated[
         Path,
         typer.Argument(
-            help="JSON list of tickets: visitor_type, valid_from, valid_until, usage_type, and "
-            "optionally visitor_name (badges), group_size, timezone, idempotency_key."
+            help="JSON list of tickets: visitor_type, valid_from, valid_until, usage_type, "
+            "visitor_subtype (tickets), and optionally visitor_name (badges), group_size, "
+            "timezone, idempotency_key."
         ),
     ],
     actor: Actor,

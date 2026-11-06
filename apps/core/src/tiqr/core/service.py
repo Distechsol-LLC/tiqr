@@ -69,6 +69,7 @@ from tiqr.core.models import (
     TicketType,
     UsageType,
     User,
+    VisitorSubtype,
     VisitorType,
     WebSession,
     utc,
@@ -780,10 +781,11 @@ class TicketService:
         return self.repository.list_visitor_types()
 
     def create_visitor_type(self, actor: User, name: str, discount_percent: int = 0) -> VisitorType:
-        """Add a visitor type whose tickets cost `discount_percent` per cent less."""
+        """Add a visitor type. Only a badge's could take a discount, and badges are unpriced, so
+        a `discount_percent` other than 0 is refused: tickets take theirs from a subtype."""
         self._require(self._actor(actor), _STAFF)
         if discount_percent:
-            self._require_priced()
+            self._require_subtype_discount()
         visitor_type = VisitorType(uuid4(), _clean_name(name), discount_percent)
         with self.repository.transaction():
             if self.repository.visitor_type_by_name(visitor_type.name):
@@ -799,10 +801,11 @@ class TicketService:
         name: str | None = None,
         discount_percent: int | None = None,
     ) -> VisitorType:
-        """Rename a visitor type or change its discount. Tickets already issued keep theirs."""
+        """Rename a visitor type. Tickets already issued keep their name; a `discount_percent`
+        other than 0 is refused, as in `create_visitor_type`."""
         self._require(self._actor(actor), _STAFF)
         if discount_percent:
-            self._require_priced()
+            self._require_subtype_discount()
         if name is None and discount_percent is None:
             raise ValueError("Nothing to change")
         with self.repository.transaction():
@@ -821,12 +824,104 @@ class TicketService:
         return updated
 
     def delete_visitor_type(self, actor: User, type_id: UUID) -> None:
-        """Remove a visitor type. Tickets already issued keep their name and discount."""
+        """Remove a visitor type and its subtypes. Tickets already issued keep their name and
+        discount."""
         self._require(self._actor(actor), _STAFF)
         with self.repository.transaction():
             if self.repository.get_visitor_type(type_id) is None:
                 raise NotFoundError("Visitor type not found")
             self.repository.delete_visitor_type(type_id)
+
+    def _require_subtype_discount(self) -> None:
+        self._require_priced()
+        raise ValueError("Discounts are set on visitor subtypes")
+
+    def _require_subtypes(self) -> None:
+        if self.mode == Mode.BADGE:
+            raise ModeError("Badges have no visitor subtypes")
+
+    def list_visitor_subtypes(self, actor: User) -> list[VisitorSubtype]:
+        """Every visitor subtype, by name; none for badges, which do without them. Operators read
+        them too, to pick one when issuing a ticket."""
+        self._actor(actor)
+        if self.mode == Mode.BADGE:
+            return []
+        return self.repository.list_visitor_subtypes()
+
+    def create_visitor_subtype(
+        self, actor: User, type_id: UUID, name: str, discount_percent: int = 0
+    ) -> VisitorSubtype:
+        """Add a subtype to a visitor type; its tickets cost `discount_percent` per cent less.
+        Names are unique across every type. Admins and managers, in tickets mode."""
+        self._require(self._actor(actor), _STAFF)
+        self._require_subtypes()
+        subtype = VisitorSubtype(uuid4(), type_id, _clean_name(name), discount_percent)
+        with self.repository.transaction():
+            if self.repository.get_visitor_type(type_id) is None:
+                raise NotFoundError("Visitor type not found")
+            if self.repository.visitor_subtype_by_name(subtype.name):
+                raise ValueError("A visitor subtype with this name already exists")
+            self.repository.add_visitor_subtype(subtype)
+        return subtype
+
+    def edit_visitor_subtype(
+        self,
+        actor: User,
+        type_id: UUID,
+        subtype_id: UUID,
+        *,
+        name: str | None = None,
+        discount_percent: int | None = None,
+    ) -> VisitorSubtype:
+        """Rename a visitor subtype or change its discount. Tickets already issued keep theirs."""
+        self._require(self._actor(actor), _STAFF)
+        self._require_subtypes()
+        if name is None and discount_percent is None:
+            raise ValueError("Nothing to change")
+        with self.repository.transaction():
+            current = self.repository.get_visitor_subtype(subtype_id)
+            if current is None or current.visitor_type_id != type_id:
+                raise NotFoundError("Visitor subtype not found")
+            updated = VisitorSubtype(
+                current.id,
+                current.visitor_type_id,
+                current.name if name is None else _clean_name(name),
+                current.discount_percent if discount_percent is None else discount_percent,
+            )
+            clash = self.repository.visitor_subtype_by_name(updated.name)
+            if clash is not None and clash.id != current.id:
+                raise ValueError("A visitor subtype with this name already exists")
+            self.repository.save_visitor_subtype(updated)
+        return updated
+
+    def delete_visitor_subtype(self, actor: User, type_id: UUID, subtype_id: UUID) -> None:
+        """Remove a visitor subtype. Tickets already issued keep their name and discount."""
+        self._require(self._actor(actor), _STAFF)
+        self._require_subtypes()
+        with self.repository.transaction():
+            current = self.repository.get_visitor_subtype(subtype_id)
+            if current is None or current.visitor_type_id != type_id:
+                raise NotFoundError("Visitor subtype not found")
+            self.repository.delete_visitor_subtype(subtype_id)
+
+    def _visitor(self, visitor_type: str, visitor_subtype: str | None) -> tuple[str, int]:
+        """The name and discount a ticket carries: a badge's visitor type, unpriced, or the
+        ticket's subtype, which must be one of the named type's."""
+        known = self.repository.visitor_type_by_name(visitor_type.strip())
+        if known is None:
+            raise ValueError("Unknown visitor type")
+        if self.mode == Mode.BADGE:
+            if (visitor_subtype or "").strip():
+                self._require_subtypes()
+            # Badges carry no price, so no discount either, whatever the catalog held.
+            return known.name, 0
+        wanted = (visitor_subtype or "").strip()
+        if not wanted:
+            raise ValueError("A visitor subtype is required")
+        subtype = self.repository.visitor_subtype_by_name(wanted)
+        if subtype is None or subtype.visitor_type_id != known.id:
+            raise ValueError("Unknown visitor subtype")
+        return subtype.name, subtype.discount_percent
 
     def _require_priced(self) -> None:
         if self.mode == Mode.BADGE:
@@ -870,6 +965,7 @@ class TicketService:
         *,
         visitor_name: str = "",
         visitor_type: str,
+        visitor_subtype: str | None = None,
         valid_from: datetime,
         valid_until: datetime,
         usage_type: UsageType,
@@ -879,8 +975,10 @@ class TicketService:
         group_size: int = 1,
     ) -> Ticket:
         """Issue a ticket, or a badge in badge mode. Naming a catalog `ticket_type` prices it, and
-        the `visitor_type` must be one from the catalog; its discount comes off that price, which
-        a group pays once per person. See `_admission` for what each mode allows.
+        the `visitor_type` must be one from the catalog. A ticket also needs a `visitor_subtype`
+        of that type, whose name it carries in the type's place and whose discount comes off the
+        price, which a group pays once per person. A badge carries the type and takes no subtype.
+        See `_admission` for what else each mode allows.
         """
         actor = self._actor(actor)
         start, end, now = utc(valid_from), utc(valid_until), self._now()
@@ -901,9 +999,7 @@ class TicketService:
         if code and self.repository.ticket_by_external_code(self.tenant, code):
             raise ExternalCodeTakenError("A ticket with this external code already exists")
         priced = self._priced_ticket_type(ticket_type)
-        known = self.repository.visitor_type_by_name(visitor_type.strip())
-        if known is None:
-            raise ValueError("Unknown visitor type")
+        visitor, discount = self._visitor(visitor_type, visitor_subtype)
         serial = make_serial(
             self.repository.allocate(f"serial:{now:%Y%m%d}"), now.date(), self.prefix
         )
@@ -913,7 +1009,7 @@ class TicketService:
             qr_payload=build_payload(serial, self.secret_key, self.prefix),
             readable_serial=serial,
             visitor_name=visitor_name,
-            visitor_type=known.name,
+            visitor_type=visitor,
             valid_from=start,
             valid_until=end,
             usage_type=usage,
@@ -923,8 +1019,7 @@ class TicketService:
             created_at=now,
             ticket_type=priced.name if priced else None,
             base_price=priced.price if priced else None,
-            # Badges carry no price, so no discount either, whatever the catalog held.
-            discount_percent=0 if self.mode == Mode.BADGE else known.discount_percent,
+            discount_percent=discount,
             currency=priced.currency if priced else None,
             external_code=code,
             tenant_id=self.tenant,

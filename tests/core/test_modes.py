@@ -25,15 +25,19 @@ def page_mm(path):
 
 @pytest.fixture(autouse=True)
 def catalog(service, accounts):
-    service.create_visitor_type(accounts["admin"], "Student", 50)
+    student = service.create_visitor_type(accounts["admin"], "Student")
+    service.create_visitor_subtype(accounts["admin"], student.id, "Student", 50)
     service.create_ticket_type(accounts["admin"], "Entry", 1001, Currency.AZN)
 
 
 def create(service, accounts, clock, **fields):
+    # Tickets are issued for a subtype; badges take none.
+    subtype = "Student" if service.mode == Mode.TICKET else None
     return service.create_ticket(
         accounts["operator"],
         **{
             "visitor_type": "Student",
+            "visitor_subtype": subtype,
             "valid_from": clock.now - timedelta(hours=1),
             "valid_until": clock.now + timedelta(hours=1),
             "usage_type": UsageType.ONE_TIME,
@@ -83,7 +87,37 @@ def test_badges_name_their_visitor_and_carry_no_price(service, accounts, clock):
         service.create_ticket_type(admin, "Other", 100, Currency.AZN)
     with pytest.raises(ModeError):
         service.create_visitor_type(admin, "Discounted", 10)
-    assert service.create_visitor_type(admin, "Staff").discount_percent == 0
+    staff = service.create_visitor_type(admin, "Staff")
+    assert staff.discount_percent == 0
+
+
+def test_badges_have_no_visitor_subtypes(service, accounts, clock):
+    admin = accounts["admin"]
+    student = service.repository.visitor_type_by_name("Student")
+    (subtype,) = service.list_visitor_subtypes(admin)
+    service.mode = Mode.BADGE
+    # The tickets' subtypes are out of sight, and none can be added, changed or removed.
+    assert service.list_visitor_subtypes(admin) == []
+    for refused in (
+        lambda: service.create_visitor_subtype(admin, student.id, "Adult"),
+        lambda: service.edit_visitor_subtype(admin, student.id, subtype.id, name="Adult"),
+        lambda: service.delete_visitor_subtype(admin, student.id, subtype.id),
+        lambda: create(
+            service,
+            accounts,
+            clock,
+            visitor_name="Ada",
+            usage_type=UsageType.MULTI_USE,
+            visitor_subtype="Student",
+        ),
+    ):
+        with pytest.raises(ModeError, match="no visitor subtypes"):
+            refused()
+    # A badge carries the type itself.
+    badge = create(service, accounts, clock, visitor_name="Ada", usage_type=UsageType.MULTI_USE)
+    assert (badge.visitor_type, badge.discount_percent) == ("Student", 0)
+    service.mode = Mode.TICKET
+    assert service.list_visitor_subtypes(admin) == [subtype]
 
 
 def test_a_group_pays_and_counts_once_per_person(service, accounts, clock):
@@ -157,14 +191,22 @@ def prepare(service):
     )
     service.repository.save_active_hours(None)
     if service.repository.visitor_type_by_name("Guest") is None:
-        service.create_visitor_type(admin, "Guest")
+        guest = service.create_visitor_type(admin, "Guest")
+        if service.mode == Mode.TICKET:
+            service.create_visitor_subtype(admin, guest.id, "Guest")
     return admin
 
 
 def make(service, admin, **fields):
     now = datetime.now(UTC).replace(microsecond=0)
+    subtype = "Guest" if service.mode == Mode.TICKET else None
     return service.create_ticket(
-        admin, visitor_type="Guest", valid_from=now, valid_until=now + timedelta(hours=1), **fields
+        admin,
+        visitor_type="Guest",
+        visitor_subtype=subtype,
+        valid_from=now,
+        valid_until=now + timedelta(hours=1),
+        **fields,
     )
 
 

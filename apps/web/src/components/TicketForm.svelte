@@ -53,6 +53,7 @@
 
   let visitorName = $state('');
   let visitorType = $state('');
+  let visitorSubtype = $state('');
   let ticketType = $state('');
   let ticketTypes = $state<TicketType[]>([]);
   let visitorTypes = $state<VisitorType[]>([]);
@@ -65,6 +66,8 @@
   let isSubmitted = $state(false);
   // Known only once the visitor types have loaded; a failed load says nothing about there being none
   let hasNoVisitorTypes = $state(false);
+  // Likewise for ticket types: a ticket is priced by one, so it cannot be made without
+  let hasNoTicketTypes = $state(false);
 
   const isBadge = $derived(mode.isBadge);
   const validation = $derived(
@@ -75,6 +78,7 @@
       valid_from: validFrom,
       valid_until: validUntil,
       visitor_name: visitorName,
+      visitor_subtype: visitorSubtype,
       visitor_type: visitorType,
     })
   );
@@ -83,19 +87,29 @@
 
   // Badges have no ticket types or prices
   const ticketTypeOptions = $derived(isBadge ? [] : ticketTypes.map((type) => type.name));
-  // With ticket types defined a ticket needs one, since that is what prices it
+  // A ticket needs a ticket type, since that is what prices it
   const ticketTypeError = $derived(
-    isSubmitted && ticketTypeOptions.length > 0 && !ticketType
+    isSubmitted && !isBadge && !hasNoTicketTypes && !ticketType
       ? i18n.t.errors.ticketTypeRequired
       : undefined
   );
+  const isBlocked = $derived(hasNoVisitorTypes || (!isBadge && hasNoTicketTypes));
   const priced = $derived(
     isBadge ? undefined : ticketTypes.find((type) => type.name === ticketType)
   );
-  const discount = $derived(
-    visitorTypes.find((type) => type.name === visitorType)?.discount_percent ?? 0
+  // A ticket is for a subtype of its visitor type, so only types that have one are offered
+  const visitorTypeOptions = $derived(
+    (isBadge ? visitorTypes : visitorTypes.filter((type) => type.subtypes.length > 0)).map(
+      (type) => type.name
+    )
   );
-  // What each person pays: the type's price less the visitor type's discount
+  const subtypes = $derived(
+    isBadge ? [] : (visitorTypes.find((type) => type.name === visitorType)?.subtypes ?? [])
+  );
+  const discount = $derived(
+    subtypes.find((subtype) => subtype.name === visitorSubtype)?.discount_percent ?? 0
+  );
+  // What each person pays: the type's price less the visitor subtype's discount
   const perPerson = $derived(priced ? discountedMinor(priced.price_minor, discount) : 0);
   // How many people the price is paid for: one, or the group's size once it is a valid one
   const people = $derived.by((): number => {
@@ -124,12 +138,16 @@
       fetchActiveHours(),
     ]);
 
-    if (ticketResult.ok) ticketTypes = ticketResult.data;
-    else await notifyFailure(i18n.t.ticketForm.catalogNotLoaded, ticketResult.error);
+    if (ticketResult.ok) {
+      ticketTypes = ticketResult.data;
+      hasNoTicketTypes = !isBadge && ticketResult.data.length === 0;
+    } else await notifyFailure(i18n.t.ticketForm.catalogNotLoaded, ticketResult.error);
 
     if (visitorResult.ok) {
       visitorTypes = visitorResult.data;
-      hasNoVisitorTypes = visitorResult.data.length === 0;
+      hasNoVisitorTypes = isBadge
+        ? visitorResult.data.length === 0
+        : visitorResult.data.every((type) => type.subtypes.length === 0);
     } else await notifyFailure(i18n.t.ticketForm.catalogNotLoaded, visitorResult.error);
 
     if (hoursResult.ok) activeHours = hoursResult.data;
@@ -147,6 +165,7 @@
 
       visitorName = '';
       visitorType = '';
+      visitorSubtype = '';
       ticketType = '';
       validFrom = start;
       validUntil = `${start.slice(0, start.indexOf('T'))}${DAY_END}`;
@@ -154,6 +173,7 @@
       groupSize = String(GROUP_MIN);
       isSubmitted = false;
       hasNoVisitorTypes = false;
+      hasNoTicketTypes = false;
       // Prices change between openings, so each one reads them again
       void loadCatalog();
     });
@@ -164,7 +184,7 @@
 
     const csrfToken = auth.session?.csrf_token;
 
-    if (hasNoVisitorTypes || !(validation.ok && csrfToken) || ticketTypeError) return;
+    if (isBlocked || !(validation.ok && csrfToken) || ticketTypeError) return;
 
     isPending = true;
 
@@ -177,7 +197,7 @@
       return;
     }
 
-    // A ticket names no one, so its visitor type, and group, stand in for the name
+    // A ticket names no one, so its visitor subtype, and group, stand in for the name
     const { group_size: size, readable_serial: serial, visitor_name: name } = result.data;
     const visitor =
       name || (size > 1 ? `${result.data.visitor_type} ×${size}` : result.data.visitor_type);
@@ -194,7 +214,7 @@
 <FormDialog
   {isOpen}
   {isPending}
-  isSubmitDisabled={hasNoVisitorTypes}
+  isSubmitDisabled={isBlocked}
   {onClose}
   onSubmit={handleSubmit}
   submitLabel={i18n.t.common.create}
@@ -211,30 +231,55 @@
     />
   {/if}
 
-  <!-- A ticket must be for a visitor type, so with none defined there is nothing to pick and the
-       form cannot go on until some are made -->
+  <!-- A badge must be for a visitor type and a ticket for one of a type's subtypes, so with none
+       defined there is nothing to pick and the form cannot go on until some are made. Picking
+       another type clears the subtype, which belonged to the one before -->
   <FloatingSelect
     disabled={hasNoVisitorTypes}
     error={hasNoVisitorTypes ? undefined : fieldErrors.visitor_type?.[0]}
     id="visitor-type"
     label={i18n.t.ticketForm.visitorType}
-    options={visitorTypes.map((type) => type.name)}
-    bind:value={visitorType}
+    options={visitorTypeOptions}
+    bind:value={
+      (): string => visitorType,
+      (value: string): void => {
+    if (value !== visitorType) visitorSubtype = '';
+    visitorType = value;
+  }
+    }
   />
   {#if hasNoVisitorTypes}
     <p class="text-warning-700-300 -mt-3 text-sm" role="alert">
-      {i18n.t.ticketForm.noVisitorTypes}
+      {isBadge ? i18n.t.ticketForm.noVisitorTypes : i18n.t.ticketForm.noVisitorSubtypes}
     </p>
   {/if}
 
-  {#if ticketTypeOptions.length > 0}
+  {#if !isBadge}
     <FloatingSelect
-      error={ticketTypeError ?? fieldErrors.ticket_type?.[0]}
+      disabled={hasNoVisitorTypes || !visitorType}
+      error={hasNoVisitorTypes ? undefined : fieldErrors.visitor_subtype?.[0]}
+      id="visitor-subtype"
+      label={i18n.t.ticketForm.visitorSubtype}
+      options={subtypes.map((subtype) => subtype.name)}
+      bind:value={visitorSubtype}
+    />
+  {/if}
+
+  {#if !isBadge}
+    <!-- A ticket is priced by its ticket type, so with none defined the form cannot go on -->
+    <FloatingSelect
+      disabled={hasNoTicketTypes}
+      error={hasNoTicketTypes ? undefined : (ticketTypeError ?? fieldErrors.ticket_type?.[0])}
       id="ticket-type"
       label={i18n.t.ticketForm.ticketType}
       options={ticketTypeOptions}
       bind:value={ticketType}
     />
+    {#if hasNoTicketTypes}
+      <p class="text-warning-700-300 -mt-3 text-sm" role="alert">
+        {i18n.t.ticketForm.noTicketTypes}
+      </p>
+    {/if}
   {/if}
 
   {#if !isBadge}
@@ -280,7 +325,7 @@
   {/if}
 
   {#if priced}
-    <!-- What the API will charge: the type's price less the visitor type's discount, once for
+    <!-- What the API will charge: the type's price less the visitor subtype's discount, once for
          each person the ticket admits -->
     <dl
       aria-live="polite"

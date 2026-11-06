@@ -1627,7 +1627,7 @@
           "catalog"
         ],
         "summary": "List Visitor Types",
-        "description": "One page of visitor types, by name. Any signed-in role, or a key with `tickets:read`.",
+        "description": "One page of visitor types, by name, each with its subtypes. Any signed-in role, or a key\nwith `tickets:read`.",
         "operationId": "list_visitor_types",
         "parameters": [
           {
@@ -1724,7 +1724,7 @@
           "catalog"
         ],
         "summary": "Create Visitor Type",
-        "description": "Add a visitor type and the discount its tickets get. Admins and managers.",
+        "description": "Add a visitor type, with no subtypes yet. Admins and managers.",
         "operationId": "create_visitor_type",
         "requestBody": {
           "required": true,
@@ -1804,7 +1804,7 @@
           "catalog"
         ],
         "summary": "Update Visitor Type",
-        "description": "Rename a visitor type or change its discount. Tickets already issued keep theirs.",
+        "description": "Rename a visitor type. Tickets already issued keep their name.",
         "operationId": "update_visitor_type",
         "parameters": [
           {
@@ -1904,7 +1904,7 @@
           "catalog"
         ],
         "summary": "Delete Visitor Type",
-        "description": "Remove a visitor type. Tickets already issued keep their name and discount.",
+        "description": "Remove a visitor type and its subtypes. Tickets already issued keep their name and\ndiscount.",
         "operationId": "delete_visitor_type",
         "parameters": [
           {
@@ -1976,6 +1976,313 @@
                     }
                   ],
                   "title": "Response 422 Delete Visitor Type"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visitor-types/{type_id}/subtypes": {
+      "post": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Create Visitor Subtype",
+        "description": "Add a subtype to a visitor type, and the discount its tickets get. Tickets mode only.\nAdmins and managers.",
+        "operationId": "create_visitor_subtype",
+        "parameters": [
+          {
+            "name": "type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Type Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorSubtypeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorSubtypeOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Create Visitor Subtype"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visitor-types/{type_id}/subtypes/{subtype_id}": {
+      "patch": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Update Visitor Subtype",
+        "description": "Rename a visitor subtype or change its discount. Tickets already issued keep theirs.",
+        "operationId": "update_visitor_subtype",
+        "parameters": [
+          {
+            "name": "type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Type Id"
+            }
+          },
+          {
+            "name": "subtype_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Subtype Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorSubtypePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorSubtypeOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Update Visitor Subtype"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Delete Visitor Subtype",
+        "description": "Remove a visitor subtype. Tickets already issued keep their name and discount.",
+        "operationId": "delete_visitor_subtype",
+        "parameters": [
+          {
+            "name": "type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Type Id"
+            }
+          },
+          {
+            "name": "subtype_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Subtype Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or sign-in was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: no valid license, the role or key scope may not do this, or bad CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket, user, ticket type or visitor type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input: a malformed request, or a value the server refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FieldErrorsOut"
+                    }
+                  ],
+                  "title": "Response 422 Delete Visitor Subtype"
                 }
               }
             }
@@ -4713,6 +5020,19 @@
             "title": "Visitor Type",
             "description": "A visitor type from GET /visitor-types; any other name is a 422"
           },
+          "visitor_subtype": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visitor Subtype",
+            "description": "Tickets: required, one of the visitor type's `subtypes`; the ticket carries its name as `visitor_type`, and its discount. Badges take none; sending one is a 422"
+          },
           "valid_from": {
             "type": "string",
             "maxLength": 64,
@@ -6183,6 +6503,19 @@
             "title": "Visitor Type",
             "description": "A visitor type from GET /visitor-types; any other name is a 422"
           },
+          "visitor_subtype": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visitor Subtype",
+            "description": "Tickets: required, one of the visitor type's `subtypes`; the ticket carries its name as `visitor_type`, and its discount. Badges take none; sending one is a 422"
+          },
           "valid_from": {
             "type": "string",
             "maxLength": 64,
@@ -6959,6 +7292,95 @@
         ],
         "title": "VisitorStatsOut"
       },
+      "VisitorSubtypeIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name",
+            "description": "Unique across every visitor type's subtypes"
+          },
+          "discount_percent": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Discount Percent",
+            "description": "Per cent taken off a ticket's price",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "VisitorSubtypeIn"
+      },
+      "VisitorSubtypeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "visitor_type_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Visitor Type Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "discount_percent": {
+            "type": "integer",
+            "title": "Discount Percent",
+            "description": "Per cent taken off a ticket's price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "visitor_type_id",
+          "name",
+          "discount_percent"
+        ],
+        "title": "VisitorSubtypeOut"
+      },
+      "VisitorSubtypePatch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "discount_percent": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "description": "Per cent taken off a ticket's price"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Percent"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "VisitorSubtypePatch",
+        "description": "Any of: a new name, a new discount. Omitted fields stay as they are."
+      },
       "VisitorTypeIn": {
         "properties": {
           "name": {
@@ -6971,7 +7393,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Discount Percent",
-            "description": "Per cent taken off a ticket's price",
+            "description": "Always 0: tickets take a subtype's discount",
             "default": 0
           }
         },
@@ -6996,7 +7418,16 @@
           "discount_percent": {
             "type": "integer",
             "title": "Discount Percent",
-            "description": "Per cent taken off a ticket's price"
+            "description": "Always 0: tickets take a subtype's"
+          },
+          "subtypes": {
+            "items": {
+              "$ref": "#/components/schemas/VisitorSubtypeOut"
+            },
+            "type": "array",
+            "title": "Subtypes",
+            "description": "By name; a ticket needs one. Always empty for badges",
+            "default": []
           }
         },
         "type": "object",
@@ -7061,7 +7492,7 @@
                 "type": "integer",
                 "maximum": 100.0,
                 "minimum": 0.0,
-                "description": "Per cent taken off a ticket's price"
+                "description": "Always 0: tickets take a subtype's discount"
               },
               {
                 "type": "null"
@@ -7073,7 +7504,7 @@
         "additionalProperties": false,
         "type": "object",
         "title": "VisitorTypePatch",
-        "description": "Any of: a new name, a new discount. Omitted fields stay as they are."
+        "description": "A new name. Omitted fields stay as they are."
       }
     }
   }

@@ -19,7 +19,8 @@ def at_local(hour: int, minute: int = 0) -> datetime:
 @pytest.fixture
 def staff_service(repository, clock, accounts):
     service = TicketService(repository, SECRET, clock=clock, timezone=BAKU)
-    service.create_visitor_type(accounts["admin"], "Guest")
+    guest = service.create_visitor_type(accounts["admin"], "Guest")
+    service.create_visitor_subtype(accounts["admin"], guest.id, "Guest")
     return service
 
 
@@ -28,6 +29,7 @@ def issue(service, accounts, clock, *, actor="operator"):
         accounts[actor],
         visitor_name="Name",
         visitor_type="Guest",
+        visitor_subtype="Guest",
         valid_from=clock.now,
         valid_until=clock.now + timedelta(hours=1),
         usage_type=UsageType.ONE_TIME,
@@ -163,7 +165,8 @@ def test_lifting_the_limit_allows_any_time_again(staff_service, accounts, clock)
 def test_the_hours_follow_the_servers_zone_not_utc(repository, clock, accounts):
     # 22:00 UTC is 02:00 in Baku, already outside 09:00 to 17:00 there
     service = TicketService(repository, SECRET, clock=clock, timezone=BAKU)
-    service.create_visitor_type(accounts["admin"], "Guest")
+    guest = service.create_visitor_type(accounts["admin"], "Guest")
+    service.create_visitor_subtype(accounts["admin"], guest.id, "Guest")
     service.set_active_hours(accounts["manager"], time(9), time(17))
 
     clock.now = datetime(2026, 9, 17, 22, tzinfo=UTC)

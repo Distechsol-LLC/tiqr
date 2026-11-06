@@ -65,6 +65,12 @@ const visitorTypeField = z
   .min(1, { error: () => i18n.t.errors.visitorTypeRequired })
   .max(NAME_MAX, { error: () => i18n.t.errors.visitorTypeLong });
 
+const visitorSubtypeField = z
+  .string()
+  .trim()
+  .min(1, { error: () => i18n.t.errors.visitorSubtypeRequired })
+  .max(NAME_MAX, { error: () => i18n.t.errors.visitorTypeLong });
+
 // Same-format local strings compare in time order
 const inOrder = (input: { valid_from: string; valid_until: string }): boolean =>
   !(input.valid_from && input.valid_until) || input.valid_until >= input.valid_from;
@@ -102,6 +108,8 @@ const ticketOnlyInputSchema = z
       .transform((name) => name || undefined)
       .optional(),
     usage_type: z.enum(TICKET_USAGES),
+    // The ticket carries its subtype in the type's place
+    visitor_subtype: visitorSubtypeField,
     visitor_type: visitorTypeField,
   })
   .superRefine((input, ctx) => {
@@ -133,6 +141,7 @@ type TicketFields = Record<
   | 'valid_from'
   | 'valid_until'
   | 'visitor_name'
+  | 'visitor_subtype'
   | 'visitor_type',
   string
 >;

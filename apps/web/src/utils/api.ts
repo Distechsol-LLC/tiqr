@@ -305,7 +305,7 @@ const updateVisitorType = (
 ): Promise<ApiResult<VisitorType>> =>
   request(`/visitor-types/${id}`, visitorTypeSchema, write('PATCH', csrfToken, fields));
 
-// Tickets already issued keep their name and discount
+// Its subtypes go with it; tickets already issued keep their name and discount
 const deleteVisitorType = (csrfToken: string, id: string): Promise<ApiResult<null>> =>
   request(`/visitor-types/${id}`, z.null(), write('DELETE', csrfToken));
 
@@ -430,6 +430,7 @@ export {
   printTicket,
   reissueTicket,
   renderTicketPdf,
+  request,
   revokeTicket,
   runCleanup,
   runSync,
@@ -440,4 +441,5 @@ export {
   updateTicketWindow,
   updateUser,
   updateVisitorType,
+  write,
 };

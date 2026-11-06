@@ -6,6 +6,8 @@ import { i18n } from '%/useLocale.svelte.ts';
 import {
   ticketTypeInputSchema,
   ticketTypeSchema,
+  visitorSubtypeInputSchema,
+  visitorSubtypeSchema,
   visitorTypeInputSchema,
   visitorTypeSchema,
 } from '$/catalog.ts';
@@ -16,6 +18,8 @@ const OVER = 101;
 const FULL = 100;
 const OVER_LONG = 201;
 const ID = '1f6a2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f';
+const SUBTYPE_ID = '2f6a2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f';
+const pupil = { discount_percent: 30, id: SUBTYPE_ID, name: 'Pupil', visitor_type_id: ID };
 
 describe('catalog', () => {
   beforeEach(() => {
@@ -32,8 +36,12 @@ describe('catalog', () => {
         .success
     ).toBeTrue();
     expect(
-      visitorTypeSchema.safeParse({ discount_percent: 30, id: ID, name: 'Student' }).success
+      visitorTypeSchema.safeParse({ id: ID, name: 'Student', subtypes: [pupil] }).success
     ).toBeTrue();
+  });
+
+  it('reads a visitor type sent without subtypes as having none', () => {
+    expect(visitorTypeSchema.parse({ id: ID, name: 'Student' }).subtypes).toEqual([]);
   });
 
   it('refuses a price or discount the API would not send', () => {
@@ -45,7 +53,14 @@ describe('catalog', () => {
         .success
     ).toBeFalse();
     expect(
-      visitorTypeSchema.safeParse({ discount_percent: OVER, id: ID, name: 'Student' }).success
+      visitorSubtypeSchema.safeParse({ ...pupil, discount_percent: OVER }).success
+    ).toBeFalse();
+    expect(
+      visitorTypeSchema.safeParse({
+        id: ID,
+        name: 'Student',
+        subtypes: [{ ...pupil, discount_percent: OVER }],
+      }).success
     ).toBeFalse();
   });
 
@@ -87,18 +102,25 @@ describe('catalog', () => {
     ).toBeTrue();
   });
 
-  it('turns a typed visitor type into what the API takes', () => {
-    expect(visitorTypeInputSchema.parse({ discount: ' 30 ', name: ' Student ' })).toEqual({
+  it('turns a typed visitor type, a name alone, into what the API takes', () => {
+    expect(visitorTypeInputSchema.parse({ name: ' Student ' })).toEqual({ name: 'Student' });
+    expect(visitorTypeInputSchema.safeParse({ name: '  ' }).error?.issues[0]?.message).toBe(
+      en.errors.nameRequired
+    );
+  });
+
+  it('turns a typed visitor subtype into what the API takes', () => {
+    expect(visitorSubtypeInputSchema.parse({ discount: ' 30 ', name: ' Pupil ' })).toEqual({
       discount: 30,
-      name: 'Student',
+      name: 'Pupil',
     });
-    expect(visitorTypeInputSchema.parse({ discount: '0', name: 'Guest' }).discount).toBe(0);
-    expect(visitorTypeInputSchema.parse({ discount: '100', name: 'Guest' }).discount).toBe(FULL);
+    expect(visitorSubtypeInputSchema.parse({ discount: '0', name: 'Guest' }).discount).toBe(0);
+    expect(visitorSubtypeInputSchema.parse({ discount: '100', name: 'Guest' }).discount).toBe(FULL);
   });
 
   it('refuses a discount that is not a whole number from 0 to 100', () => {
     for (const discount of ['', '101', '-1', '2.5', 'ten', '1000']) {
-      const result = visitorTypeInputSchema.safeParse({ discount, name: 'Student' });
+      const result = visitorSubtypeInputSchema.safeParse({ discount, name: 'Pupil' });
 
       expect(result.error?.issues[0]?.message).toBe(en.errors.discountInvalid);
     }
@@ -121,6 +143,7 @@ describe('catalog', () => {
       usage_type: 'one_time',
       valid_from: '2030-06-01T09:00',
       valid_until: '2030-06-01T18:00',
+      visitor_subtype: 'Walk-in',
       visitor_type: 'Guest',
     } as const;
 

@@ -15,7 +15,7 @@ from tiqr.core import runtime as core_runtime
 from tiqr.core.biostar import BioStarError
 from tiqr.core.fakes import InMemoryEventSource, InMemoryRegistrar
 from tiqr.core.license import build_request_code, parse_request_code
-from tiqr.core.models import LicenseRecord, Mode, RawEvent, Role, VisitorType
+from tiqr.core.models import LicenseRecord, Mode, RawEvent, Role, VisitorSubtype, VisitorType
 from tiqr.core.repository import _MIGRATIONS, SQLiteRepository
 from tiqr.core.service import TicketService
 
@@ -55,10 +55,13 @@ def cli_env(tmp_path, monkeypatch, license_pair, project_root):
             )
         # A new database is limited to working hours; the suite's tickets are made at any time
         repository.save_active_hours(None)
-        # Tickets must name a catalog visitor type, so the suite's usual types are registered.
+        # Tickets must name a catalog visitor type and one of its subtypes, so the suite's usual
+        # types are registered, each with a subtype of the same name.
         for name in ("Visitor", "Guest", "V"):
             if repository.visitor_type_by_name(name) is None:
-                repository.add_visitor_type(VisitorType(uuid4(), name, 0))
+                visitor_type = VisitorType(uuid4(), name, 0)
+                repository.add_visitor_type(visitor_type)
+                repository.add_visitor_subtype(VisitorSubtype(uuid4(), visitor_type.id, name))
         return TicketService(
             repository,
             secret_key,
@@ -98,6 +101,8 @@ def create_ticket(actor="admin", **options):
         "ticket",
         "create",
         "--type",
+        "Visitor",
+        "--subtype",
         "Visitor",
         "--from",
         options.get("start", "2030-01-01T12:00"),
@@ -200,6 +205,8 @@ def test_actor_is_required(cli_env, args):
             "--name",
             "Guest",
             "--type",
+            "Guest",
+            "--subtype",
             "Guest",
             "--from",
             "2030-01-01T12:00",
@@ -434,6 +441,8 @@ def test_short_option_aliases_match_long_forms(cli_env):
                 "Guest",
                 "-t",
                 "Visitor",
+                "-s",
+                "Visitor",
                 "-f",
                 "2030-01-01T12:00",
                 "-u",
@@ -450,6 +459,34 @@ def test_short_option_aliases_match_long_forms(cli_env):
     assert created["visitor_type"] == "Visitor"
     listed = output_json(invoke(["ticket", "list", "-a", "admin"]))
     assert [ticket["id"] for ticket in listed] == [created["id"]]
+
+
+@pytest.mark.parametrize(
+    ("subtype", "message"),
+    [([], "A visitor subtype is required"), (["--subtype", "Guest"], "Unknown visitor subtype")],
+)
+def test_a_ticket_needs_a_subtype_of_its_type(cli_env, subtype, message):
+    assert invoke(["setup"]).exit_code == 0
+    add_user("admin", "admin")
+    args = [
+        "ticket",
+        "create",
+        "--type",
+        "Visitor",
+        *subtype,
+        "--from",
+        "2030-01-01T12:00",
+        "--until",
+        "2030-01-01T14:00",
+        "--usage",
+        "one_time",
+        "--as",
+        "admin",
+    ]
+    result = invoke(args)
+    assert result.exit_code == 1
+    assert message in result.output
+    assert output_json(invoke(["ticket", "list", "--as", "admin"])) == []
 
 
 def test_old_database_refused_and_connection_closed(cli_env, monkeypatch):

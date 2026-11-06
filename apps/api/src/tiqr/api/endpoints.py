@@ -79,6 +79,9 @@ from tiqr.api.schemas import (
     UserOut,
     UserPage,
     UserPatch,
+    VisitorSubtypeIn,
+    VisitorSubtypeOut,
+    VisitorSubtypePatch,
     VisitorTypeIn,
     VisitorTypeOut,
     VisitorTypePage,
@@ -430,10 +433,12 @@ def set_active_hours(body: ActiveHoursIn, me: Signed, server: Server) -> ActiveH
 
 @router.get("/visitor-types", tags=["catalog"], responses=_refusals(401, 403, 422))
 def list_visitor_types(me: READER, server: Server, paging: Paging) -> VisitorTypePage:
-    """One page of visitor types, by name. Any signed-in role, or a key with `tickets:read`."""
+    """One page of visitor types, by name, each with its subtypes. Any signed-in role, or a key
+    with `tickets:read`."""
     types = server.service.list_visitor_types(me.user)
+    subtypes = server.service.list_visitor_subtypes(me.user)
     return VisitorTypePage(
-        items=[VisitorTypeOut.of(item) for item in paging.slice(types)],
+        items=[VisitorTypeOut.of(item, subtypes) for item in paging.slice(types)],
         total=len(types),
         page=paging.page,
         size=paging.size,
@@ -444,7 +449,7 @@ def list_visitor_types(me: READER, server: Server, paging: Paging) -> VisitorTyp
     "/visitor-types", tags=["catalog"], status_code=201, responses=_refusals(401, 403, 422)
 )
 def create_visitor_type(body: VisitorTypeIn, me: Signed, server: Server) -> VisitorTypeOut:
-    """Add a visitor type and the discount its tickets get. Admins and managers."""
+    """Add a visitor type, with no subtypes yet. Admins and managers."""
     return VisitorTypeOut.of(
         server.service.create_visitor_type(me.user, body.name, body.discount_percent)
     )
@@ -454,11 +459,12 @@ def create_visitor_type(body: VisitorTypeIn, me: Signed, server: Server) -> Visi
 def update_visitor_type(
     type_id: UUID, body: VisitorTypePatch, me: Signed, server: Server
 ) -> VisitorTypeOut:
-    """Rename a visitor type or change its discount. Tickets already issued keep theirs."""
+    """Rename a visitor type. Tickets already issued keep their name."""
     return VisitorTypeOut.of(
         server.service.edit_visitor_type(
             me.user, type_id, name=body.name, discount_percent=body.discount_percent
-        )
+        ),
+        server.service.list_visitor_subtypes(me.user),
     )
 
 
@@ -469,8 +475,52 @@ def update_visitor_type(
     responses=_refusals(401, 403, 404, 422),
 )
 def delete_visitor_type(type_id: UUID, me: Signed, server: Server) -> None:
-    """Remove a visitor type. Tickets already issued keep their name and discount."""
+    """Remove a visitor type and its subtypes. Tickets already issued keep their name and
+    discount."""
     server.service.delete_visitor_type(me.user, type_id)
+
+
+@router.post(
+    "/visitor-types/{type_id}/subtypes",
+    tags=["catalog"],
+    status_code=201,
+    responses=_refusals(401, 403, 404, 422),
+)
+def create_visitor_subtype(
+    type_id: UUID, body: VisitorSubtypeIn, me: Signed, server: Server
+) -> VisitorSubtypeOut:
+    """Add a subtype to a visitor type, and the discount its tickets get. Tickets mode only.
+    Admins and managers."""
+    return VisitorSubtypeOut.of(
+        server.service.create_visitor_subtype(me.user, type_id, body.name, body.discount_percent)
+    )
+
+
+@router.patch(
+    "/visitor-types/{type_id}/subtypes/{subtype_id}",
+    tags=["catalog"],
+    responses=_refusals(401, 403, 404, 422),
+)
+def update_visitor_subtype(
+    type_id: UUID, subtype_id: UUID, body: VisitorSubtypePatch, me: Signed, server: Server
+) -> VisitorSubtypeOut:
+    """Rename a visitor subtype or change its discount. Tickets already issued keep theirs."""
+    return VisitorSubtypeOut.of(
+        server.service.edit_visitor_subtype(
+            me.user, type_id, subtype_id, name=body.name, discount_percent=body.discount_percent
+        )
+    )
+
+
+@router.delete(
+    "/visitor-types/{type_id}/subtypes/{subtype_id}",
+    tags=["catalog"],
+    status_code=204,
+    responses=_refusals(401, 403, 404, 422),
+)
+def delete_visitor_subtype(type_id: UUID, subtype_id: UUID, me: Signed, server: Server) -> None:
+    """Remove a visitor subtype. Tickets already issued keep their name and discount."""
+    server.service.delete_visitor_subtype(me.user, type_id, subtype_id)
 
 
 @router.get("/tickets", tags=["tickets"], responses=_refusals(401, 403, 422))
@@ -592,6 +642,7 @@ def _create(server: AppState, me: Caller, body: TicketIn) -> tuple[int, TicketOu
         me.user,
         visitor_name=body.visitor_name,
         visitor_type=body.visitor_type,
+        visitor_subtype=body.visitor_subtype,
         valid_from=parse_input_datetime(body.valid_from, timezone),
         valid_until=parse_input_datetime(body.valid_until, timezone),
         usage_type=body.usage_type,

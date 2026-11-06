@@ -12,12 +12,15 @@ import {
   updateTicketType,
   updateVisitorType,
 } from '%/api.ts';
+import { createVisitorSubtype, deleteVisitorSubtype, updateVisitorSubtype } from '%/subtypeApi.ts';
 import { mockFetch, session } from '../__mocks__/api.ts';
 
 const ID = '1f6a2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f';
 const OTHER_ID = '2f6a2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f';
 const day = { currency: 'USD' as const, id: ID, name: 'Day', price_minor: 1250 };
-const student = { discount_percent: 30, id: ID, name: 'Student' };
+const SUBTYPE_ID = '3f6a2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f';
+const pupil = { discount_percent: 30, id: SUBTYPE_ID, name: 'Pupil', visitor_type_id: ID };
+const student = { id: ID, name: 'Student', subtypes: [pupil] };
 const MAX_SIZE = 100;
 const TWO = 2;
 const THREE = 3;
@@ -99,10 +102,10 @@ describe('catalog api', () => {
 
   it('creates and updates a visitor type with the CSRF token', async () => {
     const fetchMock = mockFetch(Response.json(student, { status: 201 }), Response.json(student));
-    const fields = { discount_percent: 30, name: 'Student' };
+    const fields = { name: 'Student' };
 
     expect(await createVisitorType(CSRF, fields)).toEqual({ data: student, ok: true });
-    expect(await updateVisitorType(CSRF, ID, { discount_percent: 30 })).toEqual({
+    expect(await updateVisitorType(CSRF, ID, { name: 'Student' })).toEqual({
       data: student,
       ok: true,
     });
@@ -153,5 +156,33 @@ describe('catalog api', () => {
       },
       ok: false,
     });
+  });
+});
+
+describe('visitor subtype api', () => {
+  it('creates, updates and deletes a visitor subtype under its type', async () => {
+    const fetchMock = mockFetch(
+      Response.json(pupil, { status: 201 }),
+      Response.json(pupil),
+      new Response(null, { status: 204 })
+    );
+    const fields = { discount_percent: 30, name: 'Pupil' };
+
+    expect(await createVisitorSubtype(CSRF, ID, fields)).toEqual({ data: pupil, ok: true });
+    expect(await updateVisitorSubtype(CSRF, ID, SUBTYPE_ID, { discount_percent: 30 })).toEqual({
+      data: pupil,
+      ok: true,
+    });
+    expect(await deleteVisitorSubtype(CSRF, ID, SUBTYPE_ID)).toEqual({ data: null, ok: true });
+
+    const calls = fetchMock.mock.calls as [string, RequestInit][];
+
+    expect(calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([
+      `POST /api/visitor-types/${ID}/subtypes`,
+      `PATCH /api/visitor-types/${ID}/subtypes/${SUBTYPE_ID}`,
+      `DELETE /api/visitor-types/${ID}/subtypes/${SUBTYPE_ID}`,
+    ]);
+    expect(calls[0]?.[1].body).toBe(JSON.stringify(fields));
+    expect(new Headers(calls[2]?.[1].headers).get('X-CSRF-Token')).toBe(CSRF);
   });
 });
