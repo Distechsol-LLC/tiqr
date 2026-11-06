@@ -11,7 +11,7 @@ from tiqr.core.auth import AuthenticationError
 from tiqr.core.models import Currency, Mode, Outcome, RawEvent, Role, TicketState, UsageType
 from tiqr.core.repository import SQLiteRepository
 from tiqr.core.runtime import open_service
-from tiqr.core.service import ModeError, PermissionDeniedError
+from tiqr.core.service import ModeError, PermissionDeniedError, StateError
 from tiqr.core.settings import Settings, adopt_legacy_database, database_path
 
 _MEDIA_BOX = re.compile(rb"/MediaBox \[ 0 0 ([\d.]+) ([\d.]+) \]")
@@ -253,3 +253,33 @@ def test_the_mode_is_read_from_the_environment(monkeypatch, project_root):
     monkeypatch.setenv("TIQR_MODE", "festival")
     with pytest.raises(ValueError, match="TIQR_MODE"):
         Settings.from_env()
+
+
+def test_a_reissue_changes_the_visitors_and_the_price_follows(service, accounts, clock):
+    ticket = create(service, accounts, clock, ticket_type="Entry")
+    group = service.reissue_ticket(accounts["operator"], ticket.id, group_size=3)
+    assert (group.usage_type, group.group_size, group.price) == (UsageType.GROUP, 3, 1503)
+    single = service.reissue_ticket(accounts["operator"], ticket.id, group_size=1)
+    assert (single.usage_type, single.group_size, single.price) == (UsageType.ONE_TIME, 1, 501)
+    detail = service.repository.list_audit(ticket.id)[-1].detail
+    assert "group_size 3 -> 1; price 1503 -> 501" in detail
+    with pytest.raises(ValueError, match="from 1 to 100"):
+        service.reissue_ticket(accounts["operator"], ticket.id, group_size=101)
+
+
+def test_the_visitors_cannot_change_once_the_window_has_ended(service, accounts, clock):
+    ticket = create(service, accounts, clock, usage_type=UsageType.GROUP, group_size=2)
+    clock.now = ticket.valid_until + timedelta(minutes=1)
+    later = clock.now + timedelta(hours=1)
+    with pytest.raises(StateError, match="window has ended"):
+        service.reissue_ticket(accounts["admin"], ticket.id, valid_until=later, group_size=4)
+    # The same size is no change, so the reissue itself still goes through.
+    again = service.reissue_ticket(accounts["admin"], ticket.id, valid_until=later, group_size=2)
+    assert (again.state, again.group_size) == (TicketState.ISSUED, 2)
+
+
+def test_a_badge_admits_one_person_whatever_a_reissue_asks(service, accounts, clock):
+    service.mode = Mode.BADGE
+    badge = create(service, accounts, clock, visitor_name="Ada", usage_type=UsageType.MULTI_USE)
+    with pytest.raises(ModeError, match="always multi-use"):
+        service.reissue_ticket(accounts["admin"], badge.id, group_size=2)

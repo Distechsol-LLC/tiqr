@@ -2919,7 +2919,7 @@
           "tickets"
         ],
         "summary": "Reissue Ticket",
-        "description": "Reissue a ticket in any state, as the same ticket; this is also how it is edited.\n\nThe ticket returns to issued. The window may be moved; it must end in the future. Send an\n`Idempotency-Key` so a retry is answered from the first attempt.",
+        "description": "Reissue a ticket in any state, as the same ticket; this is also how it is edited.\n\nThe ticket returns to issued. The window may be moved; it must end in the future. A ticket's\n`group_size` may change until its current window ends, and its price with it. Send an\n`Idempotency-Key` so a retry is answered from the first attempt.",
         "operationId": "reissue_ticket",
         "parameters": [
           {
@@ -5755,6 +5755,20 @@
             ],
             "title": "Timezone",
             "description": "IANA zone for offset-less times; default the server's TIQR_DEFAULT_TZ"
+          },
+          "group_size": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Size",
+            "description": "Tickets only: the people it now admits, 1 for one-time or more for a group; refused once the current window has ended. Left out, it stays as it is"
           }
         },
         "additionalProperties": false,
@@ -5763,6 +5777,7 @@
         "description": "Reissue a ticket in any state; give a new window, or keep the old one.",
         "examples": [
           {
+            "group_size": 3,
             "valid_until": "2030-06-01T18:00"
           }
         ]

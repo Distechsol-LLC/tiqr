@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, test as it } from 'bun:test';
 import { az } from '@/locales/az.ts';
 import { en } from '@/locales/en.ts';
 import { i18n } from '%/useLocale.svelte.ts';
-import { parseTicketInput, ticketSchema } from '$/tickets.ts';
+import {
+  GROUP_MAX,
+  parseTicketInput,
+  parseVisitorCount,
+  priceFor,
+  ticketSchema,
+} from '$/tickets.ts';
 import { ticket } from '../__mocks__/api.ts';
 
 // What the form holds; each mode reads the fields it has
@@ -18,6 +24,19 @@ const fields = {
 };
 
 const badge = { ...fields, usage_type: 'multi_use' };
+
+const PEOPLE = 3;
+// A reissue's people as typed, and what each reads as
+const COUNTS: [string, number][] = [
+  [' 1 ', 1],
+  [String(PEOPLE), PEOPLE],
+  [String(GROUP_MAX), GROUP_MAX],
+];
+const BAD_COUNTS = ['', '0', '101', '2.5', 'two'];
+// Half of 10.01, rounded half up, is 5.01 a person
+const BASE = 1001;
+const HALF = 50;
+const PEOPLE_TOTAL = 1503;
 
 describe('tickets', () => {
   beforeEach(() => {
@@ -94,5 +113,17 @@ describe('tickets', () => {
     const result = parseTicketInput('badge', { ...badge, visitor_name: '   ' });
 
     expect(result.ok ? null : result.errors.visitor_name).toEqual([az.errors.visitorNameRequired]);
+  });
+
+  it("reads a reissue's people from one to the most a group admits", () => {
+    expect(COUNTS.map(([text]) => parseVisitorCount(text))).toEqual(COUNTS.map(([, n]) => n));
+    expect(BAD_COUNTS.map(parseVisitorCount).every((count) => count === null)).toBeTrue();
+  });
+
+  it('prices a ticket once a person, at its own discounted price', () => {
+    const priced = { ...ticket, base_price_minor: BASE, currency: 'AZN', discount_percent: HALF };
+
+    expect(priceFor(ticketSchema.parse(priced), PEOPLE)).toBe(PEOPLE_TOTAL);
+    expect(priceFor(ticketSchema.parse(ticket), PEOPLE)).toBeNull();
   });
 });

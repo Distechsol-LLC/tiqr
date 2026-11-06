@@ -1175,16 +1175,20 @@ class TicketService:
         *,
         valid_from: datetime | None = None,
         valid_until: datetime | None = None,
+        group_size: int | None = None,
     ) -> Ticket:
         """Reissue a ticket in any state, as the same ticket; this is also how it is edited.
 
         The ticket keeps its id, serial and QR code and returns to issued. The new window must
         end in the future; BioStar is told of it and the account is enabled again. If BioStar
         refuses, the ticket stays as it was. Staff, or the operator it is assigned to.
+
+        A ticket (not a badge) may change how many people it admits until its current window
+        ends: one makes it one-time, more a group. Its price follows, per person as issued.
         """
         actor, old = self._holder_ticket(actor, ticket_id)
         try:
-            return self._reissue_stored(actor, old.id, valid_from, valid_until)
+            return self._reissue_stored(actor, old.id, valid_from, valid_until, group_size)
         except Exception as exc:
             self._failed(actor, "ticket.reissue", ticket_id, exc, None)
             raise
@@ -1195,9 +1199,11 @@ class TicketService:
         ticket_id: UUID,
         valid_from: datetime | None,
         valid_until: datetime | None,
+        group_size: int | None,
     ) -> Ticket:
         with self.repository.transaction():
             ticket = self._read_ticket(ticket_id)
+            usage, size = self._regroup(ticket, group_size)
             start = ticket.valid_from if valid_from is None else utc(valid_from)
             end = ticket.valid_until if valid_until is None else utc(valid_until)
             if end <= start:
@@ -1208,22 +1214,29 @@ class TicketService:
                 )
             if end < self._now():
                 raise ValueError("Access window is reversed or already expired")
-            updated = replace(ticket, state=TicketState.ISSUED, valid_from=start, valid_until=end)
+            updated = replace(
+                ticket,
+                state=TicketState.ISSUED,
+                valid_from=start,
+                valid_until=end,
+                usage_type=usage,
+                group_size=size,
+            )
+            detail = (
+                f"state {ticket.state} -> {updated.state}; "
+                f"valid_from {ticket.valid_from.isoformat()} -> {start.isoformat()}; "
+                f"valid_until {ticket.valid_until.isoformat()} -> {end.isoformat()}"
+            )
+            if size != ticket.group_size:
+                detail += f"; group_size {ticket.group_size} -> {size}"
+                if ticket.price is not None:
+                    detail += f"; price {ticket.price} -> {updated.price}"
             if ticket.external_id:
                 self.registrar.set_window(ticket.external_id, start, end)
                 self.registrar.activate(ticket.external_id)
             try:
                 self.repository.save_ticket(updated)
-                self._record(
-                    actor,
-                    "ticket.reissue",
-                    updated,
-                    detail=(
-                        f"state {ticket.state} -> {updated.state}; "
-                        f"valid_from {ticket.valid_from.isoformat()} -> {start.isoformat()}; "
-                        f"valid_until {ticket.valid_until.isoformat()} -> {end.isoformat()}"
-                    ),
-                )
+                self._record(actor, "ticket.reissue", updated, detail=detail)
             except Exception as exc:
                 if ticket.external_id:
                     try:
@@ -1235,6 +1248,18 @@ class TicketService:
                         exc.add_note(f"BioStar reissue rollback also failed: {rollback_error}")
                 raise
             return updated
+
+    def _regroup(self, ticket: Ticket, group_size: int | None) -> tuple[UsageType, int]:
+        """The usage and size a reissue leaves `ticket` with, or why its size cannot change."""
+        if group_size is None or group_size == ticket.group_size:
+            return ticket.usage_type, ticket.group_size
+        if self.mode == Mode.BADGE:
+            raise ModeError("Badges are always multi-use, for one person")
+        if ticket.valid_until < self._now():
+            raise StateError("The ticket's window has ended, so its visitors can no longer change")
+        if not 1 <= group_size <= MAX_GROUP_SIZE:
+            raise ValueError(f"A ticket admits from 1 to {MAX_GROUP_SIZE} people")
+        return (UsageType.ONE_TIME if group_size == 1 else UsageType.GROUP), group_size
 
     def idempotency_lookup(self, key: str, fingerprint: str) -> StoredResponse | None:
         """The saved answer for `key` if one is live; a different payload under it is a conflict."""

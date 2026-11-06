@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { discountedMinor } from '%/money.ts';
 import { i18n } from '%/useLocale.svelte.ts';
 import { currencySchema } from '$/catalog.ts';
 import type { Mode } from '$/settings.ts';
@@ -165,6 +166,20 @@ const editInputSchema = z
     path: ['valid_until'],
   });
 
+// How many people a reissued ticket admits, as typed: one for one-time, more for a group
+const parseVisitorCount = (text: string): number | null => {
+  const count = Number(text.trim());
+
+  return GROUP_TEXT.test(text.trim()) && count >= 1 && count <= GROUP_MAX ? count : null;
+};
+
+// Mirrors Ticket.price in apps/core/src/tiqr/core/models.py: the ticket's discounted price once
+// for each of `people`; null for a ticket made without a ticket type
+const priceFor = (ticket: Ticket, people: number): number | null =>
+  ticket.base_price_minor === null
+    ? null
+    : discountedMinor(ticket.base_price_minor, ticket.discount_percent) * people;
+
 type EditInput = z.infer<typeof editInputSchema>;
 type AssignInput = z.infer<typeof assignInputSchema>;
 type Ticket = z.infer<typeof ticketSchema>;
@@ -179,6 +194,8 @@ export {
   assignInputSchema,
   editInputSchema,
   parseTicketInput,
+  parseVisitorCount,
+  priceFor,
   ticketOnlyInputSchema,
   ticketSchema,
   ticketStateSchema,
