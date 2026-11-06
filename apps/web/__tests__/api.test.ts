@@ -200,12 +200,16 @@ describe('api writes', () => {
   });
 
   it('returns the rendered badge as a blob', async () => {
-    mockFetch(new Response('%PDF-1.4', { headers: { 'Content-Type': 'application/pdf' } }));
+    const fetchMock = mockFetch(
+      new Response('%PDF-1.4', { headers: { 'Content-Type': 'application/pdf' } })
+    );
 
-    const result = await renderTicketPdf('csrf-token', ticket.id);
+    const result = await renderTicketPdf('csrf-token', ticket.id, 'ru');
 
     expect(result.ok).toBeTrue();
     expect(result.ok && (await result.data.text())).toBe('%PDF-1.4');
+    // The ticket's wording follows the app's language
+    expect(String(fetchMock.mock.calls[0]?.[0])).toEndWith(`/tickets/${ticket.id}/pdf?lang=ru`);
   });
 
   it('unwraps sync counts', async () => {

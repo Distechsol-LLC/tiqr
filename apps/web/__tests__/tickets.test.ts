@@ -29,11 +29,11 @@ const badge = { ...fields, usage_type: 'multi_use' };
 const PEOPLE = 3;
 // A reissue's people as typed, and what each reads as
 const COUNTS: [string, number][] = [
-  [' 1 ', 1],
+  [' 2 ', 2],
   [String(PEOPLE), PEOPLE],
   [String(GROUP_MAX), GROUP_MAX],
 ];
-const BAD_COUNTS = ['', '0', '101', '2.5', 'two'];
+const BAD_COUNTS = ['', '0', '1', '101', '2.5', 'two'];
 // Half of 10.01, rounded half up, is 5.01 a person
 const BASE = 1001;
 const HALF = 50;
@@ -131,7 +131,7 @@ describe('tickets', () => {
     expect(result.ok ? null : result.errors.visitor_name).toEqual([az.errors.visitorNameRequired]);
   });
 
-  it("reads a reissue's people from one to the most a group admits", () => {
+  it("reads a reissued group's people from two to the most it admits", () => {
     expect(COUNTS.map(([text]) => parseVisitorCount(text))).toEqual(COUNTS.map(([, n]) => n));
     expect(BAD_COUNTS.map(parseVisitorCount).every((count) => count === null)).toBeTrue();
   });

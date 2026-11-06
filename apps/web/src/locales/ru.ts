@@ -111,7 +111,6 @@ const ru: Messages = {
     validFromRequired: 'Укажите, когда билет начинает действовать.',
     validUntilBefore: 'Окончание не может быть раньше начала.',
     validUntilRequired: 'Укажите, когда билет перестаёт действовать.',
-    visitorCountInvalid: 'Введите целое число от 1 до 100.',
     visitorNameLong: 'Имя посетителя слишком длинное.',
     visitorNameRequired: 'Введите имя посетителя.',
     visitorSubtypeRequired: 'Выберите подтип посетителя.',

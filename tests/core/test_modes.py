@@ -162,19 +162,34 @@ def test_the_ticket_prints_on_a_narrow_slip(service, accounts, clock, tmp_path):
     group = create(
         service, accounts, clock, usage_type=UsageType.GROUP, group_size=10, ticket_type="Entry"
     )
-    assert page_mm(service.print_ticket(accounts["admin"], group.id, tmp_path)) == (80, 140)
+    assert page_mm(service.print_ticket(accounts["admin"], group.id, tmp_path)) == (80, 160)
     service.mode = Mode.BADGE
     badge = create(service, accounts, clock, visitor_name="Ada", usage_type=UsageType.MULTI_USE)
     # A badge is the foldable A4 sheet.
     assert page_mm(service.print_ticket(accounts["admin"], badge.id, tmp_path)) == (210, 297)
 
 
-def test_price_text_shows_what_the_group_paid(service, accounts, clock):
+def test_the_ticket_says_how_many_people_a_group_admits(service, accounts, clock):
     group = create(
         service, accounts, clock, usage_type=UsageType.GROUP, group_size=100, ticket_type="Entry"
     )
-    assert pdf._price_text(group) == "501.00 AZN"
-    assert pdf._admits(group) == "GROUP OF 100"
+    assert pdf._admits(group) == "GROUP · 100 PEOPLE"
+    assert pdf._admits(group, "az") == "QRUP · 100 NƏFƏR"
+    assert pdf._admits(group, "kk") == "ТОП · 100 АДАМ"
+
+
+@pytest.mark.parametrize(
+    ("count", "people"), [(2, "ЧЕЛОВЕКА"), (5, "ЧЕЛОВЕК"), (12, "ЧЕЛОВЕК"), (22, "ЧЕЛОВЕКА")]
+)
+def test_russian_group_sizes_take_the_right_case(count, people):
+    assert pdf._russian_people(count) == people
+
+
+@pytest.mark.parametrize(
+    ("asked", "expected"), [("ru", "ru"), ("ru-RU", "ru"), ("kk", "en"), (None, "en")]
+)
+def test_the_ticket_speaks_the_apps_language_when_the_install_offers_it(asked, expected):
+    assert pdf._ticket_language(("en-US", "ru-RU"), asked) == expected
 
 
 @pytest.fixture
@@ -297,16 +312,29 @@ def test_the_mode_is_read_from_the_environment(monkeypatch, project_root):
         Settings.from_env()
 
 
-def test_a_reissue_changes_the_visitors_and_the_price_follows(service, accounts, clock):
-    ticket = create(service, accounts, clock, ticket_type="Entry")
+def test_a_reissue_changes_a_groups_visitors_and_the_price_follows(service, accounts, clock):
+    ticket = create(
+        service, accounts, clock, usage_type=UsageType.GROUP, group_size=2, ticket_type="Entry"
+    )
     group = service.reissue_ticket(accounts["operator"], ticket.id, group_size=3)
     assert (group.usage_type, group.group_size, group.price) == (UsageType.GROUP, 3, 1503)
-    single = service.reissue_ticket(accounts["operator"], ticket.id, group_size=1)
-    assert (single.usage_type, single.group_size, single.price) == (UsageType.ONE_TIME, 1, 501)
     detail = service.repository.list_audit(ticket.id)[-1].detail
-    assert "group_size 3 -> 1; price 1503 -> 501" in detail
-    with pytest.raises(ValueError, match="from 1 to 100"):
-        service.reissue_ticket(accounts["operator"], ticket.id, group_size=101)
+    assert "group_size 2 -> 3; price 1002 -> 1503" in detail
+    for size in (0, 101):
+        with pytest.raises(ValueError, match="from 2 to 100"):
+            service.reissue_ticket(accounts["operator"], ticket.id, group_size=size)
+
+
+def test_a_reissue_never_turns_a_group_into_one_time_or_back(service, accounts, clock):
+    group = create(service, accounts, clock, usage_type=UsageType.GROUP, group_size=3)
+    with pytest.raises(ValueError, match="from 2 to 100"):
+        service.reissue_ticket(accounts["operator"], group.id, group_size=1)
+    single = create(service, accounts, clock)
+    with pytest.raises(ValueError, match="Only a group ticket"):
+        service.reissue_ticket(accounts["operator"], single.id, group_size=3)
+    # Its own size is no change, so the reissue itself still goes through.
+    again = service.reissue_ticket(accounts["operator"], single.id, group_size=1)
+    assert (again.usage_type, again.group_size) == (UsageType.ONE_TIME, 1)
 
 
 def test_the_visitors_cannot_change_once_the_window_has_ended(service, accounts, clock):

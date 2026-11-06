@@ -199,8 +199,9 @@ class ReissueIn(_Request):
             ge=1,
             le=MAX_GROUP_SIZE,
             description=(
-                "Tickets only: the people it now admits, 1 for one-time or more for a group; "
-                "refused once the current window has ended. Left out, it stays as it is"
+                "Group tickets only: the people it now admits, from 2; a group never becomes "
+                "one-time, nor a one-time ticket a group, and it is refused once the current "
+                "window has ended. Left out, it stays as it is"
             ),
         ),
     ] = None

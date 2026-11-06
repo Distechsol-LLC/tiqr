@@ -356,9 +356,13 @@ const reissueTicket = (
 ): Promise<ApiResult<Ticket>> =>
   request(`/tickets/${id}/reissue`, ticketSchema, write('POST', csrfToken, input));
 
-// A POST, since every render counts as a print
-const renderTicketPdf = async (csrfToken: string, id: string): Promise<ApiResult<Blob>> => {
-  const result = await send(`/tickets/${id}/pdf`, {
+// A POST, since every render counts as a print. `lang` is the app's language, for the ticket's wording
+const renderTicketPdf = async (
+  csrfToken: string,
+  id: string,
+  lang: string
+): Promise<ApiResult<Blob>> => {
+  const result = await send(`/tickets/${id}/pdf?lang=${encodeURIComponent(lang)}`, {
     ...write('POST', csrfToken),
     headers: { Accept: 'application/pdf', [CSRF_HEADER]: csrfToken },
   });
@@ -372,8 +376,12 @@ const renderTicketPdf = async (csrfToken: string, id: string): Promise<ApiResult
   }
 };
 
-const printTicket = (csrfToken: string, id: string): Promise<ApiResult<Ticket>> =>
-  request(`/tickets/${id}/print`, ticketSchema, write('POST', csrfToken));
+const printTicket = (csrfToken: string, id: string, lang: string): Promise<ApiResult<Ticket>> =>
+  request(
+    `/tickets/${id}/print?lang=${encodeURIComponent(lang)}`,
+    ticketSchema,
+    write('POST', csrfToken)
+  );
 
 const runSync = (csrfToken: string): Promise<ApiResult<number>> =>
   request(

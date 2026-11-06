@@ -1,8 +1,8 @@
 # TiQR Web: User Guide
 
 This guide explains how to use the TiQR web app in a browser. It covers signing in, the three
-roles, and the everyday tasks: issuing tickets, sending badges to print, assigning tickets, and
-managing accounts, ticket types and visitor types.
+roles, and the everyday tasks: issuing tickets, printing them, reissuing and revoking them,
+assigning tickets, reading the stats, and managing accounts, ticket types and visitor types.
 
 ## 1. Opening the app
 
@@ -48,11 +48,14 @@ Your role decides which menu items you see. Your role is shown in the account me
 | Menu item | Operator | Manager | Admin |
 |---|:---:|:---:|:---:|
 | Tickets | Yes (assigned to you only) | Yes (all tickets) | Yes (all tickets) |
+| Reissue and revoke (on Tickets) | Yes (your own tickets) | Yes (all tickets) | Yes (all tickets) |
+| Assign (on Tickets) | No | Yes | Yes |
 | Users | No | Yes (operators only) | Yes (all roles) |
 | Ticket types | No (used when creating tickets) | Yes | Yes |
 | Active hours (on Tickets) | No | Yes | Yes |
 | Visitor types | No (used when creating tickets) | Yes | Yes |
-| Overview | No | Yes | Yes |
+| Stats | No | Yes | Yes |
+| Settings (mode) | No | No | Yes |
 | BioStar | No | No | Yes |
 | License | No | No | Yes |
 
@@ -68,11 +71,12 @@ usage, prints, uses, price and assignee.
 - **Issued**: valid and waiting for its first passage. Only issued tickets can be downloaded or printed.
 - **Passed**: has been used at least once and is still within its validity period.
 - **Expired**: past its validity period.
+- **Revoked**: cancelled, so it no longer grants access. A revoked ticket can be reissued.
 
 ### Searching and filtering
 
 - Type in the **Search tickets** box to find a ticket by its serial number, visitor name or other details.
-- Use the **Filter by state** tabs to show **All**, **Issued**, **Passed** or **Expired** tickets.
+- Use the **Filter by state** tabs to show **All**, **Issued**, **Passed**, **Expired** or **Revoked** tickets.
 - Use the page controls at the bottom to change the number of **Rows** and move between pages.
 
 Operators see only tickets assigned to them. Managers and admins see every ticket.
@@ -84,7 +88,7 @@ Operators see only tickets assigned to them. Managers and admins see every ticke
    - **Visitor type**: choose from the list. Only types that have at least one subtype are listed.
    - **Visitor subtype**: choose one of the chosen type's subtypes. Its discount is applied
      automatically, and the ticket carries the subtype's name: the type itself is not shown on the
-     ticket, in the tickets list or on the Overview page.
+     ticket, in the tickets list or on the Stats page.
    - **Ticket type**: choose from the list. The price comes from the ticket type.
    - **Usage**: **One-time** (one passage) or **Group** (one QR code for a whole group).
    - **People in the group**: for a group ticket, how many people it admits, from 2 to 100.
@@ -94,8 +98,9 @@ Operators see only tickets assigned to them. Managers and admins see every ticke
 4. Select **Create**.
 
 Tickets carry no visitor name. A group ticket lets that many people through, one passage each, and
-then stops; the Stats page counts it once per person. The ticket prints on a narrow slip for small
-cut paper.
+then stops; the Stats page counts it once per person. The ticket prints on a narrow black-and-white
+slip (80 × 160 mm) for small cut paper. It shows the install's logo at the top, whom it admits in the
+language you are using in the app, and its field labels in each language the install offers.
 
 The new ticket is assigned to you, the account that created it. A confirmation message shows the
 serial number and the visitor subtype.
@@ -134,6 +139,31 @@ that ticket. Passed or expired tickets cannot be printed.
 The assignee is the person responsible for the ticket. Operators see a ticket only while it is
 assigned to them, and only that operator can then download or print it. Deactivated accounts cannot
 hold tickets; a manager must reassign them.
+
+### Reissuing a ticket (Operator for their own tickets, Manager, Admin)
+
+Reissue is also how a ticket is edited. Select **Reissue** (the repeat icon) on the row, then:
+
+1. Change the **Valid from** and **Valid until** times if needed. The new end must be in the future.
+2. For a **group** ticket, change **People** (from 2 to 100). The form shows the **Previous price**,
+   the **New price** and the difference, because the price follows the number of people.
+3. Select **Reissue**.
+
+A reissued ticket keeps its serial number and QR code and returns to **Issued**, whatever its state
+was, so use it to bring back an expired, passed or revoked ticket too. BioStar is told of the new
+window.
+
+Rules that apply:
+
+- Only a group ticket's people can change, and only while its current window has not ended. A group
+  never drops to one person, and a one-time ticket never becomes a group.
+- Badges have no people to change; they are always for one person.
+
+### Revoking a ticket (Operator for their own tickets, Manager, Admin)
+
+Select **Revoke** (the ban icon) on the row, then confirm. A revoked ticket stops granting access in
+BioStar and shows the **Revoked** state. Revoke is not offered on expired or already revoked tickets.
+Use **Reissue** later if the visitor should be let in again.
 
 ## 6. Users (Manager and Admin)
 
@@ -204,19 +234,22 @@ listed under it. Subtype names are unique across all types.
 In badge mode visitor types have no subtypes and no discount, only a name, and badges carry the
 visitor type itself.
 
-## 8. Overview (Manager and Admin)
+## 8. Stats (Manager and Admin)
 
-The **Overview** page shows ticket statistics for a period.
+The **Stats** page shows ticket statistics for a period.
 
 - Choose the **Period**: **Day**, **Month**, **Year**, **Range** (pick a start and end date) or **All time**.
   Use **Earlier** and **Later** to move through periods.
-- The table shows these figures:
+- The figures are:
   - **Total**: every ticket issued in the period.
   - **Issued**: tickets waiting for their first passage.
   - **Passed**: tickets used at least once that are still valid.
   - **Expired**: tickets past their validity.
-  - **Uses**: granted passages applied to tickets.
-  - **Prints**: badges rendered or printed.
+  - **Passes**: passages made, summed over the tickets.
+  - **Prints**: badges or tickets rendered or printed.
+- A table breaks the figures down by **visitor type**, with each type's count and its **Share of all
+  tickets**.
+- Select **Export** to download the figures as an XLSX file.
 
 Two maintenance buttons talk to BioStar:
 
@@ -296,6 +329,8 @@ runs the server to change `TIQR_MODE` there.
 | **Something went wrong on the server.** | Try again in a moment. If it keeps happening, tell your administrator. |
 | **Your session has ended.** | Sign in again. Unsaved form entries may need to be re-entered. |
 | **Tickets not loaded** / **Accounts not loaded** | Select **Refresh**. If the message stays, check the connection. |
+| **Ticket not reissued** | The new end time must be in the future, and the page shows the reason. Check the window and try again. |
+| The **People** field is locked | The ticket's window has ended, so its number of people can no longer change. Reissue it with a new window if needed. |
 | The **Send to printer** option is missing | Server printing is not enabled. Use **Download** or **Print PDF** instead. |
 | A badge does not print | Make sure the ticket is **Issued**, then try **Print PDF** or **Download** and print from your own computer. |
 | Page not found | Use the menu to go back to a page you can access, or select **Back home**. |

@@ -768,6 +768,8 @@ def ticket_save(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> N
                 title=runtime.settings.app_name,
                 theme=runtime.settings.theme,
                 mode=runtime.service.mode,
+                logo=runtime.settings.logo_path,
+                languages=runtime.settings.languages,
             ),
         )
         typer.echo(str(path))
@@ -789,6 +791,8 @@ def ticket_print(ticket_id: Annotated[UUID, typer.Argument()], actor: Actor) -> 
                 title=settings.app_name,
                 theme=settings.theme,
                 mode=runtime.service.mode,
+                logo=settings.logo_path,
+                languages=settings.languages,
             )
             send_to_printer(path)
             return path
@@ -857,7 +861,9 @@ def ticket_reissue(
     timezone: Annotated[str | None, typer.Option("--tz")] = None,
     group_size: Annotated[
         int | None,
-        typer.Option("--group-size", "-g", help="People it admits; until its window ends"),
+        typer.Option(
+            "--group-size", "-g", help="People a group admits (2-100), until its window ends"
+        ),
     ] = None,
 ) -> None:
     """Reissue a ticket in any state, as the same ticket; this is also how it is edited."""

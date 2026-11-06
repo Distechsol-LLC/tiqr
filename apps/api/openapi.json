@@ -3226,7 +3226,7 @@
           "tickets"
         ],
         "summary": "Reissue Ticket",
-        "description": "Reissue a ticket in any state, as the same ticket; this is also how it is edited.\n\nThe ticket returns to issued. The window may be moved; it must end in the future. A ticket's\n`group_size` may change until its current window ends, and its price with it. Send an\n`Idempotency-Key` so a retry is answered from the first attempt.",
+        "description": "Reissue a ticket in any state, as the same ticket; this is also how it is edited.\n\nThe ticket returns to issued. The window may be moved; it must end in the future. A group\nticket's `group_size` may change, from 2 to 100, until its current window ends, and its price\nwith it; a group never becomes one-time, nor a one-time ticket a group. Send an\n`Idempotency-Key` so a retry is answered from the first attempt.",
         "operationId": "reissue_ticket",
         "parameters": [
           {
@@ -3934,6 +3934,25 @@
               "format": "uuid",
               "title": "Ticket Id"
             }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z]{2}(-[A-Za-z]{2})?$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The app's language, such as ru",
+              "title": "Lang"
+            },
+            "description": "The app's language, such as ru"
           }
         ],
         "responses": {
@@ -4032,6 +4051,25 @@
               "format": "uuid",
               "title": "Ticket Id"
             }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z]{2}(-[A-Za-z]{2})?$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The app's language, such as ru",
+              "title": "Lang"
+            },
+            "description": "The app's language, such as ru"
           }
         ],
         "responses": {
@@ -6088,7 +6126,7 @@
               }
             ],
             "title": "Group Size",
-            "description": "Tickets only: the people it now admits, 1 for one-time or more for a group; refused once the current window has ended. Left out, it stays as it is"
+            "description": "Group tickets only: the people it now admits, from 2; a group never becomes one-time, nor a one-time ticket a group, and it is refused once the current window has ended. Left out, it stays as it is"
           }
         },
         "additionalProperties": false,

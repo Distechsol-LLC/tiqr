@@ -109,7 +109,6 @@ const az: Messages = {
     validFromRequired: 'Biletin başlama vaxtını seçin.',
     validUntilBefore: 'Bitmə vaxtı başlama vaxtından əvvəl ola bilməz.',
     validUntilRequired: 'Biletin bitmə vaxtını seçin.',
-    visitorCountInvalid: '1-dən 100-ə qədər tam ədəd daxil edin.',
     visitorNameLong: 'Ziyarətçinin adı çox uzundur.',
     visitorNameRequired: 'Ziyarətçinin adını daxil edin.',
     visitorSubtypeRequired: 'Ziyarətçinin alt növünü seçin.',

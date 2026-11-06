@@ -1,11 +1,13 @@
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
 import qrcode
+from PIL import Image
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
@@ -283,3 +285,47 @@ def test_render_failure_does_not_increment_the_print_count(
         service.print_ticket(actor, ticket.id, tmp_path, renderer=pdf.render_pdf)
     assert service.repository.get_ticket(ticket.id).print_count == 0
     assert not outputs(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("languages", "expected"),
+    [
+        (("en-US", "ru-RU", "az-AZ"), "TICKET TYPE / ТИП БИЛЕТА / BİLET NÖVÜ"),
+        (("kk-KZ",), "БИЛЕТ ТҮРІ"),
+        (("ru-RU", "kk-KZ"), "ТИП БИЛЕТА / БИЛЕТ ТҮРІ"),
+    ],
+)
+def test_ticket_labels_follow_the_install_languages_in_order(
+    ticket, tmp_path, strings, languages, expected
+):
+    group = replace(ticket, usage_type=UsageType.GROUP, group_size=5, ticket_type="Entry")
+    pdf.render_pdf(group, tmp_path, BAKU, mode=Mode.TICKET, languages=languages)
+    drawn = [text for _, text, _ in strings]
+    assert expected in drawn
+    # Only the chosen languages appear, and wrapping never cuts a label short.
+    assert ("TICKET TYPE" in " ".join(drawn)) == ("en-US" in languages)
+    assert not any(text.endswith("…") for text in drawn)
+
+
+def test_ticket_logo_is_the_installs_own_file_or_none(tmp_path):
+    png = tmp_path / "logo.png"
+    Image.new("RGBA", (40, 20), (200, 30, 30, 255)).save(png)
+    logo = pdf._ticket_logo(png)
+    assert logo is not None
+    assert logo.getSize() == (40, 20)
+    built_in = pdf._ticket_logo(None)
+    assert built_in is not None
+    assert built_in.getSize() == Image.open(BytesIO(pdf._asset("images", "tiqr.png"))).size
+    svg = tmp_path / "logo.svg"
+    svg.write_text("<svg xmlns='http://www.w3.org/2000/svg'/>")
+    assert pdf._ticket_logo(svg) is None
+
+
+def test_ticket_prints_without_a_logo_and_with_the_installs_logo(ticket, tmp_path):
+    group = replace(ticket, usage_type=UsageType.GROUP, group_size=2)
+    pdf.render_pdf(group, tmp_path / "bare", BAKU, mode=Mode.TICKET)
+    png = tmp_path / "logo.png"
+    Image.new("RGBA", (40, 20), (0, 0, 0, 255)).save(png)
+    pdf.render_pdf(group, tmp_path / "branded", BAKU, mode=Mode.TICKET, logo=png)
+    assert (tmp_path / "bare" / f"{ticket.id}.pdf").read_bytes().startswith(b"%PDF-")
+    assert (tmp_path / "branded" / f"{ticket.id}.pdf").read_bytes().startswith(b"%PDF-")

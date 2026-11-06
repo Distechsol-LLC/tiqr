@@ -1278,8 +1278,9 @@ class TicketService:
         end in the future; BioStar is told of it and the account is enabled again. If BioStar
         refuses, the ticket stays as it was. Staff, or the operator it is assigned to.
 
-        A ticket (not a badge) may change how many people it admits until its current window
-        ends: one makes it one-time, more a group. Its price follows, per person as issued.
+        A group ticket may change how many people it admits, within a group's bounds, until its
+        current window ends; its price follows, per person as issued. A ticket stays what it was
+        issued as: a group never becomes one-time, nor a one-time ticket a group.
         """
         actor, old = self._holder_ticket(actor, ticket_id)
         try:
@@ -1350,11 +1351,13 @@ class TicketService:
             return ticket.usage_type, ticket.group_size
         if self.mode == Mode.BADGE:
             raise ModeError("Badges are always multi-use, for one person")
+        if ticket.usage_type != UsageType.GROUP:
+            raise ValueError("Only a group ticket can change how many people it admits")
         if ticket.valid_until < self._now():
             raise StateError("The ticket's window has ended, so its visitors can no longer change")
-        if not 1 <= group_size <= MAX_GROUP_SIZE:
-            raise ValueError(f"A ticket admits from 1 to {MAX_GROUP_SIZE} people")
-        return (UsageType.ONE_TIME if group_size == 1 else UsageType.GROUP), group_size
+        if not MIN_GROUP_SIZE <= group_size <= MAX_GROUP_SIZE:
+            raise ValueError(f"A group is from {MIN_GROUP_SIZE} to {MAX_GROUP_SIZE} people")
+        return UsageType.GROUP, group_size
 
     def idempotency_lookup(self, key: str, fingerprint: str) -> StoredResponse | None:
         """The saved answer for `key` if one is live; a different payload under it is a conflict."""

@@ -59,6 +59,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "packaging/**" = ["INP001"]  # the PyInstaller entry script is run, never imported
+"apps/core/src/tiqr/core/pdf.py" = ["RUF001"]  # Cyrillic ticket labels look like Latin
 "tests/**" = [
     "ANN",     # fixtures and tests are not type-checked
     "ARG",     # fixtures are requested for their side effects

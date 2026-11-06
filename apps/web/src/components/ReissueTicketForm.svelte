@@ -15,6 +15,7 @@
   import { mode } from '%/useMode.svelte.ts';
   import {
     GROUP_MAX,
+    GROUP_MIN,
     type Ticket,
     editInputSchema,
     parseVisitorCount,
@@ -48,12 +49,13 @@
     isSubmitted && !validation.success ? z.flattenError(validation.error).fieldErrors : {}
   );
 
-  // A badge is always for one person; a ticket may admit one, or a group
-  const hasVisitors = $derived(!mode.isBadge);
+  // Only a group's people can change; a badge or one-time ticket stays for one person, and a
+  // group never shrinks to one
+  const hasVisitors = $derived(!mode.isBadge && ticket?.usage_type === 'group');
   const count = $derived(parseVisitorCount(visitorCount));
   const countError = $derived(
     isSubmitted && hasVisitors && !isPast && count === null
-      ? i18n.t.errors.visitorCountInvalid
+      ? i18n.t.errors.groupSizeInvalid
       : undefined
   );
   // Only a changed number is sent, so a reissue that leaves it alone never trips the window check
@@ -151,7 +153,7 @@
       inputmode="numeric"
       label={i18n.t.tickets.visitors}
       max={GROUP_MAX}
-      min={1}
+      min={GROUP_MIN}
       required
       strip={COUNT_CHARS}
       bind:value={visitorCount}
