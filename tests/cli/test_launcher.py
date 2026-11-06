@@ -28,9 +28,16 @@ def test_setup_is_needed_until_key_and_database_exist(tmp_path):
     assert not launcher._needs_setup(["user", "list"])
 
 
-@pytest.mark.parametrize("arguments", [["setup"], ["reset"], ["--help"], ["-h"]])
+@pytest.mark.parametrize("arguments", [["setup"], ["reset"], ["install"], ["--help"], ["-h"]])
 def test_setup_and_help_never_trigger_setup(tmp_path, arguments):
     assert not launcher._needs_setup(arguments)
+
+
+def test_install_runs_without_branding_in_the_data_folder(tmp_path, monkeypatch):
+    # A first install has no tiqr_brand.jsonc in TIQR_HOME yet; install copies it there itself.
+    monkeypatch.setenv("TIQR_HOME", str(tmp_path))
+    assert not launcher._needs_setup(["install", "--no-service"])
+    assert not launcher._needs_admin(["install", "--no-service"])
 
 
 def test_unknown_timezone_asks_for_setup_instead_of_crashing(tmp_path, monkeypatch):

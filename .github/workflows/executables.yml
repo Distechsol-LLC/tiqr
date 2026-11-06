@@ -134,7 +134,10 @@ jobs:
           export TIQR_HOME="$(cd "$customer/home" && pwd -W 2>/dev/null || pwd)"
           for file in INSTALL.txt THIRD-PARTY-NOTICES.txt tiqr_brand.jsonc; do test -s "$file"; done
           if [ "$RUNNER_OS" = "Windows" ]; then test -f install.cmd; test -f tiqr-service.exe; test -s tiqr-health.ps1; else test -x install.sh; test -s tiqr-health.sh; fi
-          exe=$(ls tiqr tiqr.exe 2>/dev/null | head -1)
+          # ls exits 2 when one of the two names is missing, which pipefail would turn into a failed step.
+          exe=""
+          for candidate in tiqr tiqr.exe; do if [ -f "$candidate" ]; then exe="$candidate"; break; fi; done
+          test -n "$exe"
           # The service and firewall steps need a real host; everything else runs as installed.
           ./"$exe" install --no-service --no-firewall --host 127.0.0.1 --port 8766 > install.log
           cat install.log
