@@ -48,12 +48,19 @@ jobs:
           smoke="$RUNNER_TEMP/smoke"
           mkdir "$smoke"
           cp dist/tiqr* "$smoke/"
-          # The executable refuses to run without its branding file beside it.
+          # The executable refuses to run without its branding file in its data folder.
           cp tiqr_brand.jsonc "$smoke/"
           # Named explicitly: once setup creates tiqr_ticket.db, a tiqr* glob would match it too.
           exe=$(basename dist/tiqr*)
           cd "$smoke"
+          # Frozen builds keep their data in /var/lib/tiqr or ProgramData unless TIQR_HOME says
+          # otherwise, so point this run at the fresh folder, as an installed service does. On
+          # Git Bash, pwd -W gives the Windows form of the path, which Python needs.
+          export TIQR_HOME="$(pwd -W 2>/dev/null || pwd)"
+          echo "TIQR_HOME=$TIQR_HOME"
           ./"$exe" --help > /dev/null
+          # Setup writes the signing key to .env.local and creates the database; commands need both.
+          ./"$exe" setup
           ./"$exe" user list
           test -f .env.local
           # Renders a badge, so the fonts, logos and ReportLab are known to be bundled.
@@ -122,6 +129,9 @@ jobs:
             tar -C "$customer" -xzf "release/$name.tar.gz"
           fi
           cd "$customer/$name"
+          # The install writes its data to TIQR_HOME; keep it in a folder of its own, not /var/lib or ProgramData.
+          mkdir "$customer/home"
+          export TIQR_HOME="$(cd "$customer/home" && pwd -W 2>/dev/null || pwd)"
           for file in INSTALL.txt THIRD-PARTY-NOTICES.txt tiqr_brand.jsonc; do test -s "$file"; done
           if [ "$RUNNER_OS" = "Windows" ]; then test -f install.cmd; test -f tiqr-service.exe; test -s tiqr-health.ps1; else test -x install.sh; test -s tiqr-health.sh; fi
           exe=$(ls tiqr tiqr.exe 2>/dev/null | head -1)
