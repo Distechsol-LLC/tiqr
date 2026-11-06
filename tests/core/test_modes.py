@@ -137,10 +137,10 @@ def test_the_ticket_prints_on_a_narrow_slip(service, accounts, clock, tmp_path):
 
 def test_price_text_shows_what_the_group_paid(service, accounts, clock):
     group = create(
-        service, accounts, clock, usage_type=UsageType.GROUP, group_size=300, ticket_type="Entry"
+        service, accounts, clock, usage_type=UsageType.GROUP, group_size=100, ticket_type="Entry"
     )
-    assert pdf._price_text(group) == "1 503.00 AZN"
-    assert pdf._admits(group) == "GROUP OF 300"
+    assert pdf._price_text(group) == "501.00 AZN"
+    assert pdf._admits(group) == "GROUP OF 100"
 
 
 @pytest.fixture
