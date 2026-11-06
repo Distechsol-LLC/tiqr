@@ -19,7 +19,7 @@ from tiqr.core.languages import (
     parse_currencies,
     parse_languages,
 )
-from tiqr.core.models import Currency
+from tiqr.core.models import Currency, Mode
 from tiqr.core.qr import DEFAULT_PREFIX, validate_prefix
 
 
@@ -50,9 +50,15 @@ ENV_FILES = (".env", LOCAL_ENV_FILE)
 # Name, logo, theme and languages. Required beside the executable: the program does not run without.
 BRANDING_FILE = "tiqr_brand.jsonc"
 SESSION_FILE = ".tiqr-session.json"
-# Fixed names, beside the executable: not settings, so nothing can point them elsewhere.
-DATABASE_FILE = "tiqr.db"
+# Fixed names, beside the executable: not settings, so nothing can point them elsewhere. Each mode
+# keeps its own database; the single database of earlier releases becomes the ticket one.
+DATABASE_FILES = {Mode.TICKET: "tiqr_ticket.db", Mode.BADGE: "tiqr_badge.db"}
+DATABASE_FILE = DATABASE_FILES[Mode.TICKET]
+LEGACY_DATABASE_FILE = "tiqr.db"
+# SQLite's companion files, which move with their database.
+_DATABASE_SIDECARS = ("", "-wal", "-shm", "-journal")
 OUTPUT_DIR = "out"
+DEFAULT_MODE = Mode.TICKET
 
 _PLACEHOLDER_SECRETS = frozenset(
     {
@@ -343,9 +349,54 @@ def discard_access_group_id(path: Path | None = None) -> bool:
     )
 
 
-def database_path() -> Path:
-    """The database's location, which needs no valid signing key to find."""
-    return PROJECT_ROOT / DATABASE_FILE
+def database_path(mode: Mode = DEFAULT_MODE, root: Path | None = None) -> Path:
+    """The mode's database, which needs no valid signing key to find."""
+    return (root or PROJECT_ROOT) / DATABASE_FILES[Mode(mode)]
+
+
+def database_paths(root: Path | None = None) -> tuple[Path, ...]:
+    """Every database this install may hold, each mode's and the legacy one, with sidecars."""
+    root = root or PROJECT_ROOT
+    names = (*DATABASE_FILES.values(), LEGACY_DATABASE_FILE)
+    return tuple(root / f"{name}{suffix}" for name in names for suffix in _DATABASE_SIDECARS)
+
+
+def adopt_legacy_database(root: Path | None = None) -> bool:
+    """Rename the single tiqr.db of earlier releases to the ticket database; report whether.
+
+    Left alone once a ticket database exists, so nothing is ever overwritten.
+    """
+    root = root or PROJECT_ROOT
+    legacy, ticket = root / LEGACY_DATABASE_FILE, database_path(Mode.TICKET, root)
+    if not legacy.is_file() or ticket.exists():
+        return False
+    for suffix in _DATABASE_SIDECARS:
+        source = root / f"{LEGACY_DATABASE_FILE}{suffix}"
+        if source.exists():
+            source.replace(root / f"{ticket.name}{suffix}")
+    return True
+
+
+def _mode(environment: Mapping[str, str]) -> Mode:
+    value = environment.get("TIQR_MODE", "").strip().lower()
+    if not value:
+        return DEFAULT_MODE
+    try:
+        return Mode(value)
+    except ValueError:
+        raise ValueError(
+            f"TIQR_MODE must be one of {', '.join(mode.value for mode in Mode)}"
+        ) from None
+
+
+def write_mode(mode: Mode, path: Path | None = None) -> bool:
+    """Save the mode in the local env file, for the next start; report whether it changed."""
+    return write_local_settings({"TIQR_MODE": Mode(mode).value}, path)
+
+
+def mode_pinned() -> bool:
+    """Whether a real environment variable sets the mode, which a saved one cannot override."""
+    return bool(os.environ.get("TIQR_MODE", "").strip())
 
 
 def session_path() -> Path:
@@ -494,6 +545,7 @@ class Settings:
     theme: str = DEFAULT_THEME
     languages: tuple[str, ...] = DEFAULT_LANGUAGES
     currencies: tuple[Currency, ...] = DEFAULT_CURRENCIES
+    mode: Mode = DEFAULT_MODE
 
     def __post_init__(self) -> None:
         validate_secret(self.secret_key)
@@ -521,9 +573,10 @@ class Settings:
         if _biostar_flag(environment, "REQUIRED", default=False) and biostar is None:
             raise ValueError("TIQR_BIOSTAR_REQUIRED is true but BioStar is not configured")
         branding = load_branding()
+        mode = _mode(environment)
         return cls(
             secret_key=environment.get("TIQR_SECRET_KEY", ""),
-            database_path=database_path(),
+            database_path=database_path(mode),
             output_dir=PROJECT_ROOT / OUTPUT_DIR,
             default_tz=_default_timezone(environment),
             prefix=_prefix(environment),
@@ -533,4 +586,5 @@ class Settings:
             theme=_branding_text(branding, "theme").lower(),
             languages=_branding_languages(branding),
             currencies=_branding_currencies(branding),
+            mode=mode,
         )

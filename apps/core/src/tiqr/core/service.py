@@ -5,7 +5,7 @@ import re
 import secrets
 import threading
 from collections import Counter
-from collections.abc import Callable, Collection, Generator
+from collections.abc import Callable, Collection, Generator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import replace
@@ -51,12 +51,15 @@ from tiqr.core.license import (
 from tiqr.core.localtime import day_start, zone
 from tiqr.core.models import (
     DEFAULT_TENANT,
+    MAX_GROUP_SIZE,
+    MIN_GROUP_SIZE,
     AccessEvent,
     ActiveHours,
     ApiKey,
     AuditEntry,
     Currency,
     LicenseRecord,
+    Mode,
     Outcome,
     RawEvent,
     Role,
@@ -72,6 +75,7 @@ from tiqr.core.models import (
 )
 from tiqr.core.ports import Clock, EventSource, PdfRenderer, Registrar, Repository
 from tiqr.core.qr import DEFAULT_PREFIX, build_payload, make_serial, validate_prefix
+from tiqr.core.repository import SQLiteRepository
 from tiqr.core.settings import BioStarSettings, validate_secret
 
 _ADMINS = frozenset({Role.ADMIN})
@@ -131,9 +135,12 @@ def _matches(ticket: Ticket, needle: str) -> bool:
 
 
 def _counts(tickets: list[Ticket]) -> Counts:
-    states = Counter(ticket.state for ticket in tickets)
+    # A group ticket counts once per person it admits, so ten people read as ten tickets.
+    states: Counter[TicketState] = Counter()
+    for ticket in tickets:
+        states[ticket.state] += ticket.group_size
     return Counts(
-        total=len(tickets),
+        total=sum(ticket.group_size for ticket in tickets),
         issued=states[TicketState.ISSUED],
         passed=states[TicketState.PASSED],
         expired=states[TicketState.EXPIRED],
@@ -168,6 +175,10 @@ class InvalidStateError(StateError):
 
 class OutsideActiveHoursError(StateError):
     code = "outside_active_hours"
+
+
+class ModeError(ValueError):
+    """Something the install's mode does not offer, such as a price on a badge."""
 
 
 class CredentialFormatError(ValueError):
@@ -247,6 +258,7 @@ class TicketService:
         license_public_key: str = PUBLIC_KEY,
         tenant: str = DEFAULT_TENANT,
         timezone: str = "UTC",
+        mode: Mode = Mode.TICKET,
     ) -> None:
         validate_secret(secret_key)
         validate_prefix(prefix)
@@ -267,6 +279,9 @@ class TicketService:
         self.on_passage: Callable[[AccessEvent], None] | None = None
         # The swappable BioStar connection, set by `open_service`; None where none is managed.
         self.biostar_link: BioStarLink | None = None
+        # Badges or tickets; `mode_switch` moves the service between their databases.
+        self.mode = Mode(mode)
+        self.mode_switch: ModeSwitch | None = None
 
     def _now(self) -> datetime:
         return utc(self._clock())
@@ -548,6 +563,10 @@ class TicketService:
     def require_admin(self, actor: User) -> None:
         self._require(self._actor(actor), _ADMINS)
 
+    def record_mode_switch(self, actor: User, source: str, target: str) -> None:
+        """Audit a mode switch in the database switched to, which serves from now on."""
+        self._record(self._actor(actor), "mode.switch", detail=f"{self.mode}: {source} -> {target}")
+
     def recent_events(self, actor: User, limit: int) -> list[AccessEvent]:
         """The newest scans the door readers reported, by time (admin)."""
         self.require_admin(actor)
@@ -709,6 +728,7 @@ class TicketService:
     ) -> TicketType:
         """Add a ticket type costing `price` minor units of `currency`. Admins and managers."""
         self._require(self._actor(actor), _STAFF)
+        self._require_priced()
         ticket_type = TicketType(uuid4(), _clean_name(name), price, currency)
         with self.repository.transaction():
             if self.repository.ticket_type_by_name(ticket_type.name):
@@ -727,6 +747,7 @@ class TicketService:
     ) -> TicketType:
         """Rename a ticket type, or change its price or currency. Issued tickets keep theirs."""
         self._require(self._actor(actor), _STAFF)
+        self._require_priced()
         if name is None and price is None and currency is None:
             raise ValueError("Nothing to change")
         with self.repository.transaction():
@@ -761,6 +782,8 @@ class TicketService:
     def create_visitor_type(self, actor: User, name: str, discount_percent: int = 0) -> VisitorType:
         """Add a visitor type whose tickets cost `discount_percent` per cent less."""
         self._require(self._actor(actor), _STAFF)
+        if discount_percent:
+            self._require_priced()
         visitor_type = VisitorType(uuid4(), _clean_name(name), discount_percent)
         with self.repository.transaction():
             if self.repository.visitor_type_by_name(visitor_type.name):
@@ -778,6 +801,8 @@ class TicketService:
     ) -> VisitorType:
         """Rename a visitor type or change its discount. Tickets already issued keep theirs."""
         self._require(self._actor(actor), _STAFF)
+        if discount_percent:
+            self._require_priced()
         if name is None and discount_percent is None:
             raise ValueError("Nothing to change")
         with self.repository.transaction():
@@ -803,19 +828,47 @@ class TicketService:
                 raise NotFoundError("Visitor type not found")
             self.repository.delete_visitor_type(type_id)
 
+    def _require_priced(self) -> None:
+        if self.mode == Mode.BADGE:
+            raise ModeError("Badges have no ticket types, prices or discounts")
+
     def _priced_ticket_type(self, ticket_type: str | None) -> TicketType | None:
         if ticket_type is None:
             return None
+        self._require_priced()
         priced = self.repository.ticket_type_by_name(ticket_type.strip())
         if priced is None:
             raise ValueError("Unknown ticket type")
         return priced
 
+    def _admission(
+        self, visitor_name: str, usage_type: UsageType, group_size: int
+    ) -> tuple[str, UsageType, int]:
+        """The name, usage and group size the mode allows, or `ModeError`.
+
+        A badge names its visitor and is always multi-use. A ticket names no one, so a name sent
+        is dropped, and admits once, or once per person of a group.
+        """
+        usage = UsageType(usage_type)
+        if self.mode == Mode.BADGE:
+            if not visitor_name.strip():
+                raise ValueError("Visitor name and type are required")
+            if usage != UsageType.MULTI_USE or group_size != 1:
+                raise ModeError("Badges are always multi-use, for one person")
+            return visitor_name.strip(), usage, 1
+        if usage == UsageType.MULTI_USE:
+            raise ModeError("Tickets are one-time or for a group")
+        if usage == UsageType.GROUP and not MIN_GROUP_SIZE <= group_size <= MAX_GROUP_SIZE:
+            raise ValueError(f"A group is from {MIN_GROUP_SIZE} to {MAX_GROUP_SIZE} people")
+        if usage == UsageType.ONE_TIME and group_size != 1:
+            raise ModeError("Only a group ticket admits more than one person")
+        return "", usage, group_size
+
     def create_ticket(  # noqa: PLR0913 - a ticket's definition is its own arguments
         self,
         actor: User,
         *,
-        visitor_name: str,
+        visitor_name: str = "",
         visitor_type: str,
         valid_from: datetime,
         valid_until: datetime,
@@ -823,14 +876,17 @@ class TicketService:
         ticket_type: str | None = None,
         external_code: str | None = None,
         event_session: str | None = None,
+        group_size: int = 1,
     ) -> Ticket:
-        """Issue a ticket. Naming a catalog `ticket_type` prices it, and the `visitor_type` must be
-        one from the catalog; its discount comes off that price.
+        """Issue a ticket, or a badge in badge mode. Naming a catalog `ticket_type` prices it, and
+        the `visitor_type` must be one from the catalog; its discount comes off that price, which
+        a group pays once per person. See `_admission` for what each mode allows.
         """
         actor = self._actor(actor)
         start, end, now = utc(valid_from), utc(valid_until), self._now()
-        if not visitor_name.strip() or not visitor_type.strip():
+        if not visitor_type.strip():
             raise ValueError("Visitor name and type are required")
+        visitor_name, usage, group_size = self._admission(visitor_name, usage_type, group_size)
         if end < start or end < now:
             raise ValueError("Access window is reversed or already expired")
         if start.microsecond or end.microsecond:
@@ -856,22 +912,24 @@ class TicketService:
             external_id=None,
             qr_payload=build_payload(serial, self.secret_key, self.prefix),
             readable_serial=serial,
-            visitor_name=visitor_name.strip(),
+            visitor_name=visitor_name,
             visitor_type=known.name,
             valid_from=start,
             valid_until=end,
-            usage_type=UsageType(usage_type),
+            usage_type=usage,
             state=TicketState.ISSUED,
             created_by=actor.id,
             assigned_operator=actor.id,
             created_at=now,
             ticket_type=priced.name if priced else None,
             base_price=priced.price if priced else None,
-            discount_percent=known.discount_percent,
+            # Badges carry no price, so no discount either, whatever the catalog held.
+            discount_percent=0 if self.mode == Mode.BADGE else known.discount_percent,
             currency=priced.currency if priced else None,
             external_code=code,
             tenant_id=self.tenant,
             event_session=(event_session or "").strip() or None,
+            group_size=group_size,
         )
         external_id = self.registrar.register(ticket)
         if not external_id:
@@ -1011,8 +1069,9 @@ class TicketService:
     ) -> Ticket:
         with self.repository.transaction():
             ticket = self._read_ticket(ticket_id)
+            # Passed and still admitting: multi-use, or a group with people still to come.
             usable = ticket.state == TicketState.ISSUED or (
-                ticket.state == TicketState.PASSED and ticket.usage_type == UsageType.MULTI_USE
+                ticket.state == TicketState.PASSED and not ticket.is_spent
             )
             if not usable:
                 raise InvalidStateError(f"A {ticket.state} ticket cannot be changed")
@@ -1315,7 +1374,7 @@ class TicketService:
         if renderer is None:
             from tiqr.core.pdf import render_pdf  # noqa: PLC0415 - ReportLab is slow to import
 
-            renderer = render_pdf
+            renderer = partial(render_pdf, mode=self.mode)
         with self.repository.transaction():
             ticket = self._require_printable(actor, self._read_ticket(ticket_id))
             path = renderer(ticket, output_dir, timezone)
@@ -1338,10 +1397,11 @@ class TicketService:
 
     def _record_use(self, ticket: Ticket, occurred_at: datetime) -> Ticket:
         if ticket.state == TicketState.ISSUED:
-            if ticket.usage_type == UsageType.ONE_TIME and ticket.external_id is not None:
-                self.registrar.deactivate(ticket.external_id)
             ticket = replace(self._transition(ticket, TicketState.PASSED), passed_at=occurred_at)
         ticket = replace(ticket, use_count=ticket.use_count + 1)
+        # The pass that spends a one-time or group ticket also shuts it in BioStar, before saving.
+        if ticket.is_spent and ticket.external_id is not None:
+            self.registrar.deactivate(ticket.external_id)
         self.repository.save_ticket(ticket)
         return ticket
 
@@ -1456,6 +1516,70 @@ class TicketService:
             },
             ticket_types=_by_ticket_type(tickets),
         )
+
+
+class ModeSwitch:
+    """The service's database for each mode; switching moves the service onto the other one.
+
+    Each database opened stays open until `close`, so a request still running on the one left
+    behind finishes there. A switch first copies the shared accounts, sessions, keys, license,
+    hours and counters into the target (see `SQLiteRepository.mirror_shared`), so whoever is
+    signed in stays signed in.
+    """
+
+    def __init__(
+        self, paths: Mapping[Mode, Path], save: Callable[[Mode], object] | None = None
+    ) -> None:
+        self.paths = {Mode(mode): Path(path) for mode, path in paths.items()}
+        self.save = save
+        self.service: TicketService | None = None
+        self._repositories: dict[Mode, SQLiteRepository] = {}
+        self._lock = threading.Lock()
+
+    def open(self, mode: Mode) -> SQLiteRepository:
+        """The mode's database, created and migrated when new; refused when out of date."""
+        mode = Mode(mode)
+        repository = self._repositories.get(mode)
+        if repository is None:
+            repository = SQLiteRepository(self.paths[mode])
+            try:
+                repository.initialize()
+            except Exception:
+                repository.close()
+                raise
+            self._repositories[mode] = repository
+        return repository
+
+    def switch(self, actor: User, mode: Mode) -> Mode:
+        """Make `mode` the service's, for an admin; saving it so the next start keeps it."""
+        service = self.service
+        if service is None:
+            raise RuntimeError("The switch is not bound to a service")
+        service.require_admin(actor)
+        mode = Mode(mode)
+        with self._lock:
+            if mode == service.mode:
+                return mode
+            source = service.repository
+            if not isinstance(source, SQLiteRepository):
+                raise TypeError("Only a SQLite database can be switched")
+            target = self.open(mode)
+            target.mirror_shared(source)
+            if self.save is not None:
+                self.save(mode)
+            service.repository = target
+            # The BioStar adapters keep registrations and the sync cursor in the same database.
+            for adapter in (service.registrar, service.event_source):
+                if isinstance(adapter, BioStarXRegistrar | BioStarXEventSource):
+                    adapter.repository = target
+            service.mode = mode
+            service.record_mode_switch(actor, source.path, target.path)
+        return mode
+
+    def close(self) -> None:
+        for repository in self._repositories.values():
+            repository.close()
+        self._repositories.clear()
 
 
 class BioStarLink:

@@ -3,16 +3,21 @@ import { afterEach, beforeEach, describe, expect, test as it } from 'bun:test';
 import { az } from '@/locales/az.ts';
 import { en } from '@/locales/en.ts';
 import { i18n } from '%/useLocale.svelte.ts';
-import { ticketInputSchema, ticketSchema } from '$/tickets.ts';
+import { parseTicketInput, ticketSchema } from '$/tickets.ts';
 import { ticket } from '../__mocks__/api.ts';
 
-const input = {
-  usage_type: 'multi_use',
+// What the form holds; each mode reads the fields it has
+const fields = {
+  group_size: '',
+  ticket_type: '',
+  usage_type: 'one_time',
   valid_from: '2030-06-01T09:00',
   valid_until: '2030-06-01T09:00',
   visitor_name: '  Ada  ',
   visitor_type: 'Guest',
 };
+
+const badge = { ...fields, usage_type: 'multi_use' };
 
 describe('tickets', () => {
   beforeEach(() => {
@@ -27,27 +32,67 @@ describe('tickets', () => {
     expect(ticketSchema.safeParse(ticket).success).toBeTrue();
   });
 
-  it('accepts a one-instant window and trims names', () => {
-    expect(ticketInputSchema.parse(input).visitor_name).toBe('Ada');
+  it('reads one person for a ticket from before group tickets', () => {
+    const { group_size: _, ...older } = ticket;
+
+    expect(ticketSchema.parse(older).group_size).toBe(1);
+  });
+
+  it("accepts a one-instant window and trims a badge holder's name", () => {
+    const result = parseTicketInput('badge', badge);
+
+    expect(result.ok && 'visitor_name' in result.data && result.data.visitor_name).toBe('Ada');
   });
 
   it('refuses a reversed window', () => {
-    const result = ticketInputSchema.safeParse({ ...input, valid_until: '2030-06-01T08:59' });
+    const result = parseTicketInput('badge', { ...badge, valid_until: '2030-06-01T08:59' });
 
-    expect(result.error?.issues[0]?.message).toBe(en.errors.validUntilBefore);
+    expect(result.ok ? null : result.errors.valid_until).toEqual([en.errors.validUntilBefore]);
   });
 
-  it('refuses a blank visitor name', () => {
-    const result = ticketInputSchema.safeParse({ ...input, visitor_name: '   ' });
+  it('refuses a badge without a visitor name', () => {
+    const result = parseTicketInput('badge', { ...badge, visitor_name: '   ' });
 
-    expect(result.error?.issues[0]?.message).toBe(en.errors.visitorNameRequired);
+    expect(result.ok ? null : result.errors.visitor_name).toEqual([en.errors.visitorNameRequired]);
+  });
+
+  it('only issues multi-use badges', () => {
+    expect(parseTicketInput('badge', fields).ok).toBeFalse();
+  });
+
+  it('sends a ticket without a name, for one person', () => {
+    const result = parseTicketInput('ticket', fields);
+
+    expect(result.ok && result.data).toEqual({
+      group_size: 1,
+      usage_type: 'one_time',
+      valid_from: '2030-06-01T09:00',
+      valid_until: '2030-06-01T09:00',
+      visitor_type: 'Guest',
+    });
+  });
+
+  it('sends a group ticket with its size', () => {
+    const result = parseTicketInput('ticket', { ...fields, group_size: '10', usage_type: 'group' });
+
+    expect(result.ok && 'group_size' in result.data && result.data.group_size).toBe(10);
+  });
+
+  it.each(['', '1', '101', '2.5'])('refuses a group of %p', (size) => {
+    const result = parseTicketInput('ticket', { ...fields, group_size: size, usage_type: 'group' });
+
+    expect(result.ok ? null : result.errors.group_size).toEqual([en.errors.groupSizeInvalid]);
+  });
+
+  it('never issues a multi-use ticket', () => {
+    expect(parseTicketInput('ticket', badge).ok).toBeFalse();
   });
 
   it('words refusals in the language showing at parse time', () => {
     i18n.set('az');
 
-    const result = ticketInputSchema.safeParse({ ...input, visitor_name: '   ' });
+    const result = parseTicketInput('badge', { ...badge, visitor_name: '   ' });
 
-    expect(result.error?.issues[0]?.message).toBe(az.errors.visitorNameRequired);
+    expect(result.ok ? null : result.errors.visitor_name).toEqual([az.errors.visitorNameRequired]);
   });
 });

@@ -267,6 +267,77 @@ INSERT INTO active_hours_rebuilt (id, starts, ends) SELECT id, starts, ends FROM
 DROP TABLE active_hours;
 ALTER TABLE active_hours_rebuilt RENAME TO active_hours
 """
+# Group tickets: a usage type, and how many people one ticket admits. SQLite cannot change a CHECK,
+# so `tickets` is rebuilt, as in _REVOCATION; dropping it drops its index, which is made again.
+_TICKETS_V12 = (
+    _TICKETS_V7.format(states=_STATES_V8)
+    + """,
+    external_code TEXT, tenant_id TEXT NOT NULL DEFAULT 'default', event_session TEXT"""
+)
+_COLUMNS_V12 = f"{_COLUMNS_V7}, external_code, tenant_id, event_session"
+_EXTERNAL_CODE_INDEX = """
+CREATE UNIQUE INDEX tickets_external_code ON tickets(tenant_id, external_code)
+    WHERE external_code IS NOT NULL"""
+_GROUPS = f"""
+CREATE TABLE tickets_rebuilt ({
+    _TICKETS_V12.replace("'one_time','multi_use'", "'one_time','multi_use','group'")
+},
+    group_size INTEGER NOT NULL DEFAULT 1 CHECK(group_size >= 1)
+);
+INSERT INTO tickets_rebuilt ({_COLUMNS_V12}) SELECT {_COLUMNS_V12} FROM tickets;
+DROP TABLE tickets;
+ALTER TABLE tickets_rebuilt RENAME TO tickets;
+{_EXTERNAL_CODE_INDEX}
+"""  # noqa: S608 - built from the constants above, not input
+# Undoing it: a group ticket reads as multi-use, which admits on, and its size goes with its column.
+_GROUPS_DOWN = f"""
+CREATE TABLE tickets_rebuilt ({_TICKETS_V12});
+INSERT INTO tickets_rebuilt ({_COLUMNS_V12}) SELECT {
+    _COLUMNS_V12.replace(
+        "usage_type,", "CASE usage_type WHEN 'group' THEN 'multi_use' ELSE usage_type END,"
+    )
+} FROM tickets;
+DROP TABLE tickets;
+ALTER TABLE tickets_rebuilt RENAME TO tickets;
+{_EXTERNAL_CODE_INDEX}
+"""  # noqa: S608 - built from the constants above, not input
+
+# What both modes' databases share: who may sign in, their sessions and keys, the license, and the
+# hours. The active database is the authority, so a mode switch copies these into the other one.
+# Accounts deleted from the source go, unless the target's tickets still name them; those stay,
+# deactivated, and step aside if the source has since given their name to someone else. Both modes
+# register in the same BioStar, so their serials (and with them the QR codes) and BioStar user IDs
+# carry on from the higher of the two counters, and never repeat.
+_MIRROR = """
+DELETE FROM main.users WHERE id NOT IN (SELECT id FROM source.users)
+    AND id NOT IN (SELECT created_by FROM main.tickets)
+    AND id NOT IN (SELECT assigned_operator FROM main.tickets);
+UPDATE main.users SET username = username || '~' || substr(id, 1, 8)
+    WHERE id NOT IN (SELECT id FROM source.users)
+    AND username IN (SELECT username FROM source.users);
+UPDATE main.users SET active = 0, role = CASE role WHEN 'admin' THEN 'manager' ELSE role END
+    WHERE id NOT IN (SELECT id FROM source.users);
+INSERT INTO main.users (id, username, password_hash, role, active)
+    SELECT id, username, password_hash, role, active FROM source.users WHERE true
+    ON CONFLICT(id) DO UPDATE SET username=excluded.username,
+    password_hash=excluded.password_hash, role=excluded.role, active=excluded.active;
+DELETE FROM main.web_sessions;
+INSERT INTO main.web_sessions
+    (token_hash, user_id, csrf_token, created_at, last_seen_at, expires_at)
+    SELECT token_hash, user_id, csrf_token, created_at, last_seen_at, expires_at
+    FROM source.web_sessions;
+DELETE FROM main.api_keys;
+INSERT INTO main.api_keys (id, name, key_hash, user_id, scopes, created_at, expires_at, revoked_at,
+    replaced_by) SELECT id, name, key_hash, user_id, scopes, created_at, expires_at, revoked_at,
+    replaced_by FROM source.api_keys;
+DELETE FROM main.licenses;
+INSERT INTO main.licenses (id, license_key, is_active, activated_at, expires_at, licensed_to)
+    SELECT id, license_key, is_active, activated_at, expires_at, licensed_to FROM source.licenses;
+DELETE FROM main.active_hours;
+INSERT INTO main.active_hours (id, starts, ends) SELECT id, starts, ends FROM source.active_hours;
+INSERT INTO main.sequences (name, value) SELECT name, value FROM source.sequences WHERE true
+    ON CONFLICT(name) DO UPDATE SET value=max(value, excluded.value)
+"""
 
 
 def _statements(script: str) -> tuple[str, ...]:
@@ -291,6 +362,7 @@ _MIGRATIONS = tuple(
         _PASSAGES,
         _ACTIVE_HOURS,
         _ACTIVE_HOURS_DEFAULT,
+        _GROUPS,
     )
 )
 # Reversal N undoes step N, taking version N to N - 1. Steps 1 to 7 predate reversals and are not
@@ -301,6 +373,7 @@ _REVERSALS = {
     10: _statements(_PASSAGES_DOWN),
     11: _statements(_ACTIVE_HOURS_DOWN),
     12: _statements(_ACTIVE_HOURS_DEFAULT_DOWN),
+    13: _statements(_GROUPS_DOWN),
 }
 OLDEST_REVERSIBLE = min(_REVERSALS) - 1
 SCHEMA_VERSION = len(_MIGRATIONS)
@@ -376,6 +449,7 @@ def _ticket(row: sqlite3.Row) -> Ticket:
         external_code=row["external_code"],
         tenant_id=row["tenant_id"],
         event_session=row["event_session"],
+        group_size=row["group_size"],
     )
 
 
@@ -474,6 +548,7 @@ def _registration(row: sqlite3.Row) -> Registration:
 class SQLiteRepository(Repository):
     def __init__(self, path: Path | str = Path("tiqr.db")) -> None:
         location = str(path)
+        self.path = location
         if location != ":memory:":
             Path(location).parent.mkdir(parents=True, exist_ok=True)
         self._connection = sqlite3.connect(location, timeout=30, check_same_thread=False)
@@ -564,6 +639,27 @@ class SQLiteRepository(Repository):
 
     def close(self) -> None:
         self._connection.close()
+
+    def mirror_shared(self, source: SQLiteRepository) -> None:
+        """Copy the accounts, sessions, keys, license, hours and counters `source` holds.
+
+        Both databases must be on the current schema. Holds `source`'s lock, so no request on it
+        changes it halfway, and runs in one transaction, so a failure leaves this one as it was.
+        The transaction also takes `source`'s write lock, so `source` must not hold one itself.
+        """
+        if ":memory:" in (source.path, self.path) or source.path == self.path:
+            raise ValueError("Mirroring needs two database files")
+        with source._lock, self._lock:
+            # ATTACH cannot run inside a transaction, so it brackets this one's.
+            self._connection.execute("ATTACH DATABASE ? AS source", (source.path,))
+            try:
+                with self.transaction():
+                    for statement in _statements(_MIRROR):
+                        self._connection.execute(statement)
+                    if self._connection.execute("PRAGMA main.foreign_key_check").fetchone():
+                        raise ValueError("Mirroring would orphan rows")
+            finally:
+                self._connection.execute("DETACH DATABASE source")
 
     @contextmanager
     def transaction(self) -> Generator[None]:

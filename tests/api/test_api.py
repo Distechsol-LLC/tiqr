@@ -12,7 +12,7 @@ from tiqr.api.maintenance import Maintenance
 from tiqr.core.auth import WEB_SESSION_IDLE
 from tiqr.core.biostar import BioStarError
 from tiqr.core.license import parse_request_code
-from tiqr.core.models import RawEvent
+from tiqr.core.models import Mode, RawEvent
 from tiqr.core.printer import PrinterError
 
 PASSWORD = "correct-password"
@@ -225,10 +225,12 @@ def test_ticket_lifecycle_through_the_api(client, accounts):
     assert client.get(f"/api/tickets/{ticket_id}").json()["print_count"] == 1
 
 
-def test_search_narrows_the_list_on_the_server(client):
+def test_search_narrows_the_list_on_the_server(client, service):
     login(client)
-    ada = create_ticket(client, visitor_name="Ada Lovelace")["id"]
-    grace = create_ticket(client, visitor_name="Grace Hopper")["id"]
+    # Only badges carry a visitor's name.
+    service.mode = Mode.BADGE
+    ada = create_ticket(client, visitor_name="Ada Lovelace", usage_type="multi_use")["id"]
+    grace = create_ticket(client, visitor_name="Grace Hopper", usage_type="multi_use")["id"]
 
     def found(**params):
         return {
@@ -257,7 +259,9 @@ def test_explicit_offsets_and_timezones_are_honored(client):
         ({"valid_from": "tomorrow"}, "ISO datetime"),
         ({"valid_until": "2026-09-17T12:00"}, "reversed or already expired"),
         ({"valid_from": "2026-09-17T13:00:00.5"}, "whole-second"),
-        ({"visitor_name": " "}, "required"),
+        ({"visitor_type": " "}, "required"),
+        ({"usage_type": "multi_use"}, "one-time or for a group"),
+        ({"usage_type": "group"}, "A group is from 2"),
         ({"timezone": "Mars/Base"}, "Unknown timezone"),
     ],
 )

@@ -184,7 +184,7 @@ def test_a_refused_create_can_be_retried_under_the_same_key(admin):
 
 
 def test_batch_partial_success_reports_each_item(admin):
-    items = [ticket_body(), ticket_body(visitor_name=" "), ticket_body(external_code="B")]
+    items = [ticket_body(), ticket_body(usage_type="multi_use"), ticket_body(external_code="B")]
     response = admin.post("/api/tickets/batch", json={"items": items})
     body = response.json()
     assert response.status_code == 200
@@ -196,7 +196,7 @@ def test_batch_partial_success_reports_each_item(admin):
 
 
 def test_batch_all_or_nothing_undoes_the_created_items(admin, registrar):
-    items = [ticket_body(), ticket_body(visitor_name=" "), ticket_body(external_code="C")]
+    items = [ticket_body(), ticket_body(usage_type="multi_use"), ticket_body(external_code="C")]
     body = admin.post("/api/tickets/batch", json={"items": items, "atomic": True}).json()
     assert [r["status"] for r in body["results"]] == ["rolled_back", "error", "skipped"]
     assert (body["committed"], body["created"]) == (False, 0)

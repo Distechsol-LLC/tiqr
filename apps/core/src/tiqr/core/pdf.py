@@ -1,4 +1,6 @@
-"""Render a visitor badge as a foldable A4 sheet.
+"""Render a visitor badge as a foldable A4 sheet, or a ticket on a small cut slip.
+
+Badge mode prints the badge; ticket mode prints the ticket, described under `_draw_ticket`.
 
 The badge is the left half of the sheet, cut off along the vertical line and folded in half
 horizontally into a two-layer A6 badge. Two holes are punched through both layers at the top.
@@ -33,7 +35,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen.canvas import Canvas
 
-from tiqr.core.models import Ticket
+from tiqr.core.models import Currency, Mode, Ticket, UsageType
 
 _FONT = "TiQR-Geist"
 _PAGE_WIDTH, _PAGE_HEIGHT = A4
@@ -48,6 +50,9 @@ _FOLD_MARGIN = 10
 _HOLE_OFFSET = 8
 _HOLE_SPACING = 60
 _HOLE_RADIUS = 2.5
+# A ticket is its own page: a narrow slip, as cut ticket paper and receipt printers take.
+_TICKET_MM = (80.0, 140.0)
+_TICKET_MARGIN = 5
 
 _MUTED = colors.HexColor("#71757b")
 _PANEL = colors.HexColor("#e8e9ea")
@@ -334,21 +339,25 @@ def _draw_qr(canvas: Canvas, payload: str, x: float, y: float, size: float) -> N
 
 
 def _draw_header(
-    surface: _Surface, logos: list[ImageReader], title: str, palette: _Palette
+    surface: _Surface,
+    logos: list[ImageReader],
+    title: str,
+    palette: _Palette,
+    *,
+    width: float = _BADGE_MM[0],
+    margin: float = _MARGIN,
+    edge: float = _EDGE_MARGIN,
 ) -> float:
     """Draw the event band, stripes and logos; return how far down the header reaches."""
-    width, _ = _BADGE_MM
-    left, right = _MARGIN, width - _MARGIN
+    left, right = margin, width - margin
     text_width = right - left
 
     band_height = 10
-    surface.rect(left, _EDGE_MARGIN, text_width, band_height, palette.band)
+    surface.rect(left, edge, text_width, band_height, palette.band)
     size, label = _fit_line(title, _TITLE_SIZES, text_width - 2, 1.1)
-    surface.centered(
-        width / 2, _EDGE_MARGIN + 2.3, label, size, colors.white, bold=True, tracking=1.1
-    )
+    surface.centered(width / 2, edge + 2.3, label, size, colors.white, bold=True, tracking=1.1)
     stripe = 1.5
-    top = _EDGE_MARGIN + band_height
+    top = edge + band_height
     surface.rect(left, top, text_width, stripe, palette.stripe)
     surface.rect(left, top + stripe, text_width, stripe, palette.accent)
     top += stripe * 2 + 3.5
@@ -525,14 +534,112 @@ def _draw_sheet(
         page.text(hint_x, top, hint, 3.4, _MUTED)
 
 
+# Minor units per major one, for every currency TiQR prices in.
+_MINOR_PER_UNIT = 100
+
+
+def _price_text(ticket: Ticket) -> str | None:
+    price, currency = ticket.price, ticket.currency
+    if price is None or currency is None:
+        return None
+    whole, cents = divmod(price, _MINOR_PER_UNIT)
+    return f"{whole:,}.{cents:02d} {Currency(currency).value}".replace(",", " ")
+
+
+def _admits(ticket: Ticket) -> str:
+    if ticket.usage_type == UsageType.GROUP:
+        return f"GROUP OF {ticket.group_size}"
+    return "ONE-TIME" if ticket.usage_type == UsageType.ONE_TIME else "MULTI-USE"
+
+
+def _draw_ticket(
+    canvas: Canvas,
+    ticket: Ticket,
+    logos: list[ImageReader],
+    zone: ZoneInfo,
+    title: str,
+    palette: _Palette,
+) -> None:
+    """Draw a ticket on its slip, top to bottom: header, admission, QR code, window, tech line.
+
+    A ticket names no visitor: it shows its visitor type, ticket type, whom it admits (one person
+    or a group of so many) and, when priced, what it cost, which a group pays once per person.
+    """
+    width, height = _TICKET_MM
+    surface = _Surface(canvas, height)
+    left, text_width = _TICKET_MARGIN, width - _TICKET_MARGIN * 2
+    top = _draw_header(
+        surface, logos, title, palette, width=width, margin=_TICKET_MARGIN, edge=_TICKET_MARGIN
+    )
+
+    tracking, chip_height = 0.6, 6.2
+    type_size, visitor_type = _fit_line(
+        ticket.visitor_type, _TYPE_SIZES, text_width * 0.6, tracking
+    )
+    chip_width = _width(visitor_type, type_size, tracking) + 6
+    surface.rect(left, top, chip_width, chip_height, palette.accent, radius=1.2)
+    surface.text(
+        left + 3, top + 1.3, visitor_type, type_size, colors.white, bold=True, tracking=tracking
+    )
+    # Whom it admits sits level with the chip, against the right edge.
+    admits = _admits(ticket)
+    admits_size = 3.2
+    surface.text(
+        width - _TICKET_MARGIN - _width(admits, admits_size, tracking),
+        top + 1.4,
+        admits,
+        admits_size,
+        palette.band,
+        bold=True,
+        tracking=tracking,
+    )
+    top += chip_height + 2.5
+
+    if ticket.ticket_type:
+        size, line = _fit_line(ticket.ticket_type, _DETAIL_SIZES, text_width, 0)
+        surface.text(left, top, line, size, _MUTED)
+        top += size * 1.3
+    if (price := _price_text(ticket)) is not None:
+        surface.text(left, top, price, 5, palette.band, bold=True)
+        top += 6.5
+
+    bar_height = 6
+    bar_top = height - _TICKET_MARGIN - bar_height
+    surface.rect(left, bar_top, text_width, bar_height, palette.band, radius=1.2)
+    surface.centered(width / 2, bar_top + 1.1, _TECH_LINE, 2.8, colors.white)
+    window_size = 3.2
+    window_top = bar_top - 2.5 - window_size * 1.2
+    surface.centered(width / 2, window_top, _window(ticket, zone), window_size, _MUTED)
+
+    # The QR code stays black on white: the reader needs the contrast.
+    pad, serial_height = 3, 7
+    panel_top = top + 1.5
+    room = window_top - 2.5 - panel_top
+    qr_size = min(52, room - pad * 2 - serial_height)
+    panel_height = qr_size + pad * 2 + serial_height
+    panel_top += (room - panel_height) / 2
+    surface.rect(left, panel_top, text_width, panel_height, _PANEL, radius=2)
+    surface.qr(ticket.qr_payload, (width - qr_size) / 2, panel_top + pad, qr_size)
+    surface.centered(
+        width / 2,
+        panel_top + pad + qr_size + 1,
+        ticket.readable_serial,
+        4.4,
+        palette.band,
+        bold=True,
+    )
+
+
 def render_pdf(
     ticket: Ticket,
     output_dir: Path,
     timezone: str,
     title: str = DEFAULT_TITLE,
     theme: str = "default",
+    mode: Mode = Mode.BADGE,
 ) -> Path:
-    """Render the badge; `title` is the name in its header band (TIQR_APP_NAME).
+    """Render the badge, or the ticket in ticket mode; `title` is the name in its header band
+    (TIQR_APP_NAME).
 
     `theme` sets the colours. The partner logos are printed in the header; the app logo is not.
     """
@@ -548,9 +655,12 @@ def render_pdf(
     os.close(descriptor)
     temporary = Path(temporary_name)
     try:
-        canvas = Canvas(str(temporary), pagesize=A4, pageCompression=0)
+        is_ticket = Mode(mode) == Mode.TICKET
+        size = (_TICKET_MM[0] * mm, _TICKET_MM[1] * mm) if is_ticket else A4
+        canvas = Canvas(str(temporary), pagesize=size, pageCompression=0)
         canvas.setTitle(ticket.readable_serial)
-        _draw_sheet(canvas, ticket, logos, zone, title, _palette(theme))
+        draw = _draw_ticket if is_ticket else _draw_sheet
+        draw(canvas, ticket, logos, zone, title, _palette(theme))
         canvas.save()
         temporary.replace(destination)
     finally:

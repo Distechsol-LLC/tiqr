@@ -2,7 +2,6 @@
   import TicketIcon from '@lucide/svelte/icons/ticket';
   import TicketsIcon from '@lucide/svelte/icons/tickets';
   import { type Component, untrack } from 'svelte';
-  import { z } from 'zod';
 
   import DateTimeField from '@/components/DateTimeField.svelte';
   import FloatingInput from '@/components/FloatingInput.svelte';
@@ -21,9 +20,17 @@
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
+  import { mode } from '%/useMode.svelte.ts';
   import type { TicketType, VisitorType } from '$/catalog.ts';
   import { type ActiveHours, isWithinHours } from '$/operations.ts';
-  import { type Ticket, type UsageType, ticketInputSchema, usageTypeSchema } from '$/tickets.ts';
+  import {
+    GROUP_MAX,
+    GROUP_MIN,
+    TICKET_USAGES,
+    type Ticket,
+    type UsageType,
+    parseTicketInput,
+  } from '$/tickets.ts';
 
   type TicketFormProps = {
     isOpen: boolean;
@@ -35,14 +42,14 @@
 
   const DAY_END = 'T23:59';
   const USAGE_ICON_SIZE = 16;
-  const USAGE_ICONS: Record<UsageType, Component> = {
-    multi_use: TicketsIcon,
+  // What a ticket may admit; a badge is always multi-use, so it offers no choice
+  const USAGE_ICONS: Record<(typeof TICKET_USAGES)[number], Component> = {
+    group: TicketsIcon,
     one_time: TicketIcon,
   };
-  const USAGE_OPTIONS = usageTypeSchema.options.map((value) => ({
-    Icon: USAGE_ICONS[value],
-    value,
-  }));
+  const USAGE_OPTIONS = TICKET_USAGES.map((value) => ({ Icon: USAGE_ICONS[value], value }));
+  // Digits only; the range is checked in the schema
+  const GROUP_CHARS = /\D/g;
 
   let visitorName = $state('');
   let visitorType = $state('');
@@ -53,13 +60,18 @@
   let validFrom = $state('');
   let validUntil = $state('');
   let usageType = $state<UsageType>('one_time');
+  let groupSize = $state('');
   let isPending = $state(false);
   let isSubmitted = $state(false);
+  // Known only once the visitor types have loaded; a failed load says nothing about there being none
+  let hasNoVisitorTypes = $state(false);
 
+  const isBadge = $derived(mode.isBadge);
   const validation = $derived(
-    ticketInputSchema.safeParse({
+    parseTicketInput(mode.current, {
+      group_size: groupSize,
       ticket_type: ticketType,
-      usage_type: usageType,
+      usage_type: isBadge ? 'multi_use' : usageType,
       valid_from: validFrom,
       valid_until: validUntil,
       visitor_name: visitorName,
@@ -67,21 +79,32 @@
     })
   );
 
-  const fieldErrors = $derived(
-    isSubmitted && !validation.success ? z.flattenError(validation.error).fieldErrors : {}
-  );
+  const fieldErrors = $derived(isSubmitted && !validation.ok ? validation.errors : {});
 
-  const ticketTypeOptions = $derived(ticketTypes.map((type) => type.name));
+  // Badges have no ticket types or prices
+  const ticketTypeOptions = $derived(isBadge ? [] : ticketTypes.map((type) => type.name));
   // With ticket types defined a ticket needs one, since that is what prices it
   const ticketTypeError = $derived(
-    isSubmitted && ticketTypes.length > 0 && !ticketType
+    isSubmitted && ticketTypeOptions.length > 0 && !ticketType
       ? i18n.t.errors.ticketTypeRequired
       : undefined
   );
-  const priced = $derived(ticketTypes.find((type) => type.name === ticketType));
+  const priced = $derived(
+    isBadge ? undefined : ticketTypes.find((type) => type.name === ticketType)
+  );
   const discount = $derived(
     visitorTypes.find((type) => type.name === visitorType)?.discount_percent ?? 0
   );
+  // What each person pays: the type's price less the visitor type's discount
+  const perPerson = $derived(priced ? discountedMinor(priced.price_minor, discount) : 0);
+  // How many people the price is paid for: one, or the group's size once it is a valid one
+  const people = $derived.by((): number => {
+    if (isBadge || usageType !== 'group') return 1;
+
+    const size = Number(groupSize);
+
+    return Number.isInteger(size) && size >= GROUP_MIN && size <= GROUP_MAX ? size : 0;
+  });
   // The hours tickets may be made in, when a limit is set; the server enforces them on submit
   const limit = $derived(
     activeHours?.start && activeHours.end
@@ -95,7 +118,8 @@
 
   const loadCatalog = async (): Promise<void> => {
     const [ticketResult, visitorResult, hoursResult] = await Promise.all([
-      fetchAllTicketTypes(),
+      // A badge has no ticket type to pick
+      isBadge ? Promise.resolve({ data: [], ok: true as const }) : fetchAllTicketTypes(),
       fetchAllVisitorTypes(),
       fetchActiveHours(),
     ]);
@@ -103,8 +127,10 @@
     if (ticketResult.ok) ticketTypes = ticketResult.data;
     else await notifyFailure(i18n.t.ticketForm.catalogNotLoaded, ticketResult.error);
 
-    if (visitorResult.ok) visitorTypes = visitorResult.data;
-    else await notifyFailure(i18n.t.ticketForm.catalogNotLoaded, visitorResult.error);
+    if (visitorResult.ok) {
+      visitorTypes = visitorResult.data;
+      hasNoVisitorTypes = visitorResult.data.length === 0;
+    } else await notifyFailure(i18n.t.ticketForm.catalogNotLoaded, visitorResult.error);
 
     if (hoursResult.ok) activeHours = hoursResult.data;
     else await notifyFailure(i18n.t.activeHours.notLoaded, hoursResult.error);
@@ -125,7 +151,9 @@
       validFrom = start;
       validUntil = `${start.slice(0, start.indexOf('T'))}${DAY_END}`;
       usageType = 'one_time';
+      groupSize = String(GROUP_MIN);
       isSubmitted = false;
+      hasNoVisitorTypes = false;
       // Prices change between openings, so each one reads them again
       void loadCatalog();
     });
@@ -136,7 +164,7 @@
 
     const csrfToken = auth.session?.csrf_token;
 
-    if (!(validation.success && csrfToken) || ticketTypeError) return;
+    if (hasNoVisitorTypes || !(validation.ok && csrfToken) || ticketTypeError) return;
 
     isPending = true;
 
@@ -149,11 +177,13 @@
       return;
     }
 
+    // A ticket names no one, so its visitor type, and group, stand in for the name
+    const { group_size: size, readable_serial: serial, visitor_name: name } = result.data;
+    const visitor =
+      name || (size > 1 ? `${result.data.visitor_type} ×${size}` : result.data.visitor_type);
+
     toaster.success({
-      description: i18n.t.ticketForm.createdFor(
-        result.data.readable_serial,
-        result.data.visitor_name
-      ),
+      description: i18n.t.ticketForm.createdFor(serial, visitor),
       title: i18n.t.ticketForm.created,
     });
     onCreated(result.data);
@@ -164,37 +194,37 @@
 <FormDialog
   {isOpen}
   {isPending}
+  isSubmitDisabled={hasNoVisitorTypes}
   {onClose}
   onSubmit={handleSubmit}
   submitLabel={i18n.t.common.create}
   title={i18n.t.ticketForm.title}
 >
-  <FloatingInput
-    autocomplete="off"
-    error={fieldErrors.visitor_name?.[0]}
-    id="visitor-name"
-    label={i18n.t.ticketForm.visitorName}
-    required
-    bind:value={visitorName}
-  />
-
-  {#if visitorTypes.length > 0}
-    <FloatingSelect
-      error={fieldErrors.visitor_type?.[0]}
-      id="visitor-type"
-      label={i18n.t.ticketForm.visitorType}
-      options={visitorTypes.map((type) => type.name)}
-      bind:value={visitorType}
-    />
-  {:else}
+  {#if isBadge}
     <FloatingInput
       autocomplete="off"
-      error={fieldErrors.visitor_type?.[0]}
-      id="visitor-type"
-      label={i18n.t.ticketForm.visitorType}
+      error={fieldErrors.visitor_name?.[0]}
+      id="visitor-name"
+      label={i18n.t.ticketForm.visitorName}
       required
-      bind:value={visitorType}
+      bind:value={visitorName}
     />
+  {/if}
+
+  <!-- A ticket must be for a visitor type, so with none defined there is nothing to pick and the
+       form cannot go on until some are made -->
+  <FloatingSelect
+    disabled={hasNoVisitorTypes}
+    error={hasNoVisitorTypes ? undefined : fieldErrors.visitor_type?.[0]}
+    id="visitor-type"
+    label={i18n.t.ticketForm.visitorType}
+    options={visitorTypes.map((type) => type.name)}
+    bind:value={visitorType}
+  />
+  {#if hasNoVisitorTypes}
+    <p class="text-warning-700-300 -mt-3 text-sm" role="alert">
+      {i18n.t.ticketForm.noVisitorTypes}
+    </p>
   {/if}
 
   {#if ticketTypeOptions.length > 0}
@@ -207,21 +237,70 @@
     />
   {/if}
 
+  {#if !isBadge}
+    <fieldset class="space-y-2">
+      <legend class="label-text">{i18n.t.ticketForm.usage}</legend>
+      <!-- Still radios underneath, for arrow keys and the form, but shown as a pair of buttons -->
+      <div class="grid grid-cols-2 gap-2">
+        {#each USAGE_OPTIONS as { Icon, value: option } (option)}
+          <label
+            class={[
+              'btn has-focus-visible:outline-primary-500 h-12 cursor-pointer has-focus-visible:outline-2 has-focus-visible:outline-offset-2',
+              usageType === option ? 'preset-filled-primary-500' : 'preset-tonal',
+            ]}
+          >
+            <input
+              class="sr-only"
+              name="usage-type"
+              type="radio"
+              value={option}
+              bind:group={usageType}
+            />
+            <Icon aria-hidden="true" size={USAGE_ICON_SIZE} />
+            {i18n.t.usage[option]}
+          </label>
+        {/each}
+      </div>
+    </fieldset>
+
+    {#if usageType === 'group'}
+      <FloatingInput
+        autocomplete="off"
+        error={fieldErrors.group_size?.[0]}
+        id="group-size"
+        inputmode="numeric"
+        label={i18n.t.ticketForm.groupSize}
+        max={GROUP_MAX}
+        min={GROUP_MIN}
+        required
+        strip={GROUP_CHARS}
+        bind:value={groupSize}
+      />
+    {/if}
+  {/if}
+
   {#if priced}
-    <!-- What the API will charge: the type's price, less the visitor type's discount -->
+    <!-- What the API will charge: the type's price less the visitor type's discount, once for
+         each person the ticket admits -->
     <dl
       aria-live="polite"
       class="rounded-container border-surface-200-800 bg-surface-100-900 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 border px-4 py-3 text-sm tabular-nums"
     >
-      <dt class="text-surface-700-300">{i18n.t.ticketForm.price}</dt>
+      <dt class="text-surface-700-300">
+        {people === 1 ? i18n.t.ticketForm.price : i18n.t.ticketForm.perPerson}
+      </dt>
       <dd class="text-right">{formatMinor(priced.price_minor, priced.currency)}</dd>
       {#if discount > 0}
         <dt class="text-surface-700-300">{i18n.t.ticketForm.discount}</dt>
         <dd class="text-right">−{discount}%</dd>
       {/if}
+      {#if people !== 1}
+        <dt class="text-surface-700-300">{i18n.t.ticketForm.people}</dt>
+        <dd class="text-right">×{people || '—'}</dd>
+      {/if}
       <dt class="font-semibold">{i18n.t.ticketForm.total}</dt>
       <dd class="text-right font-semibold">
-        {formatMinor(discountedMinor(priced.price_minor, discount), priced.currency)}
+        {people ? formatMinor(perPerson * people, priced.currency) : '—'}
       </dd>
     </dl>
   {/if}
@@ -246,29 +325,4 @@
       bind:value={validUntil}
     />
   </div>
-
-  <fieldset class="space-y-2">
-    <legend class="label-text">{i18n.t.ticketForm.usage}</legend>
-    <!-- Still radios underneath, for arrow keys and the form, but shown as a pair of buttons -->
-    <div class="grid grid-cols-2 gap-2">
-      {#each USAGE_OPTIONS as { Icon, value: option } (option)}
-        <label
-          class={[
-            'btn has-focus-visible:outline-primary-500 h-12 cursor-pointer has-focus-visible:outline-2 has-focus-visible:outline-offset-2',
-            usageType === option ? 'preset-filled-primary-500' : 'preset-tonal',
-          ]}
-        >
-          <input
-            class="sr-only"
-            name="usage-type"
-            type="radio"
-            value={option}
-            bind:group={usageType}
-          />
-          <Icon aria-hidden="true" size={USAGE_ICON_SIZE} />
-          {i18n.t.usage[option]}
-        </label>
-      {/each}
-    </div>
-  </fieldset>
 </FormDialog>

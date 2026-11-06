@@ -1,5 +1,7 @@
+import { toBadgeWording } from '@/config/badgeWording.ts';
 import { DEFAULT_LOCALE, LOCALES, LOCALE_CODES, type Locale, isLocale } from '@/config/locales.ts';
 import type { Messages } from '@/locales/en.ts';
+import { mode } from '%/useMode.svelte.ts';
 
 type LocaleController = {
   readonly code: Locale;
@@ -30,7 +32,8 @@ const readPreferred = (offered: readonly Locale[] = LOCALE_CODES): Locale | null
     .find((tag): tag is Locale => isLocale(tag) && offered.includes(tag)) ?? null;
 
 // Follows the browser until the user picks a language, then remembers their pick.
-// Reading `t` inside a component, $derived or zod message tracks the language, so text follows it.
+// Reading `t` inside a component, $derived or zod message tracks the language and the mode, so
+// text follows both.
 const createLocale = (): LocaleController => {
   let code = $state<Locale>(readStored() ?? readPreferred() ?? DEFAULT_LOCALE);
 
@@ -50,8 +53,11 @@ const createLocale = (): LocaleController => {
         // Storage can be blocked; the pick still holds for this visit
       }
     },
+    // In badge mode every ticket in the text reads as a badge, in each language's own grammar
     get t(): Messages {
-      return LOCALES[code].messages;
+      const { messages } = LOCALES[code];
+
+      return mode.isBadge ? toBadgeWording(code, messages) : messages;
     },
   };
 };

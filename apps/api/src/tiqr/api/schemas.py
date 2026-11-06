@@ -10,11 +10,13 @@ from tiqr.core.license import LicenseState, LicenseStatus, LicenseType
 from tiqr.core.localtime import zone
 from tiqr.core.models import (
     MAX_DISCOUNT,
+    MAX_GROUP_SIZE,
     MAX_PRICE,
     ActiveHours,
     ApiKey,
     Currency,
     LicenseRecord,
+    Mode,
     Role,
     Ticket,
     TicketState,
@@ -88,13 +90,29 @@ class UserPatch(_Request):
 
 
 class TicketIn(_Request):
-    visitor_name: _Name
+    visitor_name: Annotated[
+        _Name,
+        Field(
+            description="The visitor, which a badge needs; a ticket names no one, so it is dropped"
+        ),
+    ] = ""
     visitor_type: Annotated[
         _Name, Field(description="A visitor type from GET /visitor-types; any other name is a 422")
     ]
     valid_from: _LocalDatetime
     valid_until: _LocalDatetime
-    usage_type: UsageType
+    usage_type: Annotated[
+        UsageType,
+        Field(description="Tickets: one_time or group. Badges: multi_use; anything else is a 422"),
+    ]
+    group_size: Annotated[
+        int,
+        Field(
+            ge=1,
+            le=MAX_GROUP_SIZE,
+            description="People a group ticket admits, from 2; 1 for every other ticket",
+        ),
+    ] = 1
     ticket_type: Annotated[
         _Name | None,
         Field(description="Name of a ticket type; prices the ticket, less the visitor discount"),
@@ -183,7 +201,6 @@ class BatchIn(_Request):
                     "atomic": True,
                     "items": [
                         {
-                            "visitor_name": "Ada",
                             "visitor_type": "Contractor",
                             "valid_from": "2030-06-01T09:00",
                             "valid_until": "2030-06-01T17:00",
@@ -349,7 +366,9 @@ class TicketOut(BaseModel):
     ticket_type: Annotated[str | None, Field(description="Null for a ticket made without one")]
     base_price_minor: Annotated[int | None, Field(description="The ticket type's price then")]
     discount_percent: Annotated[int, Field(description="The visitor type's discount then")]
-    price_minor: Annotated[int | None, Field(description="The base price less the discount")]
+    price_minor: Annotated[
+        int | None, Field(description="The base price less the discount, times the group size")
+    ]
     currency: Annotated[
         Currency | None, Field(description="The currency the price was in then; null without one")
     ]
@@ -358,6 +377,9 @@ class TicketOut(BaseModel):
         None
     )
     event_session: Annotated[str | None, Field(description="Null without one")] = None
+    group_size: Annotated[
+        int, Field(description="People the ticket admits; above 1 only for a group ticket")
+    ] = 1
 
     @classmethod
     def of(cls, ticket: Ticket, timezone: str) -> TicketOut:
@@ -385,6 +407,7 @@ class TicketOut(BaseModel):
             timezone=timezone,
             external_code=ticket.external_code,
             event_session=ticket.event_session,
+            group_size=ticket.group_size,
         )
 
 
@@ -503,6 +526,8 @@ class CountOut(BaseModel):
 
 
 class CountsOut(BaseModel):
+    """Ticket counts weigh a group ticket by its size, so a group of ten counts as ten."""
+
     total: int
     issued: int
     passed: int
@@ -586,6 +611,20 @@ class BrandingOut(BaseModel):
         list[Currency], Field(description="The currencies of the languages' regions")
     ]
     has_logo: Annotated[bool, Field(description="Whether /api/logo serves logo_path")]
+    mode: Annotated[Mode, Field(description="Whether the install issues tickets or badges")] = (
+        Mode.TICKET
+    )
+
+
+class ModeIn(_Request):
+    mode: Annotated[Mode, Field(description="ticket or badge; each keeps its own database")]
+
+
+class ModeOut(BaseModel):
+    mode: Mode
+    pinned: Annotated[
+        bool, Field(description="Whether TIQR_MODE is set in the environment, so it cannot switch")
+    ]
 
 
 class LicenseStatusOut(BaseModel):
@@ -661,6 +700,7 @@ ErrorCode = Literal[
     "invalid_state",
     "credential_format",
     "server_printing_off",
+    "mode_pinned",
     "invalid",
     "batch_too_large",
     "rate_limited",

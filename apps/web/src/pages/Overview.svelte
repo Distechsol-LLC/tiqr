@@ -23,6 +23,7 @@
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
+  import { mode } from '%/useMode.svelte.ts';
   import { createSortParams } from '%/useSortParams.svelte.ts';
   import { type Sheet, downloadXlsx, toXlsx } from '%/xlsx.ts';
   import { type Counts, METRICS, type Stats, TALLIES } from '$/operations.ts';
@@ -114,8 +115,12 @@
     sortRows(METRICS, sort, countValues(figures));
   // One block of rows per visitor type, in the order the server sends them
   const visitorTypes = $derived(stats ? Object.keys(stats.visitor_types) : []);
-  // One column per ticket type; tickets made without one sit under an empty name
-  const ticketTypes = $derived(stats ? Object.keys(stats.ticket_types) : []);
+  // One column per ticket type; tickets made without one sit under an empty name. Badges have no
+  // ticket types, so their figures need no such columns. The server counts a group ticket once
+  // per person it admits, so every figure here already does
+  const ticketTypesOf = (figures: Stats | null): string[] =>
+    figures && !mode.isBadge ? Object.keys(figures.ticket_types) : [];
+  const ticketTypes = $derived(ticketTypesOf(stats));
   const columns = $derived(COLUMNS + ticketTypes.length);
   const typeLabel = (name: string): string => name || '—';
   // A share of the whole, rounded to a whole percentage
@@ -198,7 +203,7 @@
     }
 
     const figures = result.data;
-    const tickets = Object.keys(figures.ticket_types);
+    const tickets = ticketTypesOf(figures);
     const sheetRows = (group: Counts & { ticket_types: Record<string, Counts> }): Sheet['rows'] => [
       [
         i18n.t.overview.columns.metric,
@@ -227,7 +232,10 @@
           ? `${dates.since}_${dates.until}`
           : dates.since.slice(0, SCOPE_LENGTH[range]);
 
-    downloadXlsx(`tiqr-stats-${period}.xlsx`, toXlsx(sheets));
+    downloadXlsx(
+      `tiqr-${mode.isBadge ? 'badges' : 'tickets'}-stats-${period}.xlsx`,
+      toXlsx(sheets)
+    );
   };
 
   const pick = (option: Range): void => {

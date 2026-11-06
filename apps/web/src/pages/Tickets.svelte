@@ -16,6 +16,7 @@
   import { onMount, untrack } from 'svelte';
 
   import ActionsHeader from '@/components/ActionsHeader.svelte';
+  import ActiveHoursButton from '@/components/ActiveHoursButton.svelte';
   import AssignForm from '@/components/AssignForm.svelte';
   import DataTable from '@/components/DataTable.svelte';
   import FilterTabs from '@/components/FilterTabs.svelte';
@@ -44,6 +45,7 @@
   import { auth } from '%/useAuth.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
+  import { mode } from '%/useMode.svelte.ts';
   import { createPagination } from '%/usePagination.svelte.ts';
   import { createSortParams } from '%/useSortParams.svelte.ts';
   import type { User } from '$/auth.ts';
@@ -73,8 +75,10 @@
   const isStaff = $derived(role !== 'operator');
   const canAssign = $derived(role !== 'operator');
   const canServerPrint = $derived(config.current?.server_printing ?? false);
+  // Badges carry no price, so their list has no price column
+  const isBadge = $derived(mode.isBadge);
   // The assignee column is staff-only
-  const columns = $derived(BASE_COLUMNS + (isStaff ? 1 : 0));
+  const columns = $derived(BASE_COLUMNS + (isStaff ? 1 : 0) - (isBadge ? 1 : 0));
   // Download and PDF always, then printing on the server and assigning where they're offered
   const actionCount = $derived(2 + Number(canServerPrint) + Number(canAssign) + MANAGE_ACTIONS);
 
@@ -103,7 +107,16 @@
     price: (ticket) => ticket.price_minor ?? -1,
     state: (ticket) => STATE_ORDER.get(ticket.state) ?? 0,
     valid: (ticket) => Date.parse(ticket.valid_from),
-    visitor: (ticket) => ticket.visitor_name,
+    visitor: (ticket) => ticket.visitor_name || ticket.visitor_type,
+  };
+
+  // Who a pass is for: a badge's visitor, or a ticket's visitor type, which names no one
+  const visitorOf = (ticket: Ticket): string => ticket.visitor_name || ticket.visitor_type;
+  // The line under it: a named pass's visitor type, or how many a group ticket admits
+  const detailOf = (ticket: Ticket): string => {
+    if (ticket.visitor_name) return ticket.visitor_type;
+
+    return ticket.usage_type === 'group' ? i18n.t.tickets.groupOf(ticket.group_size) : '';
   };
 
   const sorting = createSortParams(sortValues, { direction: 'desc', key: 'valid' });
@@ -344,6 +357,7 @@
         size={ICON_SIZE}
       />
     </button>
+    <ActiveHoursButton />
     <button
       class="btn preset-filled-primary-500 h-11 min-w-36"
       onclick={(): void => {
@@ -433,13 +447,15 @@
       label={i18n.t.tickets.columns.state}
       onSort={(): void => sorting.sortBy('state')}
     />
-    <SortHeader
-      class="w-28"
-      direction={sorting.directionOf('price')}
-      isEnd
-      label={i18n.t.tickets.columns.price}
-      onSort={(): void => sorting.sortBy('price')}
-    />
+    {#if !isBadge}
+      <SortHeader
+        class="w-28"
+        direction={sorting.directionOf('price')}
+        isEnd
+        label={i18n.t.tickets.columns.price}
+        onSort={(): void => sorting.sortBy('price')}
+      />
+    {/if}
     <th class="w-28">{i18n.t.tickets.columns.usage}</th>
     {#if isStaff}
       <SortHeader
@@ -473,9 +489,9 @@
         </div>
       </td>
       <td>
-        <p class="font-semibold" {@attach tooltipIfTruncated}>{ticket.visitor_name}</p>
+        <p class="font-semibold" {@attach tooltipIfTruncated}>{visitorOf(ticket)}</p>
         <p class="text-surface-600-400 text-xs" {@attach tooltipIfTruncated}>
-          {ticket.visitor_type}
+          {detailOf(ticket)}
         </p>
       </td>
       <td>
@@ -492,21 +508,30 @@
           </p>
         {/if}
       </td>
-      <td class="text-right">
-        <p class="tabular-nums" {@attach tooltipIfTruncated}>
-          {ticket.price_minor === null || ticket.currency === null
-            ? '—'
-            : formatMinor(ticket.price_minor, ticket.currency)}
-        </p>
-        {#if ticket.price_minor !== null}
-          <!-- The type and discount it was priced with, as they were when it was made -->
-          <p class="text-surface-600-400 text-xs" {@attach tooltipIfTruncated}>
-            {[ticket.discount_percent > 0 && `−${ticket.discount_percent}%`, ticket.ticket_type]
-              .filter(Boolean)
-              .join(' · ')}
+      {#if !isBadge}
+        <td class="text-right">
+          <!-- What the whole ticket cost: a group's price is for every person in it -->
+          <p class="tabular-nums" {@attach tooltipIfTruncated}>
+            {ticket.price_minor === null || ticket.currency === null
+              ? '—'
+              : formatMinor(ticket.price_minor, ticket.currency)}
           </p>
-        {/if}
-      </td>
+          {#if ticket.price_minor !== null}
+            <!-- The type, discount and head count it was priced with, as they were when made -->
+            <p class="text-surface-600-400 text-xs" {@attach tooltipIfTruncated}>
+              {[
+                ticket.discount_percent > 0 && `−${ticket.discount_percent}%`,
+                // The head count follows the type it multiplies, not a bullet of its own
+                ticket.group_size > 1
+                  ? `${ticket.ticket_type} ×${ticket.group_size}`
+                  : ticket.ticket_type,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          {/if}
+        </td>
+      {/if}
       <td>
         <!-- Prints and uses, each with an icon that the tooltip names -->
         <p class="text-surface-600-400 flex items-center gap-3 text-xs tabular-nums">
@@ -641,5 +666,5 @@
   submitLabel={i18n.t.tickets.revoke}
   title={i18n.t.tickets.revokeFor(revoking?.readable_serial ?? i18n.t.assign.fallback)}
 >
-  <p>{revoking ? i18n.t.tickets.revokeConfirm(revoking.visitor_name) : ''}</p>
+  <p>{revoking ? i18n.t.tickets.revokeConfirm(visitorOf(revoking)) : ''}</p>
 </FormDialog>

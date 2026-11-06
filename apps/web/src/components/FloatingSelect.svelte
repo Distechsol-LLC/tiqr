@@ -14,6 +14,7 @@
     value?: string;
     // Optional pickers get an X to unpick, and are not required
     clearable?: boolean;
+    disabled?: boolean;
   };
 
   const ICON_SIZE = 16;
@@ -25,6 +26,7 @@
     options,
     error,
     clearable = false,
+    disabled = false,
     value = $bindable(''),
   }: FloatingSelectProps = $props();
 
@@ -41,6 +43,7 @@
       aria-describedby={error ? errorId : undefined}
       aria-invalid={error ? 'true' : undefined}
       class="peer select aria-invalid:ring-error-500 h-12 truncate"
+      {disabled}
       {id}
       required={!clearable}
       bind:value
@@ -72,6 +75,7 @@
           ? '-translate-y-6 scale-75 bg-[var(--floating-label-notch,var(--color-surface-100-900))]'
           : 'bg-transparent',
         'peer-aria-invalid:text-error-600-400',
+        'peer-disabled:text-surface-400-600',
         'motion-safe:transition-[translate,scale,color,background-color] motion-safe:duration-200 motion-safe:ease-out',
       ]}
       for={id}

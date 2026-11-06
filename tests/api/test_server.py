@@ -15,7 +15,7 @@ from tiqr.api.config import ServerConfig
 from tiqr.api.maintenance import SYNC_INTERVAL, Maintenance
 from tiqr.api.runtime import Runtime
 from tiqr.api.security import LoginThrottle
-from tiqr.core.models import RawEvent, UsageType
+from tiqr.core.models import Mode, RawEvent, UsageType
 from tiqr.core.settings import Settings
 
 PROJECT = Path(__file__).resolve().parents[2]
@@ -206,6 +206,7 @@ def test_maintenance_thread_stops_after_the_run_in_progress():
 
 def test_the_server_schedules_sync_from_startup(make_client, service, accounts, clock):
     service.create_visitor_type(accounts["admin"], "Guest")
+    service.mode = Mode.BADGE
     ticket = service.create_ticket(
         accounts["operator"],
         visitor_name="Name",

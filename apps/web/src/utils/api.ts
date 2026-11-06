@@ -38,6 +38,7 @@ import {
   statsSchema,
 } from '$/operations.ts';
 import { MAX_SIZE, type Page, type PageRequest, pageSchema } from '$/pagination.ts';
+import { type Mode, type ModeState, modeStateSchema } from '$/settings.ts';
 import {
   type AssignInput,
   type Ticket,
@@ -209,6 +210,12 @@ const fetchBiostarLogs = (): Promise<ApiResult<BiostarLog[]>> =>
   request('/biostar/logs?limit=100', z.array(biostarLogSchema));
 
 const fetchConfig = (): Promise<ApiResult<Config>> => request('/config', configSchema);
+
+const fetchMode = (): Promise<ApiResult<ModeState>> => request('/settings/mode', modeStateSchema);
+
+// Admins only. Each mode keeps its own database; accounts, sessions and the license carry over
+const switchMode = (csrfToken: string, mode: Mode): Promise<ApiResult<ModeState>> =>
+  request('/settings/mode', modeStateSchema, write('PUT', csrfToken, { mode }));
 
 const fetchActiveHours = (): Promise<ApiResult<ActiveHours>> =>
   request('/active-hours', activeHoursSchema);
@@ -407,6 +414,7 @@ export {
   fetchBranding,
   fetchConfig,
   fetchLicense,
+  fetchMode,
   fetchRequestCode,
   fetchSession,
   fetchStats,
@@ -426,6 +434,7 @@ export {
   runSync,
   saveActiveHours,
   saveBiostar,
+  switchMode,
   updateTicketType,
   updateTicketWindow,
   updateUser,

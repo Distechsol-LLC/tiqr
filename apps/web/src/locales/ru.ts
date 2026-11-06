@@ -84,6 +84,7 @@ const ru: Messages = {
     assigneeRequired: 'Выберите учётную запись.',
     currencyRequired: 'Выберите валюту.',
     discountInvalid: 'Введите целое число от 0 до 100.',
+    groupSizeInvalid: 'Введите целое число от 2 до 100.',
     invalidCredentials: 'Неверное имя пользователя или пароль.',
     minutes: (count: number): string =>
       `${count} ${plural('ru', count, { few: 'минуты', many: 'минут', one: 'минуту', other: 'минуты' })}`,
@@ -179,6 +180,7 @@ const ru: Messages = {
     label: 'Главное',
     license: 'Лицензия',
     overview: 'Статистика',
+    settings: 'Настройки',
     signOut: 'Выйти',
     tickets: 'Билеты',
     ticketTypes: 'Типы билетов',
@@ -264,6 +266,33 @@ const ru: Messages = {
     manager: 'Менеджер',
     operator: 'Оператор',
   },
+  settings: {
+    current: 'Текущий',
+    description: 'Что выдаёт эта установка',
+    mode: 'Режим',
+    modeHint:
+      'У каждого режима свои билеты или бейджи, типы и статистика. Учётные записи, лицензия и часы работы общие.',
+    modes: {
+      badge: {
+        description: 'Именные многоразовые бейджи посетителей на складываемом листе A4, без цен.',
+        label: 'Бейджи',
+      },
+      ticket: {
+        description:
+          'Разовые или групповые билеты без имён, на небольшой нарезанной бумаге, с ценами.',
+        label: 'Билеты',
+      },
+    },
+    notLoaded: 'Режим не загружен',
+    notSwitched: 'Режим не переключён',
+    pinned: 'TIQR_MODE задан на сервере, поэтому режим можно изменить только там.',
+    switch: 'Переключить',
+    switchConfirm:
+      'Со следующего действия все увидят записи другого режима. Вернуться можно в любой момент.',
+    switched: 'Режим переключён',
+    switchTitle: (label: string): string => `Переключиться на режим ${label}?`,
+    title: 'Настройки',
+  },
   states: {
     expired: 'Просрочен',
     issued: 'Выдан',
@@ -280,7 +309,11 @@ const ru: Messages = {
     created: 'Билет создан',
     createdFor: (serial: string, visitor: string): string => `${serial} для ${visitor}`,
     discount: 'Скидка',
+    groupSize: 'Человек в группе',
     notCreated: 'Билет не создан',
+    noVisitorTypes: 'Сначала создайте хотя бы один тип посетителя, затем выпускайте билеты.',
+    people: 'Человек',
+    perPerson: 'Цена за человека',
     price: 'Цена',
     ticketType: 'Тип билета',
     title: 'Новый билет',
@@ -320,6 +353,7 @@ const ru: Messages = {
     emptySearch: 'Нет билетов по вашему поиску',
     filter: 'Фильтр по статусу',
     firstPassage: 'Первый проход',
+    groupOf: (count: number): string => `Группа из ${count}`,
     new: 'Новый Билет',
     notLoaded: 'Билеты не загружены',
     notReissued: 'Билет не переиздан',
@@ -373,6 +407,7 @@ const ru: Messages = {
     notLoaded: 'Типы билетов не загружены',
   },
   usage: {
+    group: 'Групповой',
     multi_use: 'Многоразовый',
     one_time: 'Одноразовый',
   },
@@ -444,6 +479,7 @@ const ru: Messages = {
     deleteFor: (name: string): string => `Удалить ${name}`,
     deleteTitle: 'Удалить тип посетителя',
     description: 'Типы посетителей и их скидки',
+    descriptionBadge: 'Типы посетителей, для которых выдаются бейджи',
     discount: (percent: number): string => `${percent}%`,
     edit: 'Изменить',
     editFor: (name: string): string => `Изменить ${name}`,

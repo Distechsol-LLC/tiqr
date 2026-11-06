@@ -103,7 +103,7 @@ def test_changing_the_hours_is_audited(staff_service, accounts):
 def test_tickets_are_made_any_time_until_hours_are_set(staff_service, accounts, clock):
     clock.now = at_local(3)
 
-    assert issue(staff_service, accounts, clock).visitor_name == "Name"
+    assert issue(staff_service, accounts, clock).visitor_type == "Guest"
 
 
 def test_tickets_are_made_inside_the_hours_in_the_server_zone(

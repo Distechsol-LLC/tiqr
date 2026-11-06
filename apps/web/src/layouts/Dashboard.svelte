@@ -6,6 +6,7 @@
   import LicenseWall from '@/components/LicenseWall.svelte';
   import Sidebar from '@/components/Sidebar.svelte';
   import { notifyFailure } from '%/notifyFailure.ts';
+  import { branding } from '%/useBranding.svelte.ts';
   import { config } from '%/useConfig.svelte.ts';
   import { license } from '%/useLicense.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
@@ -28,6 +29,8 @@
 
   onMount(() => {
     void config.load();
+    // Read again on entering, so a mode another admin switched to since the page loaded shows
+    void branding.load();
     void check();
   });
 </script>

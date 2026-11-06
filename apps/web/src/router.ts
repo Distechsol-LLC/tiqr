@@ -6,6 +6,7 @@ import License from '@/pages/License.svelte';
 import Login from '@/pages/Login.svelte';
 import NotFound from '@/pages/NotFound.svelte';
 import Overview from '@/pages/Overview.svelte';
+import Settings from '@/pages/Settings.svelte';
 import Tickets from '@/pages/Tickets.svelte';
 import TicketTypes from '@/pages/TicketTypes.svelte';
 import Users from '@/pages/Users.svelte';
@@ -57,6 +58,7 @@ const routes = {
     '/biostar': Biostar,
     '/license': License,
     '/overview': Overview,
+    '/settings': Settings,
     '/ticket-types': TicketTypes,
     '/users': Users,
     '/visitor-types': VisitorTypes,
