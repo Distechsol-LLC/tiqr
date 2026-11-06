@@ -176,12 +176,24 @@ class ReissueIn(_Request):
     """Reissue a ticket in any state; give a new window, or keep the old one."""
 
     model_config = ConfigDict(
-        extra="forbid", json_schema_extra={"examples": [{"valid_until": "2030-06-01T18:00"}]}
+        extra="forbid",
+        json_schema_extra={"examples": [{"valid_until": "2030-06-01T18:00", "group_size": 3}]},
     )
 
     valid_from: _LocalDatetime | None = None
     valid_until: _LocalDatetime | None = None
     timezone: _Timezone = None
+    group_size: Annotated[
+        int | None,
+        Field(
+            ge=1,
+            le=MAX_GROUP_SIZE,
+            description=(
+                "Tickets only: the people it now admits, 1 for one-time or more for a group; "
+                "refused once the current window has ended. Left out, it stays as it is"
+            ),
+        ),
+    ] = None
 
 
 class BatchItemIn(TicketIn):

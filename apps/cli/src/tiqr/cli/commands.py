@@ -845,6 +845,10 @@ def ticket_reissue(
     valid_from: Annotated[str | None, typer.Option("--from", "-f")] = None,
     valid_until: Annotated[str | None, typer.Option("--until", "-u")] = None,
     timezone: Annotated[str | None, typer.Option("--tz")] = None,
+    group_size: Annotated[
+        int | None,
+        typer.Option("--group-size", "-g", help="People it admits; until its window ends"),
+    ] = None,
 ) -> None:
     """Reissue a ticket in any state, as the same ticket; this is also how it is edited."""
     with _session() as runtime:
@@ -855,6 +859,7 @@ def ticket_reissue(
             ticket_id,
             valid_from=parse_input_datetime(valid_from, zone) if valid_from else None,
             valid_until=parse_input_datetime(valid_until, zone) if valid_until else None,
+            group_size=group_size,
         )
         _json(runtime.ticket_data(ticket))
 

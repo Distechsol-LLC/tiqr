@@ -58,10 +58,10 @@
       the card by default), so the border stops short of the text. At rest it stays transparent. -->
     <label
       class={[
-        'text-surface-600-400 pointer-events-none absolute top-4 left-[calc((var(--text-base)-var(--spacing)*0.5)/2)] origin-left rounded-sm bg-transparent px-1 text-base leading-none',
-        'peer-focus:text-primary-600-400 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:bg-[var(--floating-label-notch,var(--color-surface-100-900))]',
+        'text-surface-700-300 pointer-events-none absolute top-4 left-[calc((var(--text-base)-var(--spacing)*0.5)/2)] origin-left rounded-sm bg-transparent px-1 text-base leading-none',
+        'peer-focus:text-primary-700-300 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:bg-[var(--floating-label-notch,var(--color-surface-100-900))]',
         'peer-not-placeholder-shown:-translate-y-6 peer-not-placeholder-shown:scale-75 peer-not-placeholder-shown:bg-[var(--floating-label-notch,var(--color-surface-100-900))]',
-        'peer-aria-invalid:text-error-600-400',
+        'peer-aria-invalid:text-error-700-300',
         'motion-safe:transition-[translate,scale,color,background-color] motion-safe:duration-200 motion-safe:ease-out',
       ]}
       for={id}

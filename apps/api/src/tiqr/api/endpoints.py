@@ -805,7 +805,8 @@ def reissue_ticket(
 ) -> TicketOut:
     """Reissue a ticket in any state, as the same ticket; this is also how it is edited.
 
-    The ticket returns to issued. The window may be moved; it must end in the future. Send an
+    The ticket returns to issued. The window may be moved; it must end in the future. A ticket's
+    `group_size` may change until its current window ends, and its price with it. Send an
     `Idempotency-Key` so a retry is answered from the first attempt.
     """
     timezone = body.timezone or server.timezone
@@ -816,6 +817,7 @@ def reissue_ticket(
             ticket_id,
             valid_from=_when(body.valid_from, timezone),
             valid_until=_when(body.valid_until, timezone),
+            group_size=body.group_size,
         )
         return 200, _ticket(server, ticket)
 

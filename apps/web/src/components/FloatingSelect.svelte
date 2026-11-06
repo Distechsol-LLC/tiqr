@@ -69,13 +69,13 @@
     <!-- Floats onto the top border like FloatingInput's, once focused or picked, with the same background -->
     <label
       class={[
-        'text-surface-600-400 pointer-events-none absolute top-4 left-[calc((var(--text-base)-var(--spacing)*0.5)/2)] origin-left rounded-sm px-1 text-base leading-none',
-        'peer-focus:text-primary-600-400 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:bg-[var(--floating-label-notch,var(--color-surface-100-900))]',
+        'text-surface-700-300 pointer-events-none absolute top-4 left-[calc((var(--text-base)-var(--spacing)*0.5)/2)] origin-left rounded-sm px-1 text-base leading-none',
+        'peer-focus:text-primary-700-300 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:bg-[var(--floating-label-notch,var(--color-surface-100-900))]',
         picked
           ? '-translate-y-6 scale-75 bg-[var(--floating-label-notch,var(--color-surface-100-900))]'
           : 'bg-transparent',
-        'peer-aria-invalid:text-error-600-400',
-        'peer-disabled:text-surface-400-600',
+        'peer-aria-invalid:text-error-700-300',
+        'peer-disabled:text-surface-300-700',
         'motion-safe:transition-[translate,scale,color,background-color] motion-safe:duration-200 motion-safe:ease-out',
       ]}
       for={id}

@@ -347,13 +347,14 @@ const updateTicketWindow = (
 ): Promise<ApiResult<Ticket>> =>
   request(`/tickets/${id}`, ticketSchema, write('PATCH', csrfToken, patch));
 
-// Brings an expired or revoked ticket back to issued; it keeps its id and serial
+// Brings a ticket back to issued; it keeps its id and serial. A ticket's group_size may change
+// until its current window ends, and its price follows.
 const reissueTicket = (
   csrfToken: string,
   id: string,
-  window: { valid_from?: string; valid_until?: string }
+  input: { group_size?: number; valid_from?: string; valid_until?: string }
 ): Promise<ApiResult<Ticket>> =>
-  request(`/tickets/${id}/reissue`, ticketSchema, write('POST', csrfToken, window));
+  request(`/tickets/${id}/reissue`, ticketSchema, write('POST', csrfToken, input));
 
 // A POST, since every render counts as a print
 const renderTicketPdf = async (csrfToken: string, id: string): Promise<ApiResult<Blob>> => {
