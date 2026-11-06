@@ -507,6 +507,8 @@ class CountsOut(BaseModel):
     issued: int
     passed: int
     expired: int
+    prints: Annotated[int, Field(description="Badges made, summed over the tickets")]
+    passes: Annotated[int, Field(description="Passages made, summed over the tickets")]
 
 
 class VisitorStatsOut(CountsOut):

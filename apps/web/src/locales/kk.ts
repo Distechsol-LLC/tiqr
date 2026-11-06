@@ -221,6 +221,8 @@ const kk: Messages = {
         description: 'Кемінде бір рет өткен, әлі жарамды',
         label: 'Өтті',
       },
+      passes: { description: 'Барлық билеттердегі өтулердің жиыны', label: 'Өтулер' },
+      prints: { description: 'Барлық билеттердегі басулардың жиыны', label: 'Басулар' },
       total: { description: 'Кезеңде берілген әрбір билет', label: 'Барлығы' },
     },
     notLoaded: 'Статистика жүктелмеді',

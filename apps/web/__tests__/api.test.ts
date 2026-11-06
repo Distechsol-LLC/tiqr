@@ -146,7 +146,7 @@ describe('api reads', () => {
   });
 
   it('reads the statistics for all time or for a date range', async () => {
-    const counts = { expired: 0, issued: 1, passed: 0, total: 1 };
+    const counts = { expired: 0, issued: 1, passed: 0, passes: 0, prints: 0, total: 1 };
     const stats = {
       ...counts,
       ticket_types: { Day: counts },

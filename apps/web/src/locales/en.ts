@@ -220,6 +220,8 @@ const en = {
         description: 'Passed at least once, still valid',
         label: 'Passed',
       },
+      passes: { description: 'Passages made, summed over the tickets', label: 'Passes' },
+      prints: { description: 'Badges made, summed over the tickets', label: 'Prints' },
       total: { description: 'Every ticket issued in the period', label: 'Total' },
     },
     notLoaded: 'Statistics not loaded',

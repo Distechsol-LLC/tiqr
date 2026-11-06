@@ -137,6 +137,8 @@ def _counts(tickets: list[Ticket]) -> Counts:
         issued=states[TicketState.ISSUED],
         passed=states[TicketState.PASSED],
         expired=states[TicketState.EXPIRED],
+        prints=sum(ticket.print_count for ticket in tickets),
+        passes=sum(ticket.use_count for ticket in tickets),
     )
 
 
@@ -219,6 +221,8 @@ class Counts(TypedDict):
     issued: int
     passed: int
     expired: int
+    prints: int
+    passes: int
 
 
 class VisitorStats(Counts):

@@ -25,7 +25,7 @@
   import { i18n } from '%/useLocale.svelte.ts';
   import { createSortParams } from '%/useSortParams.svelte.ts';
   import { type Sheet, downloadXlsx, toXlsx } from '%/xlsx.ts';
-  import { type Counts, METRICS, type Stats } from '$/operations.ts';
+  import { type Counts, METRICS, type Stats, TALLIES } from '$/operations.ts';
 
   type Operation = 'cleanup' | 'sync';
   type Range = Span | 'all' | 'range';
@@ -206,7 +206,7 @@
         ...tickets.map(typeLabel),
         i18n.t.overview.columns.meaning,
       ],
-      ...METRICS.map((metric) => [
+      ...[...METRICS, ...TALLIES].map((metric) => [
         i18n.t.overview.metrics[metric].label,
         group[metric],
         ...tickets.map((ticket) => group.ticket_types[ticket]?.[metric] ?? 0),
@@ -378,7 +378,10 @@
   {/snippet}
 </PageHeader>
 
-{#snippet metricRow(metric: Metric, figures: Counts & { ticket_types: Record<string, Counts> })}
+{#snippet metricRow(
+  metric: keyof Counts,
+  figures: Counts & { ticket_types: Record<string, Counts> }
+)}
   <tr>
     <td class="font-semibold">{i18n.t.overview.metrics[metric].label}</td>
     <td class="text-right text-lg tabular-nums">{figures[metric]}</td>
@@ -426,7 +429,7 @@
   {/snippet}
 
   {#if stats}
-    {#each rowsOf(stats) as metric (metric)}
+    {#each [...rowsOf(stats), ...TALLIES] as metric (metric)}
       {@render metricRow(metric, stats)}
     {/each}
     {#each visitorTypes as visitor (visitor)}
@@ -443,7 +446,7 @@
           </div>
         </th>
       </tr>
-      {#each rowsOf(stats.visitor_types[visitor]) as metric (metric)}
+      {#each [...rowsOf(stats.visitor_types[visitor]), ...TALLIES] as metric (metric)}
         {@render metricRow(metric, stats.visitor_types[visitor])}
       {/each}
     {/each}

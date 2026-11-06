@@ -6,6 +6,8 @@ const counts = {
   expired: 2,
   issued: 4,
   passed: 2,
+  passes: 3,
+  prints: 4,
   total: 8,
 };
 

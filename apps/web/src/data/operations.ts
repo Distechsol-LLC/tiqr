@@ -60,6 +60,8 @@ const countsSchema = z.object({
   expired: z.number().int().nonnegative(),
   issued: z.number().int().nonnegative(),
   passed: z.number().int().nonnegative(),
+  passes: z.number().int().nonnegative(),
+  prints: z.number().int().nonnegative(),
   total: z.number().int().nonnegative(),
 });
 
@@ -80,10 +82,13 @@ type Stats = z.infer<typeof statsSchema>;
 
 // The figures the stats page shows, in its order; each is labelled in the showing language
 const METRICS = ['total', 'issued', 'passed', 'expired'] satisfies (keyof Counts)[];
+// The summed counters, shown last with their own meanings
+const TALLIES = ['prints', 'passes'] satisfies (keyof Counts)[];
 
 export type { ActiveHours, ActiveHoursInput, Config, Counts, Stats };
 export {
   METRICS,
+  TALLIES,
   activeHoursInputSchema,
   activeHoursSchema,
   configSchema,
