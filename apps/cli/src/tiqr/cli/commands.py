@@ -857,7 +857,9 @@ def ticket_reissue(
     timezone: Annotated[str | None, typer.Option("--tz")] = None,
     group_size: Annotated[
         int | None,
-        typer.Option("--group-size", "-g", help="People it admits; until its window ends"),
+        typer.Option(
+            "--group-size", "-g", help="People a group admits (2-100), until its window ends"
+        ),
     ] = None,
 ) -> None:
     """Reissue a ticket in any state, as the same ticket; this is also how it is edited."""

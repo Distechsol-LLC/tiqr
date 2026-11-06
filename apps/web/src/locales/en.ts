@@ -106,7 +106,6 @@ const en = {
     validFromRequired: 'Pick when the ticket starts.',
     validUntilBefore: 'The end must not be before the start.',
     validUntilRequired: 'Pick when the ticket ends.',
-    visitorCountInvalid: 'Enter a whole number from 1 to 100.',
     visitorNameLong: 'Visitor name is too long.',
     visitorNameRequired: 'Enter the visitor name.',
     visitorSubtypeRequired: 'Pick the visitor subtype.',

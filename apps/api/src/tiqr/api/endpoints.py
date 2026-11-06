@@ -856,8 +856,9 @@ def reissue_ticket(
 ) -> TicketOut:
     """Reissue a ticket in any state, as the same ticket; this is also how it is edited.
 
-    The ticket returns to issued. The window may be moved; it must end in the future. A ticket's
-    `group_size` may change until its current window ends, and its price with it. Send an
+    The ticket returns to issued. The window may be moved; it must end in the future. A group
+    ticket's `group_size` may change, from 2 to 100, until its current window ends, and its price
+    with it; a group never becomes one-time, nor a one-time ticket a group. Send an
     `Idempotency-Key` so a retry is answered from the first attempt.
     """
     timezone = body.timezone or server.timezone

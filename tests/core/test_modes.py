@@ -297,16 +297,29 @@ def test_the_mode_is_read_from_the_environment(monkeypatch, project_root):
         Settings.from_env()
 
 
-def test_a_reissue_changes_the_visitors_and_the_price_follows(service, accounts, clock):
-    ticket = create(service, accounts, clock, ticket_type="Entry")
+def test_a_reissue_changes_a_groups_visitors_and_the_price_follows(service, accounts, clock):
+    ticket = create(
+        service, accounts, clock, usage_type=UsageType.GROUP, group_size=2, ticket_type="Entry"
+    )
     group = service.reissue_ticket(accounts["operator"], ticket.id, group_size=3)
     assert (group.usage_type, group.group_size, group.price) == (UsageType.GROUP, 3, 1503)
-    single = service.reissue_ticket(accounts["operator"], ticket.id, group_size=1)
-    assert (single.usage_type, single.group_size, single.price) == (UsageType.ONE_TIME, 1, 501)
     detail = service.repository.list_audit(ticket.id)[-1].detail
-    assert "group_size 3 -> 1; price 1503 -> 501" in detail
-    with pytest.raises(ValueError, match="from 1 to 100"):
-        service.reissue_ticket(accounts["operator"], ticket.id, group_size=101)
+    assert "group_size 2 -> 3; price 1002 -> 1503" in detail
+    for size in (0, 101):
+        with pytest.raises(ValueError, match="from 2 to 100"):
+            service.reissue_ticket(accounts["operator"], ticket.id, group_size=size)
+
+
+def test_a_reissue_never_turns_a_group_into_one_time_or_back(service, accounts, clock):
+    group = create(service, accounts, clock, usage_type=UsageType.GROUP, group_size=3)
+    with pytest.raises(ValueError, match="from 2 to 100"):
+        service.reissue_ticket(accounts["operator"], group.id, group_size=1)
+    single = create(service, accounts, clock)
+    with pytest.raises(ValueError, match="Only a group ticket"):
+        service.reissue_ticket(accounts["operator"], single.id, group_size=3)
+    # Its own size is no change, so the reissue itself still goes through.
+    again = service.reissue_ticket(accounts["operator"], single.id, group_size=1)
+    assert (again.usage_type, again.group_size) == (UsageType.ONE_TIME, 1)
 
 
 def test_the_visitors_cannot_change_once_the_window_has_ended(service, accounts, clock):

@@ -109,7 +109,6 @@ const kk: Messages = {
     validFromRequired: 'Билеттің басталу уақытын таңдаңыз.',
     validUntilBefore: 'Аяқталу уақыты басталу уақытынан ерте болмауы керек.',
     validUntilRequired: 'Билеттің аяқталу уақытын таңдаңыз.',
-    visitorCountInvalid: '1-ден 100-ге дейінгі бүтін санды енгізіңіз.',
     visitorNameLong: 'Келушінің аты тым ұзын.',
     visitorNameRequired: 'Келушінің атын енгізіңіз.',
     visitorSubtypeRequired: 'Келуші кіші түрін таңдаңыз.',

@@ -175,11 +175,11 @@ const editInputSchema = z
     path: ['valid_until'],
   });
 
-// How many people a reissued ticket admits, as typed: one for one-time, more for a group
+// How many people a reissued group admits, as typed; it stays a group, so never fewer than two
 const parseVisitorCount = (text: string): number | null => {
   const count = Number(text.trim());
 
-  return GROUP_TEXT.test(text.trim()) && count >= 1 && count <= GROUP_MAX ? count : null;
+  return GROUP_TEXT.test(text.trim()) && count >= GROUP_MIN && count <= GROUP_MAX ? count : null;
 };
 
 // Mirrors Ticket.price in apps/core/src/tiqr/core/models.py: the ticket's discounted price once

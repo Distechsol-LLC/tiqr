@@ -346,7 +346,13 @@ def test_reissue_brings_the_same_ticket_back_and_replays_on_retry(admin, registr
 
 
 def test_reissue_changes_the_group_size_until_the_window_ends(admin, clock):
-    ticket = create_ticket(admin, valid_from="2026-09-17T12:05", valid_until="2026-09-17T12:20")
+    ticket = create_ticket(
+        admin,
+        valid_from="2026-09-17T12:05",
+        valid_until="2026-09-17T12:20",
+        usage_type="group",
+        group_size=2,
+    )
     grown = admin.post(f"/api/tickets/{ticket['id']}/reissue", json={"group_size": 4})
     assert grown.status_code == 200
     assert (grown.json()["usage_type"], grown.json()["group_size"]) == ("group", 4)
@@ -357,6 +363,13 @@ def test_reissue_changes_the_group_size_until_the_window_ends(admin, clock):
         json={"group_size": 2, "valid_until": "2026-09-17T18:00"},
     )
     assert late.status_code == 409
+
+
+def test_reissue_keeps_a_one_time_ticket_for_one_person(admin):
+    ticket = create_ticket(admin)
+    response = admin.post(f"/api/tickets/{ticket['id']}/reissue", json={"group_size": 3})
+    assert response.status_code == 422
+    assert admin.get(f"/api/tickets/{ticket['id']}").json()["usage_type"] == "one_time"
 
 
 def test_reissue_with_a_biostar_failure_leaves_the_ticket_revoked(admin, registrar):
