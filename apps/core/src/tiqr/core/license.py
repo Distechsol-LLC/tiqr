@@ -15,6 +15,7 @@ import re
 import secrets
 import socket
 import struct
+import sys
 import uuid
 from contextlib import suppress
 from dataclasses import dataclass
@@ -47,6 +48,7 @@ _MACHINE_ID = re.compile(r"[0-9A-F]{32}")
 _REQUEST_ID = re.compile(r"[0-9A-F]{16}")
 _DAY_SECONDS = 86_400
 _MAC_BYTES = 6
+_OS_MACHINE_ID = re.compile(r"[0-9a-f]{32}")
 
 
 class LicenseType(StrEnum):
@@ -126,15 +128,16 @@ def _permanent_mac(name: str) -> str | None:
 
 
 def _card_mac(interface: Path) -> str:
-    """An interface's address. A physical card may show a temporary one, so use its real one.
+    """A physical card's real address; `""` for virtual interfaces and cards that won't say.
 
-    Network managers randomize a Wi-Fi card's address while scanning and put it back afterwards,
-    so reading the live address made the fingerprint depend on when the program started.
+    Virtual interfaces (docker0, veth*, br-*, virbr*, VPN tunnels) come and go and get a random
+    address each boot, so they are skipped. Network managers also randomize a Wi-Fi card's live
+    address while scanning, so a card that isn't showing its burned-in address is asked for it.
     """
+    if not (interface / "device").exists():
+        return ""
     live = (interface / "address").read_text().strip().lower()
-    is_physical = (interface / "device").exists()
-    assigned = (interface / "addr_assign_type").read_text().strip() if is_physical else "0"
-    if assigned == "0":
+    if (interface / "addr_assign_type").read_text().strip() == "0":
         return live
     return _permanent_mac(interface.name) or ""  # no permanent address: skip it, don't guess
 
@@ -154,12 +157,59 @@ def _macs() -> list[str]:
     return sorted(found - {"", "00:00:00:00:00:00"})
 
 
+def _windows_machine_guid() -> str | None:
+    """The GUID Windows generates at setup; any account can read it, a reboot never changes it."""
+    if sys.platform != "win32":
+        return None
+    import winreg  # noqa: PLC0415 - Windows only
+
+    with suppress(OSError):
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Cryptography",
+            0,
+            winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
+        ) as key:
+            value, _ = winreg.QueryValueEx(key, "MachineGuid")
+        return str(value).strip().lower() or None
+    return None
+
+
+def _linux_machine_id() -> str | None:
+    """systemd's /etc/machine-id (or D-Bus's copy): written once at install, kept across boots."""
+    for path in ("/etc/machine-id", "/var/lib/dbus/machine-id"):
+        with suppress(OSError):
+            value = Path(path).read_text().strip().lower()
+            if _OS_MACHINE_ID.fullmatch(value):  # "uninitialized" on an image's first boot
+                return value
+    return None
+
+
+def _os_install_id() -> str | None:
+    """The operating system's own ID for this install, when it keeps one."""
+    match platform.system():
+        case "Windows":
+            return _windows_machine_guid()
+        case "Linux":
+            return _linux_machine_id()
+        case _:
+            return None
+
+
 def machine_id() -> str:
     """A stable fingerprint of this install: 32 uppercase hex.
 
+    It must come out the same after every reboot, or a key stops verifying and the license is
+    asked for again. The OS's install ID is used when there is one; network addresses were the
+    source before and are only the fallback now: Windows reports whichever adapter it lists
+    first, and that changes between boots, and Linux brings up virtual interfaces with random
+    addresses. The hostname is left out because DHCP can rename a machine at boot.
+
     Owner-controlled inputs, so it identifies a machine without protecting against its owner.
     """
-    parts = [socket.gethostname(), platform.system().lower(), platform.machine(), *_macs()]
+    install_id = _os_install_id()
+    identity = [install_id] if install_id else [socket.gethostname(), *_macs()]
+    parts = [platform.system().lower(), platform.machine(), *identity]
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:32].upper()
 
 

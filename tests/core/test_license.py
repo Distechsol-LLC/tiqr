@@ -202,3 +202,36 @@ def test_machine_id_works_without_sys_class_net(monkeypatch):
 
     monkeypatch.setattr(Path, "iterdir", missing)
     assert len(module.machine_id()) == 32
+
+
+def test_virtual_interface_is_skipped(tmp_path):
+    """docker0, veth*, br-* get a new random address each boot; they must not move the ID."""
+    from tiqr.core import license as module  # noqa: PLC0415
+
+    bridge = tmp_path / "docker0"
+    bridge.mkdir()
+    (bridge / "addr_assign_type").write_text("1\n")
+    (bridge / "address").write_text("02:42:ac:11:00:02\n")
+    assert module._card_mac(bridge) == ""
+
+
+def test_machine_id_survives_a_reboot(monkeypatch):
+    """The OS install ID decides; adapters and the hostname may change between boots."""
+    from tiqr.core import license as module  # noqa: PLC0415
+
+    monkeypatch.setattr(module, "_os_install_id", lambda: "b932e1b4f21944f78a2893afd17b96bc")
+    seen = set()
+    for host, macs in (("desk", ["04:f0:ee:42:13:2d"]), ("dhcp-17", ["02:42:ac:11:00:02"])):
+        monkeypatch.setattr(module.socket, "gethostname", lambda host=host: host)
+        monkeypatch.setattr(module, "_macs", lambda macs=macs: macs)
+        seen.add(module.machine_id())
+    assert len(seen) == 1
+
+
+def test_uninitialized_machine_id_falls_back(monkeypatch):
+    from pathlib import Path  # noqa: PLC0415
+
+    from tiqr.core import license as module  # noqa: PLC0415
+
+    monkeypatch.setattr(Path, "read_text", lambda _self: "uninitialized\n")
+    assert module._linux_machine_id() is None
