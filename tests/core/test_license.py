@@ -189,3 +189,16 @@ def test_card_with_a_temporary_address_and_no_permanent_one_is_skipped(tmp_path,
     (card / "address").write_text("62:35:e0:e7:0c:47\n")
     monkeypatch.setattr(module, "_permanent_mac", lambda _: None)
     assert module._card_mac(card) == ""
+
+
+def test_machine_id_works_without_sys_class_net(monkeypatch):
+    """Windows, macOS and some containers have no /sys/class/net."""
+    from pathlib import Path  # noqa: PLC0415
+
+    from tiqr.core import license as module  # noqa: PLC0415
+
+    def missing(_self):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(Path, "iterdir", missing)
+    assert len(module.machine_id()) == 32

@@ -142,9 +142,10 @@ def _card_mac(interface: Path) -> str:
 def _macs() -> list[str]:
     """Every hardware address, sorted: enumeration order is not guaranteed between boots."""
     found: set[str] = set()
-    for interface in Path("/sys/class/net").iterdir():
-        with suppress(OSError):
-            found.add(_card_mac(interface))
+    with suppress(OSError):  # no /sys/class/net off Linux, or in a stripped-down container
+        for interface in Path("/sys/class/net").iterdir():
+            with suppress(OSError):
+                found.add(_card_mac(interface))
     if not found:
         node = uuid.getnode()
         # getnode() invents a random number when it finds no address; the multicast bit says so
