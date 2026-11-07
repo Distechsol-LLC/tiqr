@@ -383,19 +383,13 @@ const printTicket = (csrfToken: string, id: string, lang: string): Promise<ApiRe
     write('POST', csrfToken)
   );
 
+const countOnly = countSchema.transform(({ count }) => count);
+
 const runSync = (csrfToken: string): Promise<ApiResult<number>> =>
-  request(
-    '/sync',
-    countSchema.transform(({ count }) => count),
-    write('POST', csrfToken)
-  );
+  request('/sync', countOnly, write('POST', csrfToken));
 
 const runCleanup = (csrfToken: string): Promise<ApiResult<number>> =>
-  request(
-    '/cleanup',
-    countSchema.transform(({ count }) => count),
-    write('POST', csrfToken)
-  );
+  request('/cleanup', countOnly, write('POST', csrfToken));
 
 // Tickets created on these days, both ends inclusive, on the server's clock; without, every one
 const fetchStats = (range?: DateRange): Promise<ApiResult<Stats>> =>

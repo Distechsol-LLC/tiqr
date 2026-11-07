@@ -54,6 +54,33 @@ const isWithinHours = (hours: { end: string; start: string }, clock: string): bo
   return start < end ? start <= moment && moment < end : moment >= start || moment < end;
 };
 
+// Whether a window may close at a whole HH:MM time: inside the hours, or exactly at their end
+const isEndWithinHours = (hours: { end: string; start: string }, clock: string): boolean =>
+  isWithinHours(hours, clock) || clock === hours.end;
+
+const DAY_MS = 86_400_000;
+
+// The day, YYYY-MM-DD, moved by whole days
+const shiftDay = (day: string, days: number): string =>
+  new Date(Date.parse(`${day}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+
+// The window to start a ticket with when hours are set: the hours themselves, on the day they are
+// in force at `local` (a YYYY-MM-DDTHH:MM wall-clock time). Hours that run past midnight belong to
+// the day they began, so just after midnight that is yesterday; the end then falls on the next day
+const hoursWindow = (
+  hours: { end: string; start: string },
+  local: string
+): { end: string; start: string } => {
+  const [day = '', clock = ''] = local.split('T');
+  const wraps = toMinutes(hours.end) <= toMinutes(hours.start);
+  const first = wraps && toMinutes(clock) < toMinutes(hours.end) ? shiftDay(day, -1) : day;
+
+  return {
+    end: `${wraps ? shiftDay(first, 1) : first}T${hours.end}`,
+    start: `${first}T${hours.start}`,
+  };
+};
+
 const countSchema = z.object({ count: z.number().int().nonnegative() });
 
 const countsSchema = z.object({
@@ -93,6 +120,8 @@ export {
   activeHoursSchema,
   configSchema,
   countSchema,
+  hoursWindow,
+  isEndWithinHours,
   isWithinHours,
   statsSchema,
 };

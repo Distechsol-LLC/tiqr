@@ -160,6 +160,11 @@ class ActiveHours:
             return self.start <= moment < self.end
         return moment >= self.start or moment < self.end
 
+    def allows_end(self, moment: time) -> bool:
+        """Whether a window may close at the wall-clock time `moment`: inside the hours, or
+        exactly at `end`, since a window running to the close of day is what the hours describe."""
+        return self.allows(moment) or moment == self.end
+
 
 @dataclass(frozen=True, slots=True)
 class Ticket:

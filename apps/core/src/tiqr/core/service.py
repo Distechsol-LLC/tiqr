@@ -959,6 +959,34 @@ class TicketService:
             raise ModeError("Only a group ticket admits more than one person")
         return "", usage, group_size
 
+    def _require_active_hours(
+        self,
+        start: datetime,
+        end: datetime,
+        now: datetime | None = None,
+        *,
+        was: Ticket | None = None,
+    ) -> None:
+        """Refuse a ticket made at `now`, or running from or to a time of day, outside the active
+        hours. A window end the ticket `was` already given is left alone, so a reissue or edit
+        that moves only the other end is not held to hours set after the first was chosen.
+        """
+        hours = self.repository.active_hours()
+        if hours is None:
+            return
+        local = zone(self.timezone)
+        span = f"from {hours.start:%H:%M} to {hours.end:%H:%M} ({self.timezone})"
+        if now is not None and not hours.allows(now.astimezone(local).time()):
+            raise OutsideActiveHoursError(f"Tickets can only be created {span}")
+        start_out = (was is None or start != was.valid_from) and not hours.allows(
+            start.astimezone(local).time()
+        )
+        end_out = (was is None or end != was.valid_until) and not hours.allows_end(
+            end.astimezone(local).time()
+        )
+        if start_out or end_out:
+            raise OutsideActiveHoursError(f"A ticket's access window can only start and end {span}")
+
     def create_ticket(  # noqa: PLR0913 - a ticket's definition is its own arguments
         self,
         actor: User,
@@ -989,12 +1017,7 @@ class TicketService:
             raise ValueError("Access window is reversed or already expired")
         if start.microsecond or end.microsecond:
             raise ValueError("Access windows require whole-second precision for BioStar alignment")
-        hours = self.repository.active_hours()
-        if hours is not None and not hours.allows(now.astimezone(zone(self.timezone)).time()):
-            raise OutsideActiveHoursError(
-                f"Tickets can only be created from {hours.start:%H:%M} to {hours.end:%H:%M}"
-                f" ({self.timezone})"
-            )
+        self._require_active_hours(start, end, now)
         code = _clean_code(external_code)
         if code and self.repository.ticket_by_external_code(self.tenant, code):
             raise ExternalCodeTakenError("A ticket with this external code already exists")
@@ -1180,6 +1203,7 @@ class TicketService:
                 )
             if end < self._now():
                 raise ValueError("Access window is reversed or already expired")
+            self._require_active_hours(start, end, was=ticket)
             session = (
                 ticket.event_session
                 if isinstance(event_session, _Unset)
@@ -1310,6 +1334,7 @@ class TicketService:
                 )
             if end < self._now():
                 raise ValueError("Access window is reversed or already expired")
+            self._require_active_hours(start, end, was=ticket)
             updated = replace(
                 ticket,
                 state=TicketState.ISSUED,

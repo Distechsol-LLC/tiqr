@@ -22,7 +22,7 @@
   import { i18n } from '%/useLocale.svelte.ts';
   import { mode } from '%/useMode.svelte.ts';
   import type { TicketType, VisitorType } from '$/catalog.ts';
-  import { type ActiveHours, isWithinHours } from '$/operations.ts';
+  import { type ActiveHours, hoursWindow, isEndWithinHours, isWithinHours } from '$/operations.ts';
   import {
     GROUP_MAX,
     GROUP_MIN,
@@ -125,12 +125,33 @@
       ? { end: activeHours.end, start: activeHours.start }
       : null
   );
-  // The time pickers grey out the times outside those hours
-  const allowsTime = $derived(
+  // The time pickers grey out the times outside those hours; a window may close at their very end
+  const allowsStart = $derived(
     limit ? (clock: string): boolean => isWithinHours(limit, clock) : undefined
   );
+  const allowsEnd = $derived(
+    limit ? (clock: string): boolean => isEndWithinHours(limit, clock) : undefined
+  );
+  // A time typed rather than picked can still be outside the hours, so the window is checked too
+  const hoursErrors = $derived.by((): { valid_from?: string; valid_until?: string } => {
+    if (!limit) return {};
 
-  const loadCatalog = async (): Promise<void> => {
+    const range = i18n.t.errors.outsideHours(limit.start, limit.end);
+    const clockOf = (local: string): string => local.slice(local.indexOf('T') + 1);
+
+    return {
+      valid_from: validFrom && !isWithinHours(limit, clockOf(validFrom)) ? range : undefined,
+      valid_until: validUntil && !isEndWithinHours(limit, clockOf(validUntil)) ? range : undefined,
+    };
+  });
+  const validFromError = $derived(
+    fieldErrors.valid_from?.[0] ?? (isSubmitted ? hoursErrors.valid_from : undefined)
+  );
+  const validUntilError = $derived(
+    fieldErrors.valid_until?.[0] ?? (isSubmitted ? hoursErrors.valid_until : undefined)
+  );
+
+  const loadCatalog = async (initial: { from: string; until: string }): Promise<void> => {
     const [ticketResult, visitorResult, hoursResult] = await Promise.all([
       // A badge has no ticket type to pick
       isBadge ? Promise.resolve({ data: [], ok: true as const }) : fetchAllTicketTypes(),
@@ -150,11 +171,21 @@
         : visitorResult.data.every((type) => type.subtypes.length === 0);
     } else await notifyFailure(i18n.t.ticketForm.catalogNotLoaded, visitorResult.error);
 
-    if (hoursResult.ok) activeHours = hoursResult.data;
-    else await notifyFailure(i18n.t.activeHours.notLoaded, hoursResult.error);
+    if (hoursResult.ok) {
+      activeHours = hoursResult.data;
+
+      // With hours set, the ticket starts out spanning them, unless the form was already changed
+      if (limit && validFrom === initial.from && validUntil === initial.until) {
+        const window = hoursWindow(limit, initial.from);
+
+        validFrom = window.start;
+        validUntil = window.end;
+      }
+    } else await notifyFailure(i18n.t.activeHours.notLoaded, hoursResult.error);
   };
 
-  // Each opening starts fresh: from the next minute until the end of that day, on the server's clock
+  // Each opening starts fresh: from the next minute until the end of that day, on the server's clock,
+  // or across the active hours once those have loaded
   $effect(() => {
     if (!isOpen) return;
 
@@ -169,13 +200,15 @@
       ticketType = '';
       validFrom = start;
       validUntil = `${start.slice(0, start.indexOf('T'))}${DAY_END}`;
+      const initial = { from: validFrom, until: validUntil };
+
       usageType = 'one_time';
       groupSize = String(GROUP_MIN);
       isSubmitted = false;
       hasNoVisitorTypes = false;
       hasNoTicketTypes = false;
       // Prices change between openings, so each one reads them again
-      void loadCatalog();
+      void loadCatalog(initial);
     });
   });
 
@@ -185,6 +218,7 @@
     const csrfToken = auth.session?.csrf_token;
 
     if (isBlocked || !(validation.ok && csrfToken) || ticketTypeError) return;
+    if (hoursErrors.valid_from || hoursErrors.valid_until) return;
 
     isPending = true;
 
@@ -352,8 +386,8 @@
 
   <div class="grid gap-4">
     <DateTimeField
-      allows={allowsTime}
-      error={fieldErrors.valid_from?.[0]}
+      allows={allowsStart}
+      error={validFromError}
       id="valid-from"
       label={i18n.t.ticketForm.validFrom}
       timeZone={config.current?.timezone}
@@ -361,8 +395,8 @@
     />
 
     <DateTimeField
-      allows={allowsTime}
-      error={fieldErrors.valid_until?.[0]}
+      allows={allowsEnd}
+      error={validUntilError}
       id="valid-until"
       label={i18n.t.ticketForm.validUntil}
       min={validFrom}

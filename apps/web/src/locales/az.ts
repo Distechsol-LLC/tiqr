@@ -90,6 +90,8 @@ const az: Messages = {
     nameLong: 'Ad çox uzundur.',
     nameRequired: 'Ad daxil edin.',
     network: 'Serverə qoşulmaq mümkün deyil. Bağlantınızı yoxlayın və yenidən cəhd edin.',
+    outsideHours: (start: string, end: string): string =>
+      `Vaxtı ${start} ilə ${end} arasında seçin.`,
     passwordLong: 'Şifrə çox uzundur.',
     passwordMismatch: 'Şifrələr uyğun gəlmir.',
     passwordRequired: 'Şifrənizi daxil edin.',

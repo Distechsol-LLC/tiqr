@@ -91,6 +91,7 @@ const ru: Messages = {
     nameLong: 'Название слишком длинное.',
     nameRequired: 'Введите название.',
     network: 'Не удаётся связаться с сервером. Проверьте подключение и повторите попытку.',
+    outsideHours: (start: string, end: string): string => `Выберите время с ${start} до ${end}.`,
     passwordLong: 'Пароль слишком длинный.',
     passwordMismatch: 'Пароли не совпадают.',
     passwordRequired: 'Введите пароль.',

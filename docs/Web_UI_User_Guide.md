@@ -215,7 +215,7 @@ Active hours limit when tickets can be created. Select the clock icon beside **R
 - A **To** time before the **From** time runs past midnight, so 22:00 to 06:00 covers the night.
 - Clear both times and select **Save** to allow tickets at any time again.
 
-Outside the hours, the server refuses new tickets, for operators as well as managers and admins. Tickets already issued are not affected.
+Outside the hours, the server refuses new tickets, for operators as well as managers and admins. A new ticket's **Valid from** and **Valid until** times must also fall inside the hours (the end may be exactly the closing time), and the form starts out spanning them. Reissuing a ticket or moving its validity window is held to the hours too, for any end you change. Tickets already issued are not affected.
 
 ### Visitor types
 

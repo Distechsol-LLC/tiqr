@@ -90,6 +90,8 @@ const kk: Messages = {
     nameLong: 'Атау тым ұзын.',
     nameRequired: 'Атауды енгізіңіз.',
     network: 'Серверге қосылу мүмкін емес. Байланысты тексеріп, қайтадан көріңіз.',
+    outsideHours: (start: string, end: string): string =>
+      `Уақытты ${start} мен ${end} аралығынан таңдаңыз.`,
     passwordLong: 'Құпия сөз тым ұзын.',
     passwordMismatch: 'Құпия сөздер сәйкес келмейді.',
     passwordRequired: 'Құпия сөзді енгізіңіз.',

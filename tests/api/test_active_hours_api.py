@@ -1,13 +1,14 @@
 from datetime import UTC, datetime
 
 PASSWORD = "correct-password"
-# Valid from 19:00 to 21:00 in Baku, so the ticket is still live when the clock moves in the tests
+# Valid the next day from 09:00 to 17:00 in Baku: inside the hours the tests set, and still live
+# when the clock moves
 BODY = {
     "visitor_name": "Əli",
     "visitor_type": "Visitor",
     "visitor_subtype": "Visitor",
-    "valid_from": "2026-09-17T19:00",
-    "valid_until": "2026-09-17T21:00",
+    "valid_from": "2026-09-18T09:00",
+    "valid_until": "2026-09-18T17:00",
     "usage_type": "one_time",
 }
 
@@ -85,3 +86,19 @@ def test_lifting_the_limit_lets_tickets_be_made_again(client, service, clock):
     assert cleared.status_code == 200
     assert cleared.json() == {"start": None, "end": None, "timezone": "Asia/Baku"}
     assert client.post("/api/tickets", json=BODY).status_code == 201
+
+
+def test_a_window_outside_the_hours_is_refused_though_made_inside_them(client, service, clock):
+    service.timezone = "Asia/Baku"
+    login(client, "manager")
+    client.put("/api/active-hours", json={"start": "09:00", "end": "17:00"})
+
+    # 08:00 UTC is 12:00 Baku, inside the hours, but the window runs on to 23:59
+    clock.now = datetime(2026, 9, 17, 8, tzinfo=UTC)
+    refused = client.post("/api/tickets", json={**BODY, "valid_until": "2026-09-18T23:59"})
+    assert refused.status_code == 409
+    assert refused.json()["code"] == "outside_active_hours"
+    assert "access window" in refused.json()["detail"]
+
+    early = client.post("/api/tickets", json={**BODY, "valid_from": "2026-09-18T08:59"})
+    assert early.status_code == 409

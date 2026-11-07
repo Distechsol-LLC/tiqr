@@ -5,7 +5,7 @@
   import DateTimeField from '@/components/DateTimeField.svelte';
   import FloatingInput from '@/components/FloatingInput.svelte';
   import FormDialog from '@/components/FormDialog.svelte';
-  import { reissueTicket } from '%/api.ts';
+  import { fetchActiveHours, reissueTicket } from '%/api.ts';
   import { nextMinute, toLocalInput } from '%/formatters.ts';
   import { formatMinor } from '%/money.ts';
   import { notifyFailure } from '%/notifyFailure.ts';
@@ -13,6 +13,7 @@
   import { auth } from '%/useAuth.svelte.ts';
   import { i18n } from '%/useLocale.svelte.ts';
   import { mode } from '%/useMode.svelte.ts';
+  import { type ActiveHours, hoursWindow, isEndWithinHours, isWithinHours } from '$/operations.ts';
   import {
     GROUP_MAX,
     GROUP_MIN,
@@ -41,12 +42,54 @@
   let isPast = $state(false);
   let isPending = $state(false);
   let isSubmitted = $state(false);
+  let activeHours = $state<ActiveHours | null>(null);
 
   const validation = $derived(
     editInputSchema.safeParse({ valid_from: validFrom, valid_until: validUntil })
   );
   const fieldErrors = $derived(
     isSubmitted && !validation.success ? z.flattenError(validation.error).fieldErrors : {}
+  );
+
+  // The hours tickets may be made in, when a limit is set; the server enforces them on submit
+  const limit = $derived(
+    activeHours?.start && activeHours.end
+      ? { end: activeHours.end, start: activeHours.start }
+      : null
+  );
+  const allowsStart = $derived(
+    limit ? (clock: string): boolean => isWithinHours(limit, clock) : undefined
+  );
+  const allowsEnd = $derived(
+    limit ? (clock: string): boolean => isEndWithinHours(limit, clock) : undefined
+  );
+  // An end the ticket already has is left alone, as on the server, so only a moved one is checked
+  const hoursErrors = $derived.by((): { valid_from?: string; valid_until?: string } => {
+    if (!(limit && ticket)) return {};
+
+    const range = i18n.t.errors.outsideHours(limit.start, limit.end);
+    const clockOf = (local: string): string => local.slice(local.indexOf('T') + 1);
+    const was = {
+      from: toLocalInput(new Date(ticket.valid_from), ticket.timezone),
+      until: toLocalInput(new Date(ticket.valid_until), ticket.timezone),
+    };
+
+    return {
+      valid_from:
+        validFrom && validFrom !== was.from && !isWithinHours(limit, clockOf(validFrom))
+          ? range
+          : undefined,
+      valid_until:
+        validUntil && validUntil !== was.until && !isEndWithinHours(limit, clockOf(validUntil))
+          ? range
+          : undefined,
+    };
+  });
+  const validFromError = $derived(
+    fieldErrors.valid_from?.[0] ?? (isSubmitted ? hoursErrors.valid_from : undefined)
+  );
+  const validUntilError = $derived(
+    fieldErrors.valid_until?.[0] ?? (isSubmitted ? hoursErrors.valid_until : undefined)
   );
 
   // Only a group's people can change; a badge or one-time ticket stays for one person, and a
@@ -76,7 +119,27 @@
     return { after, before, currency: ticket.currency, difference: after - before };
   });
 
-  // Keeps the old window while it still lies ahead; otherwise starts now and runs to the day's end
+  // With hours set, a window that starts afresh spans them, unless the form was changed meanwhile
+  const loadHours = async (initial: { from: string; until: string } | null): Promise<void> => {
+    const result = await fetchActiveHours();
+
+    if (!result.ok) {
+      await notifyFailure(i18n.t.activeHours.notLoaded, result.error);
+      return;
+    }
+
+    activeHours = result.data;
+
+    if (initial && limit && validFrom === initial.from && validUntil === initial.until) {
+      const window = hoursWindow(limit, initial.from);
+
+      validFrom = window.start;
+      validUntil = window.end;
+    }
+  };
+
+  // Keeps the old window while it still lies ahead; otherwise starts now and runs to the day's end,
+  // or across the active hours once those have loaded
   $effect(() => {
     if (!ticket) return;
 
@@ -84,6 +147,7 @@
 
     untrack(() => {
       const now = nextMinute();
+      let initial: { from: string; until: string } | null = null;
 
       if (new Date(current.valid_until) > now) {
         validFrom = toLocalInput(new Date(current.valid_from), current.timezone);
@@ -93,11 +157,14 @@
 
         validFrom = start;
         validUntil = `${start.slice(0, start.indexOf('T'))}${DAY_END}`;
+        initial = { from: validFrom, until: validUntil };
       }
 
       visitorCount = String(current.group_size);
       isPast = new Date(current.valid_until) < new Date();
       isSubmitted = false;
+      activeHours = null;
+      void loadHours(initial);
     });
   });
 
@@ -107,6 +174,7 @@
     const csrfToken = auth.session?.csrf_token;
 
     if (!(ticket && validation.success && csrfToken) || countError) return;
+    if (hoursErrors.valid_from || hoursErrors.valid_until) return;
 
     isPending = true;
 
@@ -199,14 +267,16 @@
 
   <div class="grid gap-4">
     <DateTimeField
-      error={fieldErrors.valid_from?.[0]}
+      allows={allowsStart}
+      error={validFromError}
       id="reissue-valid-from"
       label={i18n.t.ticketForm.validFrom}
       timeZone={ticket?.timezone}
       bind:value={validFrom}
     />
     <DateTimeField
-      error={fieldErrors.valid_until?.[0]}
+      allows={allowsEnd}
+      error={validUntilError}
       id="reissue-valid-until"
       label={i18n.t.ticketForm.validUntil}
       min={validFrom}

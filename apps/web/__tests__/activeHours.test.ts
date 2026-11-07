@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test as it } from 'bun:test';
 
 import { i18n } from '%/useLocale.svelte.ts';
-import { activeHoursInputSchema, activeHoursSchema, isWithinHours } from '$/operations.ts';
+import {
+  activeHoursInputSchema,
+  activeHoursSchema,
+  hoursWindow,
+  isEndWithinHours,
+  isWithinHours,
+} from '$/operations.ts';
 
 describe('active hours', () => {
   beforeEach(() => {
@@ -66,5 +72,40 @@ describe('isWithinHours', () => {
     expect(isWithinHours(night, '05:59')).toBe(true);
     expect(isWithinHours(night, '06:00')).toBe(false);
     expect(isWithinHours(night, '12:00')).toBe(false);
+  });
+
+  it('lets a window close exactly when the hours do, but not a minute later', () => {
+    const hours = { end: '17:00', start: '09:00' };
+
+    expect(isEndWithinHours(hours, '17:00')).toBe(true);
+    expect(isEndWithinHours(hours, '12:30')).toBe(true);
+    expect(isEndWithinHours(hours, '17:01')).toBe(false);
+    expect(isEndWithinHours(hours, '23:59')).toBe(false);
+  });
+
+  it('starts a ticket across the hours on the day they are in force', () => {
+    const hours = { end: '17:00', start: '09:00' };
+
+    expect(hoursWindow(hours, '2026-09-17T10:30')).toEqual({
+      end: '2026-09-17T17:00',
+      start: '2026-09-17T09:00',
+    });
+  });
+
+  it('runs overnight hours into the next day, from yesterday just after midnight', () => {
+    const night = { end: '06:00', start: '22:00' };
+
+    expect(hoursWindow(night, '2026-09-17T23:10')).toEqual({
+      end: '2026-09-18T06:00',
+      start: '2026-09-17T22:00',
+    });
+    expect(hoursWindow(night, '2026-09-18T01:10')).toEqual({
+      end: '2026-09-18T06:00',
+      start: '2026-09-17T22:00',
+    });
+    expect(hoursWindow({ end: '00:00', start: '18:00' }, '2026-12-31T19:00')).toEqual({
+      end: '2027-01-01T00:00',
+      start: '2026-12-31T18:00',
+    });
   });
 });

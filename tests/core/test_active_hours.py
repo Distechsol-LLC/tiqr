@@ -24,16 +24,27 @@ def staff_service(repository, clock, accounts):
     return service
 
 
-def issue(service, accounts, clock, *, actor="operator"):
+def issue(service, accounts, clock, *, actor="operator", length=timedelta(hours=1)):
     return service.create_ticket(
         accounts[actor],
         visitor_name="Name",
         visitor_type="Guest",
         visitor_subtype="Guest",
         valid_from=clock.now,
-        valid_until=clock.now + timedelta(hours=1),
+        valid_until=clock.now + length,
         usage_type=UsageType.ONE_TIME,
     )
+
+
+def test_a_window_may_close_exactly_when_the_hours_do():
+    hours = ActiveHours(time(9), time(17))
+
+    assert hours.allows_end(time(17))
+    assert hours.allows_end(time(12))
+    assert not hours.allows_end(time(17, 0, 1))
+    assert not hours.allows_end(time(23, 59))
+    assert ActiveHours(time(22), time(6)).allows_end(time(6))
+    assert ActiveHours(time(18), time(0)).allows_end(time(0))
 
 
 def test_a_limit_is_inclusive_at_the_start_and_exclusive_at_the_end():
@@ -116,7 +127,7 @@ def test_tickets_are_made_inside_the_hours_in_the_server_zone(
     clock.now = at_local(9)
     assert issue(staff_service, accounts, clock)
     clock.now = at_local(16, 59)
-    assert issue(staff_service, accounts, clock)
+    assert issue(staff_service, accounts, clock, length=timedelta(minutes=1))
 
 
 def test_tickets_are_refused_outside_the_hours_and_nothing_is_saved(
@@ -192,3 +203,104 @@ def test_any_time_is_kept_as_a_choice_not_reset_to_the_default():
         repository.save_active_hours(None)
 
         assert repository.active_hours() is None
+
+
+def test_a_window_running_past_the_hours_is_refused_and_nothing_is_saved(
+    staff_service, accounts, clock, repository
+):
+    staff_service.set_active_hours(accounts["manager"], time(9), time(17))
+    before = len(repository.list_tickets())
+
+    clock.now = at_local(10)
+    with pytest.raises(OutsideActiveHoursError, match=r"access window .*09:00 to 17:00") as refused:
+        issue(staff_service, accounts, clock, length=timedelta(hours=14))
+
+    assert refused.value.code == "outside_active_hours"
+    assert len(repository.list_tickets()) == before
+
+
+def test_a_window_starting_before_the_hours_is_refused(staff_service, accounts, clock):
+    staff_service.set_active_hours(accounts["manager"], time(9), time(17))
+
+    clock.now = at_local(10)
+    with pytest.raises(OutsideActiveHoursError):
+        staff_service.create_ticket(
+            accounts["operator"],
+            visitor_type="Guest",
+            visitor_subtype="Guest",
+            valid_from=at_local(8),
+            valid_until=at_local(12),
+            usage_type=UsageType.ONE_TIME,
+        )
+
+
+def test_a_window_spanning_exactly_the_hours_is_accepted(staff_service, accounts, clock):
+    staff_service.set_active_hours(accounts["manager"], time(9), time(17))
+
+    clock.now = at_local(10)
+    ticket = staff_service.create_ticket(
+        accounts["operator"],
+        visitor_type="Guest",
+        visitor_subtype="Guest",
+        valid_from=at_local(9),
+        valid_until=at_local(17),
+        usage_type=UsageType.ONE_TIME,
+    )
+
+    assert ticket.valid_until == at_local(17)
+
+
+def test_a_reissue_is_held_to_the_hours_for_the_ends_it_moves(staff_service, accounts, clock):
+    clock.now = at_local(10)
+    ticket = issue(staff_service, accounts, clock)
+    staff_service.set_active_hours(accounts["manager"], time(9), time(17))
+
+    with pytest.raises(OutsideActiveHoursError, match="access window"):
+        staff_service.reissue_ticket(
+            accounts["manager"], ticket.id, valid_from=at_local(9), valid_until=at_local(23, 59)
+        )
+    with pytest.raises(OutsideActiveHoursError):
+        staff_service.reissue_ticket(
+            accounts["manager"], ticket.id, valid_from=at_local(8), valid_until=at_local(12)
+        )
+
+    moved = staff_service.reissue_ticket(
+        accounts["manager"], ticket.id, valid_from=at_local(9), valid_until=at_local(17)
+    )
+    assert moved.valid_until == at_local(17)
+
+
+def test_a_reissue_leaving_the_window_alone_is_not_held_to_hours_set_after_it(
+    staff_service, accounts, clock
+):
+    clock.now = at_local(10)
+    ticket = staff_service.create_ticket(
+        accounts["operator"],
+        visitor_type="Guest",
+        visitor_subtype="Guest",
+        valid_from=at_local(10),
+        valid_until=at_local(23, 59),
+        usage_type=UsageType.ONE_TIME,
+    )
+    staff_service.set_active_hours(accounts["manager"], time(9), time(17))
+
+    assert staff_service.reissue_ticket(accounts["manager"], ticket.id).valid_until == at_local(
+        23, 59
+    )
+    # Moving only the start leaves the old end alone too
+    assert staff_service.reissue_ticket(
+        accounts["manager"], ticket.id, valid_from=at_local(11), valid_until=at_local(23, 59)
+    )
+
+
+def test_moving_a_validity_window_is_held_to_the_hours(staff_service, accounts, clock):
+    clock.now = at_local(10)
+    ticket = issue(staff_service, accounts, clock)
+    staff_service.set_active_hours(accounts["manager"], time(9), time(17))
+
+    with pytest.raises(OutsideActiveHoursError):
+        staff_service.update_validity(accounts["manager"], ticket.id, valid_until=at_local(20))
+
+    assert staff_service.update_validity(
+        accounts["manager"], ticket.id, valid_until=at_local(15)
+    ).valid_until == at_local(15)

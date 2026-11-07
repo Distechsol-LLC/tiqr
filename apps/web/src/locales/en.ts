@@ -88,6 +88,7 @@ const en = {
     nameLong: 'Name is too long.',
     nameRequired: 'Enter a name.',
     network: 'Cannot reach the server. Check your connection and try again.',
+    outsideHours: (start: string, end: string): string => `Pick a time from ${start} to ${end}.`,
     passwordLong: 'Password is too long.',
     passwordMismatch: 'Passwords do not match.',
     passwordRequired: 'Enter your password.',
