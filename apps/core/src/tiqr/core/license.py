@@ -5,6 +5,7 @@ payload bytes. Nothing here signs; the private key stays with the vendor. Nothin
 until the signature verifies, and the database only caches what the key says.
 """
 
+import array
 import base64
 import binascii
 import hashlib
@@ -13,6 +14,7 @@ import platform
 import re
 import secrets
 import socket
+import struct
 import uuid
 from contextlib import suppress
 from dataclasses import dataclass
@@ -44,6 +46,7 @@ gQIDAQAB
 _MACHINE_ID = re.compile(r"[0-9A-F]{32}")
 _REQUEST_ID = re.compile(r"[0-9A-F]{16}")
 _DAY_SECONDS = 86_400
+_MAC_BYTES = 6
 
 
 class LicenseType(StrEnum):
@@ -106,12 +109,42 @@ class RequestCode:
     contact: str | None
 
 
+def _permanent_mac(name: str) -> str | None:
+    """The burned-in address of a network card (ETHTOOL_GPERMADDR), or `None` if it won't say."""
+    with suppress(ImportError, OSError, struct.error):
+        import fcntl  # noqa: PLC0415 - Unix only; Windows never reaches here
+
+        ethtool_get_permaddr, siocethtool, size = 0x20, 0x8946, 32
+        buffer = array.array("B", struct.pack("II", ethtool_get_permaddr, size) + bytes(size))
+        request = struct.pack("16sP", name.encode(), buffer.buffer_info()[0])
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            fcntl.ioctl(probe.fileno(), siocethtool, request)
+        length = struct.unpack_from("II", buffer)[1]
+        if length == _MAC_BYTES:
+            return ":".join(f"{byte:02x}" for byte in buffer[8 : 8 + length])
+    return None
+
+
+def _card_mac(interface: Path) -> str:
+    """An interface's address. A physical card may show a temporary one, so use its real one.
+
+    Network managers randomize a Wi-Fi card's address while scanning and put it back afterwards,
+    so reading the live address made the fingerprint depend on when the program started.
+    """
+    live = (interface / "address").read_text().strip().lower()
+    is_physical = (interface / "device").exists()
+    assigned = (interface / "addr_assign_type").read_text().strip() if is_physical else "0"
+    if assigned == "0":
+        return live
+    return _permanent_mac(interface.name) or ""  # no permanent address: skip it, don't guess
+
+
 def _macs() -> list[str]:
     """Every hardware address, sorted: enumeration order is not guaranteed between boots."""
     found: set[str] = set()
-    for address in Path("/sys/class/net").glob("*/address"):
+    for interface in Path("/sys/class/net").iterdir():
         with suppress(OSError):
-            found.add(address.read_text().strip().lower())
+            found.add(_card_mac(interface))
     if not found:
         node = uuid.getnode()
         # getnode() invents a random number when it finds no address; the multicast bit says so

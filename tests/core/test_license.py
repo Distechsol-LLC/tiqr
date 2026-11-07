@@ -163,3 +163,29 @@ def test_only_admins_manage_licenses(licensed, accounts, issue):
         with pytest.raises(PermissionDeniedError):
             licensed.license_history(accounts[role])
     assert licensed.license_request_code(accounts["operator"])
+
+
+def test_card_with_a_temporary_address_keeps_its_permanent_one(tmp_path, monkeypatch):
+    """Wi-Fi managers randomize the address while scanning; the machine ID must not follow it."""
+    from tiqr.core import license as module  # noqa: PLC0415
+
+    card = tmp_path / "wlan0"
+    (card / "device").mkdir(parents=True)
+    (card / "addr_assign_type").write_text("3\n")
+    monkeypatch.setattr(module, "_permanent_mac", lambda _: "04:f0:ee:42:13:2d")
+    seen = set()
+    for live in ("62:35:e0:e7:0c:47", "04:f0:ee:42:13:2d"):
+        (card / "address").write_text(live + "\n")
+        seen.add(module._card_mac(card))
+    assert seen == {"04:f0:ee:42:13:2d"}
+
+
+def test_card_with_a_temporary_address_and_no_permanent_one_is_skipped(tmp_path, monkeypatch):
+    from tiqr.core import license as module  # noqa: PLC0415
+
+    card = tmp_path / "wlan0"
+    (card / "device").mkdir(parents=True)
+    (card / "addr_assign_type").write_text("1\n")
+    (card / "address").write_text("62:35:e0:e7:0c:47\n")
+    monkeypatch.setattr(module, "_permanent_mac", lambda _: None)
+    assert module._card_mac(card) == ""
